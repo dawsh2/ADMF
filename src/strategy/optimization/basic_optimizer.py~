@@ -1,0 +1,270 @@
+# src/strategy/optimization/basic_optimizer.py
+import logging
+import itertools
+import datetime # For timestamps in closing positions
+from typing import Dict, Any, List, Optional, Tuple
+
+from src.core.component import BaseComponent
+from src.core.container import Container
+from src.core.exceptions import ConfigurationError, ComponentError, DependencyNotFoundError
+
+# Import the types of components the optimizer will interact with for type hinting
+from src.data.csv_data_handler import CSVDataHandler
+from src.strategy.ma_strategy import MAStrategy # Assuming MAStrategy for now
+from src.risk.basic_risk_manager import BasicRiskManager
+from src.execution.simulated_execution_handler import SimulatedExecutionHandler
+from src.risk.basic_portfolio import BasicPortfolio
+
+
+class BasicOptimizer(BaseComponent):
+    """
+    A basic grid search optimizer for trading strategies.
+    It iterates through a strategy's parameter space, runs a backtest for each combination,
+    and identifies the parameters yielding the best performance based on a specified metric.
+    """
+
+    def __init__(self, instance_name: str, config_loader, event_bus, component_config_key: str, container: Container):
+        super().__init__(instance_name, config_loader, component_config_key)
+        
+        self._container = container # DI Container to resolve components
+        self._event_bus = event_bus # Though might not be directly used if orchestrating full runs
+
+        # Configuration for the optimizer
+        self._strategy_service_name: str = self.get_specific_config("strategy_service_name", "strategy")
+        self._portfolio_service_name: str = self.get_specific_config("portfolio_service_name", "portfolio_manager")
+        self._data_handler_service_name: str = self.get_specific_config("data_handler_service_name", "data_handler")
+        self._risk_manager_service_name: str = self.get_specific_config("risk_manager_service_name", "risk_manager")
+        self._exec_handler_service_name: str = self.get_specific_config("execution_handler_service_name", "execution_handler")
+        
+        # Metric to optimize for (must be a method name in BasicPortfolio)
+        self._metric_to_optimize: str = self.get_specific_config("metric_to_optimize", "get_final_portfolio_value")
+        self._higher_metric_is_better: bool = self.get_specific_config("higher_metric_is_better", True)
+
+        self.logger.info(
+            f"{self.name} initialized. Optimizing strategy '{self._strategy_service_name}' "
+            f"using metric '{self._metric_to_optimize}' from '{self._portfolio_service_name}'. "
+            f"Higher is better: {self._higher_metric_is_better}."
+        )
+        self._best_params: Optional[Dict[str, Any]] = None
+        self._best_metric_value: Optional[float] = None
+
+    def setup(self):
+        self.logger.info(f"Setting up {self.name}...")
+        # Optimizer setup might involve pre-checks, e.g., if target services are registered in container,
+        # but actual resolution happens per backtest run.
+        self.state = BaseComponent.STATE_INITIALIZED
+        self.logger.info(f"{self.name} setup complete.")
+
+    def _generate_parameter_combinations(self, param_space: Dict[str, List[Any]]) -> List[Dict[str, Any]]:
+        """Generates all combinations from a parameter space."""
+        if not param_space:
+            return [{}] # No parameters to optimize, run with defaults
+
+        keys = list(param_space.keys())
+        value_lists = [param_space[key] for key in keys]
+        
+        combinations = []
+        for value_combination in itertools.product(*value_lists):
+            combinations.append(dict(zip(keys, value_combination)))
+        return combinations
+
+    def _perform_single_backtest_run(self, params_to_test: Dict[str, Any]) -> Optional[float]:
+        """
+        Performs a single backtest run with the given parameters.
+        - Resolves fresh component instances (or re-setups existing ones if container handles singletons carefully).
+        - Sets strategy parameters.
+        - Runs the backtest.
+        - Retrieves the performance metric.
+        - Stops components.
+        Returns the metric value, or None if the run fails.
+        """
+        self.logger.info(f"--- Optimizer: Starting backtest run with parameters: {params_to_test} ---")
+        
+        # These components will be resolved and managed for this single run
+        data_handler: Optional[CSVDataHandler] = None
+        strategy: Optional[MAStrategy] = None # Assuming MAStrategy or similar interface
+        portfolio_manager: Optional[BasicPortfolio] = None
+        risk_manager: Optional[BasicRiskManager] = None
+        execution_handler: Optional[SimulatedExecutionHandler] = None
+        
+        # For simplicity, we'll assume components are singletons for now and their setup method
+        # properly resets them. If not, resolving new instances would be safer but more complex
+        # with the current simple DI. We rely on robust setup() methods.
+
+        components_for_this_run = []
+
+        try:
+            # 1. Resolve all necessary components
+            #    Order of resolution doesn't strictly matter here, but order of setup/start does.
+            data_handler = self._container.resolve(self._data_handler_service_name)
+            strategy = self._container.resolve(self._strategy_service_name)
+            portfolio_manager = self._container.resolve(self._portfolio_service_name)
+            risk_manager = self._container.resolve(self._risk_manager_service_name)
+            execution_handler = self._container.resolve(self._exec_handler_service_name)
+            
+            if not all([data_handler, strategy, portfolio_manager, risk_manager, execution_handler]):
+                self.logger.error("Optimizer: Failed to resolve one or more core components for backtest run.")
+                return None
+
+            components_for_this_run = [
+                data_handler, strategy, portfolio_manager, risk_manager, execution_handler
+                # Not including loggers in the optimizer's managed list for now for simplicity
+            ]
+            
+            # 2. Set parameters on the strategy
+            if hasattr(strategy, "set_parameters"):
+                if not strategy.set_parameters(params_to_test):
+                    self.logger.error(f"Optimizer: Failed to set parameters {params_to_test} on strategy {strategy.name}. Skipping this run.")
+                    return None # Or handle as a failed run with worst possible metric
+            else:
+                self.logger.error(f"Optimizer: Strategy {strategy.name} does not have a set_parameters method.")
+                return None
+
+            # 3. Setup all components (ensures they are reset and ready with new params)
+            for comp in components_for_this_run:
+                self.logger.debug(f"Optimizer: Setting up component '{comp.name}' for run with {params_to_test}")
+                comp.setup() # This MUST reset state
+                if comp.get_state() == BaseComponent.STATE_FAILED:
+                    self.logger.error(f"Optimizer: Component '{comp.name}' failed setup. Skipping run.")
+                    return None
+            
+            # 4. Start components and run the data handler's main loop
+            for comp in components_for_this_run:
+                if comp.get_state() == BaseComponent.STATE_INITIALIZED:
+                    comp.start() # DataHandler's start will block and run the simulation
+                    if comp.get_state() == BaseComponent.STATE_FAILED:
+                        self.logger.error(f"Optimizer: Component '{comp.name}' failed to start. Skipping run.")
+                        return None
+                else: # Should not happen if setup worked
+                    self.logger.warning(f"Optimizer: Component '{comp.name}' not in INITIALIZED state before start.")
+                    return None
+            
+            self.logger.debug(f"Optimizer: Data streaming complete for parameters {params_to_test}.")
+
+            # 5. Close all open positions at the end of this specific run
+            if hasattr(portfolio_manager, "close_all_open_positions") and hasattr(data_handler, "get_last_timestamp"):
+                last_ts = data_handler.get_last_timestamp() or portfolio_manager.get_last_processed_timestamp() or datetime.datetime.now(datetime.timezone.utc)
+                self.logger.debug(f"Optimizer: Closing positions for run with {params_to_test} at {last_ts}")
+                portfolio_manager.close_all_open_positions(last_ts)
+            
+            # 6. Get the performance metric
+            metric_value = None
+            if hasattr(portfolio_manager, self._metric_to_optimize):
+                metric_method = getattr(portfolio_manager, self._metric_to_optimize)
+                metric_value = metric_method()
+                self.logger.info(f"Optimizer: Parameters {params_to_test} -> Metric '{self._metric_to_optimize}': {metric_value}")
+            else:
+                self.logger.error(f"Optimizer: PortfolioManager does not have metric method '{self._metric_to_optimize}'.")
+                return None
+            
+            return metric_value
+
+        except (DependencyNotFoundError, ComponentError, ConfigurationError) as e:
+            self.logger.error(f"Optimizer: Error during single backtest run with params {params_to_test}: {e}", exc_info=True)
+            return None
+        except Exception as e:
+            self.logger.error(f"Optimizer: Unexpected error during single backtest run with params {params_to_test}: {e}", exc_info=True)
+            return None
+        finally:
+            # 7. Stop components for this run
+            self.logger.debug(f"Optimizer: Stopping components for run with {params_to_test}")
+            for comp in reversed(components_for_this_run):
+                if hasattr(comp, 'stop') and callable(comp.stop):
+                    try:
+                        comp.stop()
+                    except Exception as e:
+                        self.logger.error(f"Optimizer: Error stopping component '{comp.name}': {e}")
+
+
+    def run_grid_search(self) -> Optional[Tuple[Dict[str, Any], float]]:
+        """
+        Runs a grid search optimization for the configured strategy.
+        Returns a tuple of (best_parameters, best_metric_value) or None if optimization fails.
+        """
+        self.logger.info(f"--- {self.name}: Starting Grid Search Optimization ---")
+        self.state = BaseComponent.STATE_STARTED
+        self._best_params = None
+        self._best_metric_value = -float('inf') if self._higher_metric_is_better else float('inf')
+
+        try:
+            strategy_to_optimize = self._container.resolve(self._strategy_service_name)
+            if not hasattr(strategy_to_optimize, "get_parameter_space") or \
+               not hasattr(strategy_to_optimize, "set_parameters"):
+                self.logger.error(
+                    f"Strategy '{self._strategy_service_name}' does not support optimization "
+                    "(missing get_parameter_space or set_parameters methods)."
+                )
+                self.state = BaseComponent.STATE_FAILED
+                return None
+            
+            param_space = strategy_to_optimize.get_parameter_space()
+            if not param_space:
+                self.logger.warning("Optimizer: Parameter space is empty. Running with default/current strategy parameters.")
+                # Potentially run one backtest with current params if needed
+                # For now, let's assume an empty space means no optimization iterations.
+                param_combinations = [strategy_to_optimize.get_parameters()] if hasattr(strategy_to_optimize, "get_parameters") else [{}]
+            else:
+                 param_combinations = self._generate_parameter_combinations(param_space)
+
+            self.logger.info(f"Generated {len(param_combinations)} parameter combinations to test.")
+            if not param_combinations:
+                self.logger.warning("No parameter combinations to test.")
+                self.state = BaseComponent.STATE_STOPPED # Or FAILED
+                return None
+
+            for i, params in enumerate(param_combinations):
+                self.logger.info(f"Optimizing: Combination {i+1}/{len(param_combinations)} with params: {params}")
+                
+                metric_value = self._perform_single_backtest_run(params)
+
+                if metric_value is not None:
+                    if self._higher_metric_is_better:
+                        if metric_value > self._best_metric_value:
+                            self._best_metric_value = metric_value
+                            self._best_params = params
+                            self.logger.info(f"New best metric: {self._best_metric_value} with params: {self._best_params}")
+                    else: # Lower metric is better
+                        if metric_value < self._best_metric_value:
+                            self._best_metric_value = metric_value
+                            self._best_params = params
+                            self.logger.info(f"New best metric: {self._best_metric_value} with params: {self._best_params}")
+                else:
+                    self.logger.warning(f"Skipping params {params} due to run failure or no metric.")
+
+            if self._best_params:
+                self.logger.info(
+                    f"--- Grid Search Complete --- Best Parameters: {self._best_params}, "
+                    f"Best Metric ('{self._metric_to_optimize}'): {self._best_metric_value:.4f}"
+                )
+                self.state = BaseComponent.STATE_STOPPED
+                return self._best_params, self._best_metric_value
+            else:
+                self.logger.error("Grid Search Optimization failed to find any valid results.")
+                self.state = BaseComponent.STATE_FAILED
+                return None
+
+        except Exception as e:
+            self.logger.error(f"Error during grid search optimization: {e}", exc_info=True)
+            self.state = BaseComponent.STATE_FAILED
+            return None
+        finally:
+            if self.state not in [BaseComponent.STATE_STOPPED, BaseComponent.STATE_FAILED]:
+                self.state = BaseComponent.STATE_STOPPED
+            self.logger.info(f"--- {self.name} Grid Search Ended. State: {self.state} ---")
+            
+    # start() and stop() methods are part of BaseComponent
+    # For an optimizer, start() could trigger run_grid_search(), 
+    # but it's often called more explicitly.
+    # We'll have main.py call run_grid_search directly for now.
+    def start(self):
+        # This could initiate the optimization if desired, or be a no-op
+        # if run_grid_search is called directly.
+        self.logger.info(f"{self.name} started. Call run_grid_search() to begin optimization.")
+        self.state = BaseComponent.STATE_STARTED
+        # self.run_grid_search() # Optionally auto-run
+
+    def stop(self):
+        self.logger.info(f"Stopping {self.name} (Optimizer)...")
+        # Cleanup if any resources were held by the optimizer itself
+        self.state = BaseComponent.STATE_STOPPED
+        self.logger.info(f"{self.name} stopped.")

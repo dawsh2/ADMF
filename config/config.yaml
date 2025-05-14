@@ -30,10 +30,24 @@ components:
   basic_portfolio:
     initial_cash: 100000.00
 
+# In config/config.yaml, under components:
+  basic_risk_manager:
+    target_trade_quantity: 100 # Or your desired default
+
+  optimizer:
+    strategy_service_name: "strategy"
+    portfolio_service_name: "portfolio_manager"
+    data_handler_service_name: "data_handler"
+    risk_manager_service_name: "risk_manager"
+    execution_handler_service_name: "execution_handler"
+    metric_to_optimize: "get_final_portfolio_value" 
+    higher_metric_is_better: True
+
   data_handler_csv:
-    file_path: "data/SPY_1min.csv"
+    csv_file_path: "data/SPY_1min.csv"
     symbol: "SPY"
-    timestamp_column: "timestamp"  # <--- SPECIFY the correct timestamp column
+    timestamp_column: "timestamp"
+    train_test_split_ratio: 0.8
     # We can remove or comment out date_column and time_column from config
     # as they are not present in the CSV in that form.
     # date_column: "Date" # Not needed if using a single timestamp_column
@@ -43,3 +57,4 @@ components:
     low_column: "Low"
     close_column: "Close"
     volume_column: "Volume"
+
