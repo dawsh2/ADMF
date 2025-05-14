@@ -69,13 +69,62 @@ After achieving the primary goals, our next step will be to implement an ensembl
 
 This advanced phase will enable the system to adapt to changing market conditions by activating different strategies or adjusting their weights based on the detected regime, potentially improving overall performance and robustness.
 
+## Advanced Strategy Optimization & Live Trading Pipeline
+
+Following the implementation of our regime-based optimization framework, we will expand the system to include:
+
+1. **Legacy Code Integration and Strategy Mining**:
+   - Analyze and integrate proven strategies from legacy codebases
+   - Port high-performance signal processing algorithms from 'mmbt' codebase
+   - Refactor and optimize existing strategies to work within the ADMF framework
+   - Apply proper software engineering practices to previously successful but unstructured strategies
+   - Create adapters for legacy strategy components to work with ADMF event system
+
+2. **Comprehensive Regime Detection Suite**:
+   - Implement multiple regime detection algorithms (volatility-based, trend-based, correlation-based)
+   - Create a meta-optimizer that cycles through different regime detectors to find the most effective classification
+   - Implement adaptive threshold tuning for regime transitions
+
+3. **Full Rule-Based Strategy Suite**:
+   - Develop a comprehensive library of trading rules and signals
+   - Implement rule combination and filtering mechanisms
+   - Create a hierarchical rule evaluation framework
+
+4. **Advanced Genetic Algorithm Optimization**:
+   - Optimize both strategy parameters and ensemble weights simultaneously
+   - Implement multi-objective optimization to balance return, risk, and robustness
+   - Develop fitness functions that account for regime transition performance
+   - Create a parameter version management system for tracking optimization results
+
+5. **Options Trading Integration**:
+   - Build an options data handler for fetching and processing options chains
+   - Implement specialized risk management for options (Greeks exposure)
+   - Develop 0-1 DTE (Days To Expiration) options strategy modules
+   - Create an options execution handler with specialized order types
+
+6. **Alpaca Paper Trading API Integration**:
+   - Implement live data feed handlers for market data
+   - Create real-time regime detection capabilities
+   - Develop position transition logic for regime changes during live trading
+   - Build a robust order management system with proper error handling
+   - Implement monitoring and alerting for strategy performance
+
+7. **Trading Control System**:
+   - Implement safety controls and circuit breakers
+   - Create performance dashboards for monitoring
+   - Develop a logging system for post-trade analysis
+   - Build reconciliation mechanisms between expected and actual executions
+
+This comprehensive pipeline will allow us to move from backtesting to paper trading with a focus on short-term options trading strategies optimized for different market regimes.
+
 ## Future Extensions
 
-Beyond the ensemble strategy phase, we may further extend the system to include:
+Beyond the advanced strategy and live trading phases, we may further extend the system to include:
 
 1. Multi-symbol backtesting
 2. More sophisticated strategies
 3. Advanced risk management techniques
 4. More realistic broker simulation
 5. Walk-forward optimization
-6. Machine learning integration
+6. Machine learning integration for regime detection and strategy selection
+7. Real money trading with comprehensive risk controls

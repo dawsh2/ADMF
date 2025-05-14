@@ -163,6 +163,7 @@ class EnsembleSignalStrategy(MAStrategy): # Inheriting MAStrategy for quick demo
             
         self.ma_weight = params.get('ma_rule.weight', self.ma_weight)
         self.logger.info(f"EnsembleSignalStrategy '{self.name}' parameters updated.")
+        return True 
 
 # src/strategy/implementations/ensemble_strategy.py
 # Ensure this method is updated in your EnsembleSignalStrategy class:

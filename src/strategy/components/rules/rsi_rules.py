@@ -97,6 +97,7 @@ class RSIRule(BaseComponent):
         self.logger.info(
             f"RSIRule '{self.name}' parameters updated: OS={self.oversold_threshold}, OB={self.overbought_threshold}, W={self._weight}"
         )
+        return True
         
     def reset_state(self):
         self._last_rsi_value = None
