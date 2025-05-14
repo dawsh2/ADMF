@@ -3,58 +3,65 @@ system:
   version: "0.1.0"
 
 logging:
-  level: "INFO" # Controls the logging level (DEBUG, INFO, WARNING, ERROR, CRITICAL)
-
-data: # This was an earlier placeholder, can be kept or removed if not directly used by main config loader
-  csv_file_path: "data/SPY_1min.csv" 
+  level: "INFO" # DEBUG, INFO, WARNING, ERROR, CRITICAL
 
 components:
-  dummy_service:
-    some_setting: "Hello from DummyComponent in config!"
-    another_setting: 42
+  dummy_service: # For SignalLogger and OrderLogger
+    some_setting: "Dummy setting"
 
-  ma_crossover_strategy:
-    symbol: "SPY" # Should match the symbol from CSVDataHandler
-    short_window: 10 # Example: 10-period short MA
-    long_window: 30  # Example: 30-period long MA
+  # Configuration for the new Ensemble Strategy
+  ensemble_strategy:
+    # class_path: "src.strategy.implementations.ensemble_strategy.EnsembleSignalStrategy" # If using a factory
+    symbol: "SPY" # Symbol for the strategy
+    
+    # MA Crossover part (parameters for the parent MAStrategy logic)
+    short_window_default: 10 
+    long_window_default: 20
+    ma_rule.weight: 0.6 # Weight for MA signals in ensemble
 
-  # In config/config.yaml components section:
-# In config/config.yaml components section:
-  simulated_execution_handler:
-    default_quantity: 100
-    commission_per_trade: 0.005 # Example: 0.005 per share or a fixed $ amount
-    commission_type: "per_share" # or "fixed_per_trade"
-    passthrough: false 
-    fill_price_logic: "signal_price" # Options: "signal_price", "next_bar_open" (more advanced)
+    rsi_indicator: # This block corresponds to component_config_key 'components.ensemble_strategy.rsi_indicator'
+      period: 14
+    
+    rsi_rule:      # This block corresponds to component_config_key 'components.ensemble_strategy.rsi_rule'
+      oversold_threshold: 30.0
+      overbought_threshold: 70.0
+      weight: 0.4
 
+
+  # Data Handler
+  data_handler_csv:
+    csv_file_path: "data/SPY_1min.csv"
+    symbol: "SPY"
+    timestamp_column: "timestamp"
+    train_test_split_ratio: 0.8
+    open_column: "Open"
+    high_column: "High"
+    low_column: "Low"
+    close_column: "Close"
+    volume_column: "Volume"
+
+  # Portfolio Manager
   basic_portfolio:
     initial_cash: 100000.00
 
-# In config/config.yaml, under components:
+  # Risk Manager
   basic_risk_manager:
-    target_trade_quantity: 100 # Or your desired default
+    target_trade_quantity: 100 # Example, might be overridden by strategy signals
 
+  # Execution Handler
+  simulated_execution_handler:
+    default_quantity: 100 # Fallback if order has no quantity
+    commission_per_trade: 0.005 
+    commission_type: "per_share" 
+    passthrough: false 
+    fill_price_logic: "signal_price"
+
+  # Optimizer
   optimizer:
-    strategy_service_name: "strategy"
+    strategy_service_name: "strategy" # Must match the DI key for your strategy
     portfolio_service_name: "portfolio_manager"
     data_handler_service_name: "data_handler"
     risk_manager_service_name: "risk_manager"
     execution_handler_service_name: "execution_handler"
     metric_to_optimize: "get_final_portfolio_value" 
     higher_metric_is_better: True
-
-  data_handler_csv:
-    csv_file_path: "data/SPY_1min.csv"
-    symbol: "SPY"
-    timestamp_column: "timestamp"
-    train_test_split_ratio: 0.8
-    # We can remove or comment out date_column and time_column from config
-    # as they are not present in the CSV in that form.
-    # date_column: "Date" # Not needed if using a single timestamp_column
-    # time_column: "Time" # Not needed if using a single timestamp_column
-    open_column: "Open"     # Ensure these match your CSV
-    high_column: "High"
-    low_column: "Low"
-    close_column: "Close"
-    volume_column: "Volume"
-

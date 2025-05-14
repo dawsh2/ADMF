@@ -109,8 +109,8 @@ class MAStrategy(BaseComponent):
         """
         # Example space - make this more dynamic or load from config if needed for more flexibility
         return {
-            "short_window": list(range(5, 7)),  # e.g., [5, 10, 15, 20, 25]
-            "long_window": list(range(20, 21)) # e.g., [20, 30, 40, 50, 60]
+            "short_window": [5, 10],  # considering using 'range' (list(range(5, 7)))
+            "long_window": [20] # e.g., [20, 30, 40, 50, 60]
         }
 
     def setup(self):
