@@ -208,6 +208,36 @@ This checklist tracks the implementation status of improvements identified in IM
 - [ ] **Test**: Develop validation tests for async components
 - [x] **Documentation**: Document asynchronous architecture patterns
 
+### 9.4 Event System Scalability
+
+- [x] **Design**: Design lock-free and partitioned event system for high-frequency operation
+- [ ] **Implement**: Create partitioned event bus implementation
+- [ ] **Implement**: Build event batching and prioritization
+- [ ] **Create**: Implement adaptive scaling based on metrics
+- [ ] **Create**: Develop event system benchmarking tools
+- [ ] **Test**: Create performance tests for event system
+- [x] **Documentation**: Document event system scalability patterns
+
+### 9.5 Configuration Management
+
+- [x] **Design**: Design environment-based configuration system
+- [ ] **Implement**: Create configuration provider implementation
+- [ ] **Implement**: Build schema validation mechanisms
+- [ ] **Create**: Implement secure credential management
+- [ ] **Create**: Develop dynamic configuration updates
+- [ ] **Test**: Create configuration validation tests
+- [x] **Documentation**: Document configuration management approach
+
+### 9.6 Logging and Monitoring
+
+- [x] **Design**: Design comprehensive logging and monitoring framework
+- [ ] **Implement**: Create structured logging implementation
+- [ ] **Implement**: Build metrics collection system
+- [ ] **Create**: Implement health check framework
+- [ ] **Create**: Develop integration with monitoring platforms
+- [ ] **Test**: Create logging and monitoring tests
+- [x] **Documentation**: Document logging and monitoring approach
+
 ## Progress Tracking
 
 | Section | Progress | Notes |
@@ -231,3 +261,6 @@ This checklist tracks the implementation status of improvements identified in IM
 | 9.1 Strategy Lifecycle Management | Design & Documentation Complete | Design for parameter versioning, optimization workflow, monitoring, and deployment; documentation in strategy/optimization/STRATEGY_LIFECYCLE_MANAGEMENT.md |
 | 9.2 Optimization Framework | Design & Documentation Complete | Design for optimization targets, methods, metrics, and sequences; documentation in strategy/optimization/OPTIMIZATION_FRAMEWORK.md |
 | 9.3 Asynchronous Architecture | Design & Documentation Complete | Design for async component interfaces, event loop management, and execution models; documentation in core/ASYNCHRONOUS_ARCHITECTURE.md |
+| 9.4 Event System Scalability | Design & Documentation Complete | Design for partitioned and lock-free event system for high-frequency trading; documentation in core/EVENT_SYSTEM_SCALABILITY.md |
+| 9.5 Configuration Management | Design & Documentation Complete | Design for environment-based configuration with validation and credential management; documentation in core/CONFIGURATION_MANAGEMENT.md |
+| 9.6 Logging and Monitoring | Design & Documentation Complete | Design for structured logging, metrics collection, and health checks; documentation in core/LOGGING_MONITORING.md |
