@@ -1,0 +1,176 @@
+# src/data/csv_data_handler.py
+import logging
+import pandas as pd
+import os # For path joining
+from pathlib import Path # For robust path handling
+
+from src.core.component import BaseComponent
+from src.core.event import Event, EventType
+from src.core.exceptions import ComponentError, ConfigurationError
+# from src.core.event_bus import EventBus # For type hinting if needed
+# from src.core.config import SimpleConfigLoader # For type hinting if needed
+
+class CSVDataHandler(BaseComponent):
+    """
+    A data handler that loads historical market data from a CSV file
+    and publishes BAR events.
+    """
+    def __init__(self, name: str, config_loader, event_bus, component_config_key: str):
+        super().__init__(name, config_loader, component_config_key)
+        
+        self._event_bus = event_bus
+        if not self._event_bus:
+            self.logger.error("EventBus instance is required for CSVDataHandler.")
+            raise ValueError("EventBus instance is required for CSVDataHandler.")
+
+        self._file_path_str: str = self.get_specific_config("file_path")
+        self._symbol: str = self.get_specific_config("symbol")
+        
+        # Expected column names (can be made configurable later)
+        self._date_col = self.get_specific_config("date_column", "Date")
+        self._time_col = self.get_specific_config("time_column", "Time")
+        self._open_col = self.get_specific_config("open_column", "Open")
+        self._high_col = self.get_specific_config("high_column", "High")
+        self._low_col = self.get_specific_config("low_column", "Low")
+        self._close_col = self.get_specific_config("close_column", "Close")
+        self._volume_col = self.get_specific_config("volume_column", "Volume")
+
+        self._data_frame: pd.DataFrame = None
+        self._data_iterator = None # For iterating through bars
+
+        if not self._file_path_str:
+            raise ConfigurationError(f"Missing 'file_path' in configuration for {self.name}")
+        if not self._symbol:
+            raise ConfigurationError(f"Missing 'symbol' in configuration for {self.name}")
+
+        # Construct absolute path assuming file_path is relative to project root
+        # This assumes your script (main.py) is run from the project root.
+        # A more robust way might involve passing a base_dir or using other pathing conventions.
+        project_root = Path().resolve() # Gets current working directory, assumed to be project root
+        self._absolute_file_path = project_root / self._file_path_str
+        
+        self.logger.info(f"CSVDataHandler '{self.name}' configured for symbol '{self._symbol}' using file '{self._absolute_file_path}'.")
+
+    def setup(self):
+        self.logger.info(f"Setting up CSVDataHandler '{self.name}'...")
+        try:
+            if not self._absolute_file_path.exists():
+                self.logger.error(f"CSV file not found at path: {self._absolute_file_path}")
+                self.state = BaseComponent.STATE_FAILED
+                raise ComponentError(f"CSV file not found: {self._absolute_file_path}")
+
+            # Define expected dtypes for robustness, especially for OHLCV columns
+            # This helps catch non-numeric data early.
+            dtypes = {
+                self._open_col: float,
+                self._high_col: float,
+                self._low_col: float,
+                self._close_col: float,
+                self._volume_col: float, # Pandas often reads int as float if NaNs present, or use Int64
+            }
+            # Date and Time will be parsed specifically
+            
+            self._data_frame = pd.read_csv(self._absolute_file_path, dtype=dtypes)
+            self.logger.info(f"Successfully loaded CSV file: {self._absolute_file_path}. Shape: {self._data_frame.shape}")
+
+            # --- Timestamp Combination and Parsing ---
+            # Ensure Date and Time columns exist
+            if self._date_col not in self._data_frame.columns:
+                raise ConfigurationError(f"Date column '{self._date_col}' not found in CSV.")
+            if self._time_col not in self._data_frame.columns:
+                raise ConfigurationError(f"Time column '{self._time_col}' not found in CSV.")
+
+            # Combine Date and Time columns into a single string column for parsing
+            # Pandas to_datetime works well if the format is somewhat standard or specified.
+            # Ensure date and time columns are string type before concatenation if necessary
+            self._data_frame['datetime_str'] = self._data_frame[self._date_col].astype(str) + ' ' + self._data_frame[self._time_col].astype(str)
+            
+            # Convert to datetime objects.
+            # Try to infer format, or specify format if known e.g., format='%Y-%m-%d %H:%M:%S'
+            # Add errors='coerce' to turn unparseable dates into NaT (Not a Time)
+            self._data_frame['timestamp'] = pd.to_datetime(self._data_frame['datetime_str'], errors='coerce')
+            
+            # Check for parsing errors (NaT values)
+            if self._data_frame['timestamp'].isnull().any():
+                num_failed = self._data_frame['timestamp'].isnull().sum()
+                self.logger.error(f"{num_failed} rows failed datetime parsing. Please check CSV date/time format.")
+                self.state = BaseComponent.STATE_FAILED
+                raise ComponentError(f"Datetime parsing failed for {num_failed} rows in {self._absolute_file_path}")
+
+            # Optional: Set timestamp as index (useful for some pandas operations, but not strictly necessary for iteration)
+            # self._data_frame.set_index('timestamp', inplace=True)
+            # self._data_frame.sort_index(inplace=True) # Ensure data is chronological
+
+            # Prepare an iterator for the start() method
+            self._data_iterator = self._data_frame.iterrows()
+            
+            self.state = BaseComponent.STATE_INITIALIZED
+            self.logger.info(f"CSVDataHandler '{self.name}' setup complete. {len(self._data_frame)} bars loaded. State: {self.state}")
+
+        except FileNotFoundError:
+            self.logger.error(f"CSV file not found at path: {self._absolute_file_path}", exc_info=True)
+            self.state = BaseComponent.STATE_FAILED
+            raise ComponentError(f"CSV file not found during setup: {self._absolute_file_path}")
+        except KeyError as e: # For missing columns
+            self.logger.error(f"Missing expected column in CSV: {e}. Check config and CSV header.", exc_info=True)
+            self.state = BaseComponent.STATE_FAILED
+            raise ConfigurationError(f"Missing column {e} in CSV {self._absolute_file_path}")
+        except Exception as e:
+            self.logger.error(f"Error during CSVDataHandler setup for '{self.name}': {e}", exc_info=True)
+            self.state = BaseComponent.STATE_FAILED
+            # Re-raise as ComponentError or a more specific DataError if you define one
+            raise ComponentError(f"Failed to setup CSVDataHandler '{self.name}': {e}") from e
+
+    def start(self):
+        if self.state != BaseComponent.STATE_INITIALIZED:
+            self.logger.warning(f"Cannot start CSVDataHandler '{self.name}' from state '{self.state}'. Expected INITIALIZED.")
+            return
+
+        self.logger.info(f"CSVDataHandler '{self.name}' starting to publish BAR events...")
+        self.state = BaseComponent.STATE_STARTED # Mark as started while publishing
+
+        if self._data_iterator is None:
+            self.logger.error("Data iterator not initialized. Setup might have failed or not been called.")
+            self.state = BaseComponent.STATE_FAILED
+            return
+
+        bars_published = 0
+        try:
+            for index, row in self._data_iterator:
+                # Construct payload for BAR event
+                # Ensure data types are correct (e.g., OHLCV should be float/int)
+                payload = {
+                    "symbol": self._symbol,
+                    "timestamp": row['timestamp'], # This is now a datetime object
+                    "open": float(row[self._open_col]),
+                    "high": float(row[self._high_col]),
+                    "low": float(row[self._low_col]),
+                    "close": float(row[self._close_col]),
+                    "volume": int(row[self._volume_col]) # Or float if volume can be fractional
+                }
+                bar_event = Event(EventType.BAR, payload)
+                self._event_bus.publish(bar_event)
+                bars_published += 1
+                # self.logger.debug(f"Published BAR event for {self._symbol} at {payload['timestamp']}")
+
+            self.logger.info(f"Finished publishing {bars_published} BAR events for '{self.name}'.")
+        except Exception as e:
+            self.logger.error(f"Error during BAR event publishing for '{self.name}': {e}", exc_info=True)
+            self.state = BaseComponent.STATE_FAILED
+            # Depending on policy, this might halt the backtest
+        finally:
+            # After publishing all data, this component's main "active" work is done.
+            # For a simple historical replay, it can transition to STOPPED.
+            # If it were a live data feed, it might remain STARTED and listen for control signals.
+            if self.state == BaseComponent.STATE_STARTED : # Only if no error occurred during publishing
+                self.state = BaseComponent.STATE_STOPPED # Or a new state like "COMPLETED_STREAMING"
+                self.logger.info(f"CSVDataHandler '{self.name}' completed data streaming. State: {self.state}")
+
+
+    def stop(self):
+        self.logger.info(f"Stopping CSVDataHandler '{self.name}'...")
+        # Release resources, if any (e.g., close file handles if kept open, clear large data)
+        self._data_frame = None
+        self._data_iterator = None
+        self.state = BaseComponent.STATE_STOPPED
+        self.logger.info(f"CSVDataHandler '{self.name}' stopped. State: {self.state}")
