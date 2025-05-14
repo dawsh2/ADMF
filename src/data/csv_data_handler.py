@@ -1,155 +1,258 @@
 # src/data/csv_data_handler.py
 import logging
 import pandas as pd
-from pathlib import Path
-from typing import Optional # Make sure Optional is imported
+import datetime
+from typing import Optional, Iterator, Tuple, Any
 
 from src.core.component import BaseComponent
 from src.core.event import Event, EventType
-from src.core.exceptions import ComponentError, ConfigurationError
+from src.core.exceptions import ConfigurationError, ComponentError
 
 class CSVDataHandler(BaseComponent):
-    def __init__(self, 
-                 instance_name: str, 
-                 config_loader, 
-                 event_bus, 
-                 component_config_key: str,
-                 max_bars: Optional[int] = None): # NEW: max_bars parameter
-        super().__init__(instance_name, config_loader, component_config_key) 
+    def __init__(self, instance_name: str, config_loader, event_bus, component_config_key: str,
+                 max_bars: Optional[int] = None): # max_bars here is from CLI's --bars
+        super().__init__(instance_name, config_loader, component_config_key)
         
         self._event_bus = event_bus
         if not self._event_bus:
-            self.logger.error("EventBus instance is required for CSVDataHandler.")
-            raise ValueError("EventBus instance is required for CSVDataHandler.")
+            self.logger.error(f"EventBus instance is required for {self.name}.")
+            raise ConfigurationError(f"EventBus instance is required for {self.name}.")
 
-        self._file_path_str: str = self.get_specific_config("file_path")
         self._symbol: str = self.get_specific_config("symbol")
-        self._timestamp_col = self.get_specific_config("timestamp_column", "timestamp")
-        self._open_col = self.get_specific_config("open_column", "Open")
-        self._high_col = self.get_specific_config("high_column", "High")
-        self._low_col = self.get_specific_config("low_column", "Low")
-        self._close_col = self.get_specific_config("close_column", "Close")
-        self._volume_col = self.get_specific_config("volume_column", "Volume")
-
-        self._max_bars = max_bars # NEW: Store max_bars
-
-        self._data_frame: Optional[pd.DataFrame] = None # Type hint for clarity
-        self._data_iterator = None
-
-        if not self._file_path_str:
-            raise ConfigurationError(f"Missing 'file_path' in configuration for {self.name}")
-        if not self._symbol:
-            raise ConfigurationError(f"Missing 'symbol' in configuration for {self.name}")
-
-        project_root = Path().resolve() 
-        self._absolute_file_path = project_root / self._file_path_str
+        self._csv_file_path: str = self.get_specific_config("csv_file_path")
+        self._timestamp_column: str = self.get_specific_config("timestamp_column", "timestamp")
         
-        log_msg = (
-            f"CSVDataHandler '{self.name}' configured for symbol '{self._symbol}' "
-            f"using file '{self._absolute_file_path}'. Timestamp column: '{self._timestamp_col}'."
-        )
-        if self._max_bars is not None and self._max_bars > 0:
-            log_msg += f" Processing up to {self._max_bars} bars."
-        self.logger.info(log_msg)
+        if not self._symbol or not self._csv_file_path:
+            raise ConfigurationError(f"Missing 'symbol' or 'csv_file_path' for {self.name}")
 
+        self._cli_max_bars = max_bars # From --bars argument
+        
+        self._train_test_split_ratio: Optional[float] = self.get_specific_config("train_test_split_ratio", None)
+        if self._train_test_split_ratio is not None and not (0 < self._train_test_split_ratio < 1):
+            raise ConfigurationError(
+                f"'{self.name}': 'train_test_split_ratio' must be between 0 and 1 (exclusive). "
+                f"Got {self._train_test_split_ratio}"
+            )
+            
+        self._regime_column_to_filter: Optional[str] = self.get_specific_config("regime_column_to_filter", None)
+        self._target_regime_value: Optional[str] = self.get_specific_config("target_regime_value", None)
+
+        self._data_for_run: Optional[pd.DataFrame] = None      # This will be the df after --bars and regime filter
+        self._train_df: Optional[pd.DataFrame] = None
+        self._test_df: Optional[pd.DataFrame] = None
+        self._active_df: Optional[pd.DataFrame] = None
+        
+        self._data_iterator: Optional[Iterator[Tuple[Any, pd.Series]]] = None
+        self._bars_processed_current_run = 0
+        self._last_bar_timestamp: Optional[datetime.datetime] = None
+
+        self.logger.info(self._build_config_log_message())
+
+    def _build_config_log_message(self) -> str:
+        parts = [
+            f"CSVDataHandler '{self.name}' configured for symbol '{self._symbol}' using file '{self._csv_file_path}'.",
+            f"Timestamp column: '{self._timestamp_column}'."
+        ]
+        if self._cli_max_bars is not None:
+            parts.append(f"CLI --bars: Total data for this run initially limited to first {self._cli_max_bars} bars.")
+        if self._regime_column_to_filter and self._target_regime_value:
+            parts.append(f"Regime pre-filtering: for '{self._target_regime_value}' in column '{self._regime_column_to_filter}' (applied after --bars).")
+        if self._train_test_split_ratio is not None:
+            parts.append(f"Train/test split ratio: {self._train_test_split_ratio*100:.0f}% train (applied to the --bars limited and/or regime-filtered data).")
+        return " ".join(parts)
 
     def setup(self):
         self.logger.info(f"Setting up CSVDataHandler '{self.name}'...")
         try:
-            if not self._absolute_file_path.exists():
-                self.logger.error(f"CSV file not found at path: {self._absolute_file_path}")
-                self.state = BaseComponent.STATE_FAILED
-                raise ComponentError(f"CSV file not found: {self._absolute_file_path}")
+            df_loaded = pd.read_csv(self._csv_file_path)
+            self.logger.info(f"Successfully loaded CSV file: {self._csv_file_path}. Initial full shape: {df_loaded.shape}")
 
-            dtypes = {
-                self._open_col: float, self._high_col: float, self._low_col: float,
-                self._close_col: float, self._volume_col: float, 
-            }
-            
-            self._data_frame = pd.read_csv(
-                self._absolute_file_path, 
-                dtype=dtypes,
-                parse_dates=[self._timestamp_col]
-            )
-            self.logger.info(f"Successfully loaded CSV file: {self._absolute_file_path}. Full shape: {self._data_frame.shape}")
+            if self._timestamp_column not in df_loaded.columns:
+                raise ConfigurationError(f"Timestamp column '{self._timestamp_column}' not found in CSV.")
 
-            # NEW: Slice DataFrame if max_bars is set
-            if self._max_bars is not None and self._max_bars > 0 and len(self._data_frame) > self._max_bars:
-                self._data_frame = self._data_frame.head(self._max_bars)
-                self.logger.info(f"Data sliced to first {self._max_bars} bars. New shape: {self._data_frame.shape}")
+            if not pd.api.types.is_datetime64_any_dtype(df_loaded[self._timestamp_column]):
+                try:
+                    df_loaded[self._timestamp_column] = pd.to_datetime(df_loaded[self._timestamp_column])
+                except Exception as e:
+                    self.logger.error(f"Could not parse timestamp column '{self._timestamp_column}'. Error: {e}", exc_info=True)
+                    raise ConfigurationError(f"Timestamp parsing failed for '{self._timestamp_column}'.") from e
             
-            if self._timestamp_col not in self._data_frame.columns:
-                raise ConfigurationError(f"Timestamp column '{self._timestamp_col}' not found in CSV after parsing.")
+            if df_loaded[self._timestamp_column].dt.tz is None:
+                df_loaded[self._timestamp_column] = df_loaded[self._timestamp_column].dt.tz_localize('UTC')
+            else:
+                df_loaded[self._timestamp_column] = df_loaded[self._timestamp_column].dt.tz_convert('UTC')
+            
+            df_loaded = df_loaded.sort_values(by=self._timestamp_column).reset_index(drop=True)
+            self.logger.info(f"Data sorted by timestamp column '{self._timestamp_column}'.")
 
-            if self._data_frame[self._timestamp_col].isnull().any():
-                num_failed = self._data_frame[self._timestamp_col].isnull().sum()
-                self.logger.error(f"{num_failed} rows failed datetime parsing in column '{self._timestamp_col}'. Please check CSV format.")
-                self.state = BaseComponent.STATE_FAILED
-                raise ComponentError(f"Datetime parsing failed for {num_failed} rows in column '{self._timestamp_col}' from {self._absolute_file_path}")
+            # Step 1: Apply --bars limit to the initially loaded data
+            self._data_for_run = df_loaded # Start with the full loaded data
+            if self._cli_max_bars is not None and self._cli_max_bars > 0:
+                if len(self._data_for_run) > self._cli_max_bars:
+                    self.logger.info(f"Applying --bars limit: Using first {self._cli_max_bars} bars from loaded data (was {len(self._data_for_run)}).")
+                    self._data_for_run = self._data_for_run.head(self._cli_max_bars)
+                else:
+                    self.logger.info(f"Dataset length ({len(self._data_for_run)}) is within or equal to --bars limit ({self._cli_max_bars}). Using all {len(self._data_for_run)} bars.")
             
-            self._data_iterator = self._data_frame.iterrows()
-            
+            # Step 2: Optional Regime Filtering (applies to the now --bars limited self._data_for_run)
+            if self._regime_column_to_filter and self._target_regime_value:
+                if self._regime_column_to_filter not in self._data_for_run.columns:
+                    raise ConfigurationError(
+                        f"Regime filter column '{self._regime_column_to_filter}' not found in effective dataset (shape: {self._data_for_run.shape})."
+                    )
+                self.logger.info(
+                    f"Applying regime filter to current dataset ({len(self._data_for_run)} bars): keeping rows where '{self._regime_column_to_filter}' is '{self._target_regime_value}'."
+                )
+                original_rows = len(self._data_for_run)
+                self._data_for_run = self._data_for_run[self._data_for_run[self._regime_column_to_filter] == self._target_regime_value].copy()
+                self.logger.info(
+                    f"Regime filter applied. Rows in dataset reduced from {original_rows} to {len(self._data_for_run)}."
+                )
+                if self._data_for_run.empty:
+                    self.logger.warning(f"Dataset is empty after applying regime filter for '{self._target_regime_value}'.")
+
+            # Step 3: Train/Test Split on self._data_for_run (which is already limited by --bars and/or regime)
+            if self._train_test_split_ratio is not None and not self._data_for_run.empty:
+                split_point = int(len(self._data_for_run) * self._train_test_split_ratio)
+                self._train_df = self._data_for_run.iloc[:split_point].copy()
+                self._test_df = self._data_for_run.iloc[split_point:].copy()
+                self.logger.info(f"Current dataset (size {len(self._data_for_run)}) split into: Train ({len(self._train_df)} bars), Test ({len(self._test_df)} bars).")
+            else: 
+                self._train_df = self._data_for_run.copy() if self._data_for_run is not None else pd.DataFrame()
+                self._test_df = pd.DataFrame() 
+                self.logger.info("Using entire current dataset as training data (no test split defined or data was empty).")
+
+            self._active_df = None 
+            self._data_iterator = iter([])
+            self._bars_processed_current_run = 0
+            self._last_bar_timestamp = None 
+
             self.state = BaseComponent.STATE_INITIALIZED
-            self.logger.info(f"CSVDataHandler '{self.name}' setup complete. {len(self._data_frame)} bars loaded for processing. State: {self.state}")
+            self.logger.info(f"CSVDataHandler '{self.name}' setup complete. Data loaded and splits prepared. Call set_active_dataset() to begin.")
 
-        # ... (exception handling in setup as before) ...
         except FileNotFoundError:
-            self.logger.error(f"CSV file not found at path: {self._absolute_file_path}", exc_info=True)
+            self.logger.error(f"CSV file not found: {self._csv_file_path}")
             self.state = BaseComponent.STATE_FAILED
-            raise ComponentError(f"CSV file not found during setup: {self._absolute_file_path}")
+            raise ConfigurationError(f"CSVDataHandler: File not found {self._csv_file_path}")
         except KeyError as e: 
-            self.logger.error(f"Missing expected column in CSV: {e}. Check config and CSV header.", exc_info=True)
+            self.logger.error(f"KeyError during CSVDataHandler setup (likely missing column '{e}' in CSV).", exc_info=True)
             self.state = BaseComponent.STATE_FAILED
-            raise ConfigurationError(f"Missing column {e} in CSV {self._absolute_file_path}")
+            raise ConfigurationError(f"CSVDataHandler: Missing expected column in CSV - {e}")
         except Exception as e:
-            self.logger.error(f"Error during CSVDataHandler setup for '{self.name}': {e}", exc_info=True)
+            self.logger.error(f"Error loading or processing CSV {self._csv_file_path}: {e}", exc_info=True)
             self.state = BaseComponent.STATE_FAILED
-            raise ComponentError(f"Failed to setup CSVDataHandler '{self.name}': {e}") from e
+            raise ComponentError(f"CSVDataHandler failed setup: {e}") from e
 
+    def set_active_dataset(self, dataset_type: str = "full"):
+        """
+        Sets the active dataset for iteration from the pre-processed and pre-split DataFrames.
+        """
+        self.logger.info(f"Setting active dataset to: '{dataset_type}' for {self.name}")
+        
+        selected_df: Optional[pd.DataFrame] = None
+        if dataset_type.lower() == "train":
+            selected_df = self._train_df
+        elif dataset_type.lower() == "test":
+            selected_df = self._test_df
+        elif dataset_type.lower() == "full": # "full" now refers to the --bars limited, regime-filtered data
+            selected_df = self._data_for_run 
+        else:
+            self.logger.warning(f"Unknown dataset_type '{dataset_type}'. Defaulting to 'full' effective dataset.")
+            selected_df = self._data_for_run
 
+        if selected_df is None or selected_df.empty:
+            self.logger.warning(f"Selected dataset '{dataset_type}' is empty or not available. No bars will be processed.")
+            self._active_df = pd.DataFrame(columns=self._data_for_run.columns if self._data_for_run is not None and not self._data_for_run.empty else [])
+            self._data_iterator = iter([])
+        else:
+            self._active_df = selected_df.copy() # Use a copy so iterator changes don't affect _train_df etc.
+            self._data_iterator = self._active_df.iterrows()
+
+        self._bars_processed_current_run = 0
+        self._last_bar_timestamp = None
+        self.logger.info(f"Active dataset '{dataset_type}' ready with {len(self._active_df)} bars.")
+
+    # start(), stop(), get_last_timestamp() methods remain the same.
+    # The bar payload construction in start() also remains the same.
     def start(self):
-        # ... (start method remains largely the same, it will now iterate over the potentially sliced _data_iterator)
         if self.state != BaseComponent.STATE_INITIALIZED:
-            self.logger.warning(f"Cannot start CSVDataHandler '{self.name}' from state '{self.state}'. Expected INITIALIZED.")
+            self.logger.warning(f"Cannot start {self.name} from state '{self.state}'. Expected INITIALIZED.")
+            return
+        
+        if self._active_df is None: # Check if set_active_dataset was called
+             self.logger.error(f"No active dataset selected for {self.name}. Call set_active_dataset() after setup.")
+             self.state = BaseComponent.STATE_STOPPED # Or FAILED
+             return
+        
+        if self._active_df.empty:
+            self.logger.info(f"CSVDataHandler '{self.name}' active dataset is empty. No BAR events will be published.")
+            self.state = BaseComponent.STATE_STOPPED
+            self.logger.info(f"CSVDataHandler '{self.name}' completed data streaming (0 bars). State: {self.state}")
             return
 
-        self.logger.info(f"CSVDataHandler '{self.name}' starting to publish BAR events...")
+        self.logger.info(f"CSVDataHandler '{self.name}' starting to publish BAR events from active dataset ({len(self._active_df)} bars)...")
         self.state = BaseComponent.STATE_STARTED
-
-        if self._data_iterator is None: 
-            self.logger.error("Data iterator not initialized. Setup might have failed or not been called.")
-            self.state = BaseComponent.STATE_FAILED
-            return
-
-        bars_published = 0
+        
         try:
-            for index, row in self._data_iterator: # This now iterates over the (potentially sliced) DataFrame
-                payload = {
-                    "symbol": self._symbol,
-                    "timestamp": row[self._timestamp_col], 
-                    "open": float(row[self._open_col]),
-                    "high": float(row[self._high_col]),
-                    "low": float(row[self._low_col]),
-                    "close": float(row[self._close_col]),
-                    "volume": int(row[self._volume_col]) 
-                }
-                bar_event = Event(EventType.BAR, payload)
+            for index, row in self._data_iterator:
+                bar_timestamp = row[self._timestamp_column]
+                if not isinstance(bar_timestamp, datetime.datetime):
+                    if hasattr(bar_timestamp, 'to_pydatetime'): bar_timestamp = bar_timestamp.to_pydatetime()
+                    else: 
+                        self.logger.warning(f"Skipping row with invalid timestamp type: {type(bar_timestamp)}")
+                        continue
+
+                bar_payload = { "symbol": self._symbol, "timestamp": bar_timestamp }
+                required_ohlcv_keys = ['open', 'high', 'low', 'close', 'volume']
+                row_columns_lower = {col.lower(): col for col in row.index}
+
+                valid_bar = True
+                for key in required_ohlcv_keys:
+                    actual_col_name = row_columns_lower.get(key)
+                    if actual_col_name and actual_col_name in row:
+                        try:
+                            bar_payload[key] = float(row[actual_col_name])
+                        except (ValueError, TypeError):
+                            self.logger.error(f"Could not convert {key} ('{row[actual_col_name]}') to float for bar at {bar_timestamp}. Setting to NaN.")
+                            bar_payload[key] = float('nan') # Or skip bar
+                            valid_bar = False; break 
+                    else: 
+                         self.logger.warning(f"BAR event for '{self._symbol}' at {bar_timestamp} is missing standard key '{key}' in CSV headers. Setting to NaN.")
+                         bar_payload[key] = float('nan')
+                         valid_bar = False; break
+                if not valid_bar:
+                    self.logger.warning(f"Skipping bar at {bar_timestamp} due to missing/invalid essential OHLCV data.")
+                    continue
+                
+                for original_col_name, value in row.items():
+                    lower_col_name = original_col_name.lower()
+                    if lower_col_name != self._timestamp_column.lower() and lower_col_name not in bar_payload: # Avoid overwriting already set/processed fields
+                        bar_payload[lower_col_name] = value
+                
+                bar_event = Event(EventType.BAR, bar_payload)
                 self._event_bus.publish(bar_event)
-                bars_published += 1
-            self.logger.info(f"Finished publishing {bars_published} BAR events for '{self.name}'.")
+                self._bars_processed_current_run += 1
+                self._last_bar_timestamp = bar_timestamp
+            
+            self.logger.info(f"Finished publishing {self._bars_processed_current_run} BAR events for '{self.name}'.")
+
         except Exception as e:
             self.logger.error(f"Error during BAR event publishing for '{self.name}': {e}", exc_info=True)
             self.state = BaseComponent.STATE_FAILED
         finally:
-            if self.state == BaseComponent.STATE_STARTED : 
-                self.state = BaseComponent.STATE_STOPPED 
-                self.logger.info(f"CSVDataHandler '{self.name}' completed data streaming. State: {self.state}")
-
+            self.state = BaseComponent.STATE_STOPPED 
+            self.logger.info(f"CSVDataHandler '{self.name}' completed data streaming for active dataset. State: {self.state}")
 
     def stop(self):
-        # ... (stop method remains the same)
         self.logger.info(f"Stopping CSVDataHandler '{self.name}'...")
-        self._data_frame = None
-        self._data_iterator = None
+        self._data_iterator = None 
         self.state = BaseComponent.STATE_STOPPED
         self.logger.info(f"CSVDataHandler '{self.name}' stopped. State: {self.state}")
+
+    def get_last_timestamp(self) -> Optional[datetime.datetime]:
+        return self._last_bar_timestamp
+
+    # Getter to allow optimizer to check if test data exists
+    @property
+    def test_df_exists_and_is_not_empty(self) -> bool:
+        return self._test_df is not None and not self._test_df.empty
