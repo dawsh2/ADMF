@@ -116,6 +116,7 @@ class RSIIndicator(BaseComponent):
     def ready(self) -> bool:
         return self._current_value is not None
 
+    
     def get_parameters(self) -> Dict[str, Any]:
         return {'period': self.period}
 
@@ -131,6 +132,8 @@ class RSIIndicator(BaseComponent):
             self.logger.info(f"RSIIndicator '{self.name}' parameters updated: period={self.period}. Resetting state.")
             self.reset_state()
 
+        return True
+
     def reset_state(self):
         self._prices.clear()
         self._gains.clear()
@@ -141,5 +144,6 @@ class RSIIndicator(BaseComponent):
         self._initialized_smoothing = False
         # self.logger.debug(f"RSIIndicator '{self.name}' state reset.") # Debug level might be too verbose
 
-    def get_parameter_space(self) -> Dict[str, List[Any]]:
+    @property
+    def parameter_space(self) -> Dict[str, List[Any]]:
         return {'period': [9, 14]}
