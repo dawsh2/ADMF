@@ -1,0 +1,104 @@
+import yaml
+import os
+
+class SimpleConfigLoader:
+    def __init__(self, config_file_path: str = "config.yaml"):
+        """
+        Initializes the SimpleConfigLoader.
+
+        Args:
+            config_file_path (str): Path to the YAML configuration file.
+                                     Defaults to 'config.yaml' in the current directory.
+        """
+        self._config = {}
+        self._config_file_path = config_file_path
+        self._load_config()
+
+    def _load_config(self):
+        """
+        Loads the configuration from the YAML file.
+        """
+        if not os.path.exists(self._config_file_path):
+            # In a real scenario, we'd use a proper logger here.
+            # For MVP, a print statement might suffice initially, 
+            # or we can raise an error.
+            print(f"Warning: Configuration file '{self._config_file_path}' not found.")
+            return
+
+        try:
+            with open(self._config_file_path, 'r') as f:
+                self._config = yaml.safe_load(f)
+            if self._config is None: # Handle empty YAML file
+                self._config = {}
+        except yaml.YAMLError as e:
+            print(f"Error parsing YAML file '{self._config_file_path}': {e}")
+            # Decide on error handling: raise error or continue with empty config?
+            # For MVP, perhaps continuing with empty and logging error is acceptable.
+            self._config = {}
+        except Exception as e:
+            print(f"An unexpected error occurred while loading config: {e}")
+            self._config = {}
+
+
+    def get(self, key: str, default: any = None) -> any:
+        """
+        Retrieves a configuration value. Supports dot notation for nested keys.
+
+        Args:
+            key (str): The configuration key (e.g., "database.host").
+            default (any, optional): The default value to return if the key is not found.
+                                     Defaults to None.
+
+        Returns:
+            any: The configuration value or the default.
+        """
+        try:
+            value = self._config
+            for part in key.split('.'):
+                if isinstance(value, dict):
+                    value = value[part]
+                else:
+                    # If we're trying to access a sub-key of a non-dict, key is not found
+                    return default
+            return value
+        except (KeyError, TypeError):
+            return default
+
+    def get_section(self, key: str) -> dict:
+        """
+        Retrieves an entire configuration section as a dictionary.
+
+        Args:
+            key (str): The configuration key for the section.
+
+        Returns:
+            dict: The configuration section, or an empty dict if not found or not a dict.
+        """
+        section = self.get(key, {})
+        return section if isinstance(section, dict) else {}
+
+    def reload_config(self):
+        """
+        Reloads the configuration from the file.
+        (Simple version for MVP, could be expanded later for watchers)
+        """
+        self._load_config()
+
+# Example Usage (for demonstration):
+# if __name__ == "__main__":
+#     # Assume a 'config.yaml' exists with content like:
+#     # system:
+#     #   name: "ADMF-Trader-MVP"
+#     #   version: "0.0.1"
+#     # logging:
+#     #   level: "INFO"
+
+#     config_loader = SimpleConfigLoader()
+#     print(f"System Name: {config_loader.get('system.name', 'Default System')}")
+#     print(f"Logging Level: {config_loader.get('logging.level')}")
+#     print(f"Non-existent key: {config_loader.get('non.existent.key', 'Not Found')}")
+    
+#     logging_config = config_loader.get_section('logging')
+#     print(f"Logging Section: {logging_config}")
+#     if logging_config:
+#          print(f"Logging Level from section: {logging_config.get('level')}")

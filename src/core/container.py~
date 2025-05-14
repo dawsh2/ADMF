@@ -1,0 +1,125 @@
+# src/core/container.py
+import logging
+from typing import Callable, Type, Any, Dict, Tuple
+
+from .exceptions import DependencyNotFoundError # Import your new exception
+
+logger = logging.getLogger(__name__)
+
+class Container:
+    """
+    A basic dependency injection container for managing services and components.
+    For MVP, all registered types/factories are treated as singletons by default.
+    """
+
+    def __init__(self):
+        self._instances: Dict[str, Any] = {}
+        # For types/factories, store a dict:
+        # {'provider': Type or Callable, 'args': tuple, 'kwargs': dict, 'singleton': bool}
+        self._providers: Dict[str, Dict[str, Any]] = {}
+        logger.info("DI Container initialized.")
+
+    def register_instance(self, name: str, instance: Any):
+        """
+        Registers an already created instance with the container.
+        This instance will always be returned when resolved by this name.
+
+        Args:
+            name (str): The name to register the instance under.
+            instance (Any): The instance to register.
+        """
+        if name in self._instances or name in self._providers:
+            logger.warning(f"Service '{name}' is already registered. Overwriting.")
+        self._instances[name] = instance
+        logger.debug(f"Instance registered for '{name}': {type(instance).__name__}")
+
+    def register_type(self, name: str, service_type: Type, singleton: bool = True, *constructor_args: Any, **constructor_kwargs: Any):
+        """
+        Registers a class type. The container will instantiate it when resolved.
+
+        Args:
+            name (str): The name to register the service type under.
+            service_type (Type): The class to be instantiated.
+            singleton (bool, optional): If True, instantiate once and cache. Defaults to True.
+            *constructor_args: Positional arguments for the class constructor.
+            **constructor_kwargs: Keyword arguments for the class constructor.
+        """
+        if name in self._instances or name in self._providers:
+            logger.warning(f"Service '{name}' is already registered. Overwriting.")
+        self._providers[name] = {
+            'provider': service_type,
+            'args': constructor_args,
+            'kwargs': constructor_kwargs,
+            'singleton': singleton,
+            'is_factory': False
+        }
+        logger.debug(f"Type '{service_type.__name__}' registered for '{name}' (singleton={singleton}).")
+
+    def register_factory(self, name: str, factory: Callable[..., Any], singleton: bool = True, *factory_args: Any, **factory_kwargs: Any):
+        """
+        Registers a factory function. The container will call it to create an instance.
+
+        Args:
+            name (str): The name to register the factory under.
+            factory (Callable): The factory function to call.
+            singleton (bool, optional): If True, call factory once and cache. Defaults to True.
+            *factory_args: Positional arguments for the factory function.
+            **factory_kwargs: Keyword arguments for the factory function.
+        """
+        if name in self._instances or name in self._providers:
+            logger.warning(f"Service '{name}' is already registered. Overwriting.")
+        self._providers[name] = {
+            'provider': factory,
+            'args': factory_args,
+            'kwargs': factory_kwargs,
+            'singleton': singleton,
+            'is_factory': True
+        }
+        logger.debug(f"Factory '{factory.__name__}' registered for '{name}' (singleton={singleton}).")
+
+    def resolve(self, name: str) -> Any:
+        """
+        Resolves a registered service/component by name.
+
+        Args:
+            name (str): The name of the service to resolve.
+
+        Returns:
+            Any: The resolved instance.
+
+        Raises:
+            DependencyNotFoundError: If the service cannot be found or created.
+        """
+        # 1. Check if instance already exists (e.g., registered instance or cached singleton)
+        if name in self._instances:
+            logger.debug(f"Resolving '{name}' from cached instance.")
+            return self._instances[name]
+
+        # 2. Check if a provider (type or factory) is registered
+        if name in self._providers:
+            provider_info = self._providers[name]
+            provider = provider_info['provider']
+            args = provider_info['args']
+            kwargs = provider_info['kwargs']
+            is_singleton = provider_info['singleton']
+
+            logger.debug(f"Resolving '{name}' by creating new instance via its provider (singleton={is_singleton}).")
+
+            try:
+                instance = provider(*args, **kwargs)
+            except Exception as e:
+                logger.error(f"Error creating instance for '{name}': {e}", exc_info=True)
+                raise DependencyNotFoundError(f"Failed to create instance for service '{name}'. Error: {e}") from e
+
+            if is_singleton:
+                self._instances[name] = instance # Cache if singleton
+
+            return instance
+
+        # 3. Not found
+        logger.error(f"No service or provider found for name '{name}'.")
+        raise DependencyNotFoundError(f"Service '{name}' not found in container.")
+
+    def is_registered(self, name: str) -> bool:
+        """Checks if a service name is registered (either as instance or provider)."""
+        return name in self._instances or name in self._providers

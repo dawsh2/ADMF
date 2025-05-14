@@ -1,0 +1,43 @@
+# Make sure 'src' is discoverable. If 'test_config.py' is in the project root,
+# and 'src' is a subdirectory, Python should find it.
+# If you run into import errors, you might need to adjust PYTHONPATH
+# or run Python from the project root: python test_config.py
+
+from src.core.config import SimpleConfigLoader
+
+def main():
+    print("Attempting to load configuration...")
+    # Since config.yaml is in the same directory as we'll run test_config.py from (the project root),
+    # the default "config.yaml" path in SimpleConfigLoader should work.
+    config_loader = SimpleConfigLoader()
+
+    print(f"\n--- System Configuration ---")
+    system_name = config_loader.get("system.name", "Default System Name")
+    system_version = config_loader.get("system.version", "0.0.0")
+    print(f"System Name: {system_name}")
+    print(f"System Version: {system_version}")
+
+    print(f"\n--- Logging Configuration ---")
+    log_level = config_loader.get("logging.level", "DEBUG")
+    print(f"Logging Level: {log_level}")
+
+    print(f"\n--- Data Configuration ---")
+    csv_path = config_loader.get("data.csv_file_path", "N/A")
+    print(f"CSV File Path: {csv_path}")
+
+
+    print(f"\n--- Testing Non-existent Key ---")
+    non_existent = config_loader.get("some.other.value", "This key was not found.")
+    print(f"Some other value: {non_existent}")
+
+    print(f"\n--- Testing Get Section ---")
+    logging_section = config_loader.get_section("logging")
+    print(f"Logging section as dict: {logging_section}")
+    if logging_section:
+        print(f"Logging level from section dict: {logging_section.get('level')}")
+
+
+    print("\nConfiguration loading test finished.")
+
+if __name__ == "__main__":
+    main()

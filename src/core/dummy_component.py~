@@ -1,0 +1,40 @@
+# src/core/dummy_component.py
+from .component import BaseComponent
+from .exceptions import ComponentError # For potential future use
+
+class DummyComponent(BaseComponent):
+    """
+    A simple dummy component to demonstrate and test the BaseComponent lifecycle.
+    """
+
+    def __init__(self, name: str, config_loader, component_config_key: str = None):
+        # Call the __init__ of the BaseComponent
+        super().__init__(name, config_loader, component_config_key)
+        # DummyComponent specific initializations can go here if any
+        self.logger.info(f"DummyComponent '{self.name}' specific initialization done.")
+
+    def setup(self):
+        # Call super().setup() if BaseComponent.setup had base logic you wanted to run.
+        # For now, BaseComponent.setup() just logs and expects subclasses to set state.
+        self.logger.info(f"DummyComponent '{self.name}' performing its specific setup.")
+
+        # Example: Accessing its specific configuration
+        dummy_setting = self.get_specific_config("some_setting", "default_dummy_value")
+        self.logger.info(f"DummyComponent specific setting 'some_setting': {dummy_setting}")
+
+        if not dummy_setting: # Just an example of a setup check
+             self.logger.error(f"Setup failed for DummyComponent '{self.name}': 'some_setting' is missing.")
+             self.state = BaseComponent.STATE_FAILED
+             # raise ComponentError(f"DummyComponent '{self.name}' setup failed: 'some_setting' missing.")
+             return
+
+        self.state = BaseComponent.STATE_INITIALIZED
+        self.logger.info(f"DummyComponent '{self.name}' setup complete. State: {self.state}")
+
+    def start(self):
+        if self.state != BaseComponent.STATE_INITIALIZED:
+            self.logger.warning(f"Cannot start DummyComponent '{self.name}' from state '{self.state}'. Expected INITIALIZED.")
+            # Or raise ComponentError
+            return
+
+        self.logger.

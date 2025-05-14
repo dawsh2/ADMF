@@ -1,0 +1,163 @@
+# src/strategy/ma_strategy.py
+import logging
+from collections import deque # For efficient fixed-size list of prices
+import pandas as pd # For MA calculation convenience, optional
+
+from src.core.component import BaseComponent
+from src.core.event import Event, EventType
+from src.core.exceptions import ConfigurationError, ComponentError
+# from src.core.event_bus import EventBus # For type hinting
+# from src.core.config import SimpleConfigLoader # For type hinting
+
+class MAStrategy(BaseComponent):
+    """
+    A simple Moving Average (MA) Crossover strategy.
+    - Subscribes to BAR events for a specific symbol.
+    - Calculates short and long period moving averages.
+    - Generates SIGNAL events (BUY/SELL) on crossovers.
+    """
+
+    def __init__(self, instance_name: str, config_loader, event_bus, component_config_key: str):
+        super().__init__(instance_name, config_loader, component_config_key)
+
+        self._event_bus = event_bus
+        if not self._event_bus:
+            self.logger.error("EventBus instance is required for MAStrategy.")
+            raise ValueError("EventBus instance is required for MAStrategy.")
+
+        # Load strategy-specific configuration
+        self._symbol: str = self.get_specific_config("symbol")
+        self._short_window: int = self.get_specific_config("short_window")
+        self._long_window: int = self.get_specific_config("long_window")
+
+        if not self._symbol:
+            raise ConfigurationError(f"Missing 'symbol' in configuration for {self.name}")
+        if not isinstance(self._short_window, int) or self._short_window <= 0:
+            raise ConfigurationError(f"'short_window' must be a positive integer for {self.name}. Got: {self._short_window}")
+        if not isinstance(self._long_window, int) or self._long_window <= 0:
+            raise ConfigurationError(f"'long_window' must be a positive integer for {self.name}. Got: {self._long_window}")
+        if self._short_window >= self._long_window:
+            raise ConfigurationError(f"'short_window' ({self._short_window}) must be less than 'long_window' ({self._long_window}) for {self.name}.")
+
+        # Internal state for MA calculation and signal generation
+        self._prices: deque[float] = deque(maxlen=self._long_window)
+        self._short_ma: Optional[float] = None
+        self._long_ma: Optional[float] = None
+        self._prev_short_ma: Optional[float] = None # To detect crossover
+        self._prev_long_ma: Optional[float] = None  # To detect crossover
+
+        # Simple position state: 0 = flat, 1 = long, -1 = short
+        # This helps prevent emitting repeated signals for the same state.
+        self._current_position: int = 0 
+
+        self.logger.info(
+            f"MAStrategy '{self.name}' configured for symbol '{self._symbol}' "
+            f"with short_window={self._short_window}, long_window={self._long_window}."
+        )
+
+    def setup(self):
+        self.logger.info(f"Setting up MAStrategy '{self.name}'...")
+        # Subscribe to BAR events for the configured symbol
+        # The handler will filter by symbol if multiple strategies run on different symbols.
+        self._event_bus.subscribe(EventType.BAR, self._on_bar_event)
+        self.logger.info(f"'{self.name}' subscribed to BAR events for symbol '{self._symbol}'.")
+        self.state = BaseComponent.STATE_INITIALIZED
+        self.logger.info(f"MAStrategy '{self.name}' setup complete. State: {self.state}")
+
+    def _on_bar_event(self, event: Event):
+        """Handles incoming BAR events to update MAs and generate signals."""
+        if event.event_type != EventType.BAR:
+            return # Should not happen if subscribed correctly, but good check
+
+        bar_data = event.payload
+        if bar_data.get("symbol") != self._symbol:
+            return # Not for us
+
+        close_price = bar_data.get("close")
+        if close_price is None:
+            self.logger.warning(f"BAR event for '{self._symbol}' missing 'close' price. Event: {event}")
+            return
+
+        self._prices.append(float(close_price))
+
+        # Wait until we have enough data for the long window
+        if len(self._prices) < self._long_window:
+            return 
+
+        # Calculate MAs using pandas for simplicity (could also do manually with deque)
+        # Convert deque to Series for rolling calculation
+        price_series = pd.Series(list(self._prices))
+        current_short_ma = price_series.rolling(window=self._short_window).mean().iloc[-1]
+        current_long_ma = price_series.rolling(window=self._long_window).mean().iloc[-1]
+
+        # For direct deque calculation (alternative, more manual):
+        # current_short_ma = sum(list(self._prices)[-self._short_window:]) / self._short_window
+        # current_long_ma = sum(self._prices) / self._long_window # Since deque is maxlen=long_window
+
+        self.logger.debug(
+            f"Symbol: {self._symbol}, Close: {close_price:.2f}, "
+            f"Short MA ({self._short_window}): {current_short_ma:.2f if current_short_ma else 'N/A'}, "
+            f"Long MA ({self._long_window}): {current_long_ma:.2f if current_long_ma else 'N/A'}"
+        )
+
+        # Check for signals if we have previous MA values to compare against
+        if self._prev_short_ma is not None and self._prev_long_ma is not None:
+            signal_generated = None
+            # Golden Cross (Buy Signal)
+            if self._prev_short_ma <= self._prev_long_ma and current_short_ma > current_long_ma:
+                if self._current_position <= 0: # Only signal if flat or short
+                    signal_generated = "BUY"
+                    self._current_position = 1 # Go long
+            # Death Cross (Sell Signal)
+            elif self._prev_short_ma >= self._prev_long_ma and current_short_ma < current_long_ma:
+                if self._current_position >= 0: # Only signal if flat or long
+                    signal_generated = "SELL"
+                    self._current_position = -1 # Go short
+
+            if signal_generated:
+                signal_payload = {
+                    "symbol": self._symbol,
+                    "timestamp": bar_data.get("timestamp"), # Timestamp of the bar event
+                    "signal_type": signal_generated,
+                    "price_at_signal": float(close_price), # Price at which signal occurred
+                    "strategy_id": self.name,
+                    "short_ma": current_short_ma,
+                    "long_ma": current_long_ma
+                }
+                signal_event = Event(EventType.SIGNAL, signal_payload)
+                self._event_bus.publish(signal_event)
+                self.logger.info(
+                    f"Published SIGNAL Event: Type={signal_generated}, Symbol={self._symbol}, "
+                    f"Price={close_price:.2f}, Timestamp={signal_payload['timestamp']}"
+                )
+
+        # Update previous MAs for the next event
+        self._prev_short_ma = current_short_ma
+        self._prev_long_ma = current_long_ma
+
+
+    def start(self):
+        if self.state != BaseComponent.STATE_INITIALIZED:
+            self.logger.warning(f"Cannot start MAStrategy '{self.name}' from state '{self.state}'. Expected INITIALIZED.")
+            return
+
+        self.logger.info(f"MAStrategy '{self.name}' started. Listening for BAR events...")
+        self.state = BaseComponent.STATE_STARTED
+        # The strategy is now active and will process BAR events as they arrive.
+
+    def stop(self):
+        self.logger.info(f"Stopping MAStrategy '{self.name}'...")
+        if self._event_bus:
+            self._event_bus.unsubscribe(EventType.BAR, self._on_bar_event)
+            self.logger.info(f"'{self.name}' unsubscribed from BAR events.")
+
+        # Clear internal state
+        self._prices.clear()
+        self._short_ma = None
+        self._long_ma = None
+        self._prev_short_ma = None
+        self._prev_long_ma = None
+        self._current_position = 0
+
+        self.state = BaseComponent.STATE_STOPPED
+        self.logger.info(f"MAStrategy '{self.name}' stopped. State: {self.state}")

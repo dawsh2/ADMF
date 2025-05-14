@@ -1,0 +1,94 @@
+# src/core/component.py
+import logging
+from abc import ABC, abstractmethod # For defining an Abstract Base Class
+
+# Assuming SimpleConfigLoader and ADMFTraderError are accessible for type hinting if needed
+# from .config import SimpleConfigLoader
+# from .exceptions import ComponentError
+
+class BaseComponent(ABC):
+    """
+    Abstract base class for all components in the ADMF-Trader system.
+
+    Defines a common interface and basic lifecycle management.
+    """
+    STATE_CREATED = "CREATED"
+    STATE_INITIALIZED = "INITIALIZED"
+    STATE_STARTED = "STARTED"
+    STATE_STOPPED = "STOPPED"
+    STATE_FAILED = "FAILED" # For components that encounter unrecoverable errors
+
+    def __init__(self, name: str, config_loader, component_config_key: str = None):
+        """
+        Initializes the BaseComponent.
+
+        Args:
+            name (str): The unique name of this component instance.
+            config_loader (SimpleConfigLoader): The application's configuration loader instance.
+            component_config_key (str, optional): The key within the global configuration
+                                                 that holds settings specific to this component.
+                                                 Example: "components.data_handler".
+        """
+        self.name = name
+        self._config_loader = config_loader # The global config loader
+        self._component_config_key = component_config_key
+
+        self.logger = logging.getLogger(f"component.{self.name}") # Dedicated logger
+        self.state = BaseComponent.STATE_CREATED
+
+        self.component_specific_config = {}
+        if self._component_config_key:
+            self.component_specific_config = self._config_loader.get_section(self._component_config_key)
+            if not self.component_specific_config:
+                self.logger.warning(f"No specific configuration found for key '{self._component_config_key}'. Using empty config.")
+
+        self.logger.info(f"Component '{self.name}' created. State: {self.state}")
+
+    def get_specific_config(self, key: str, default: any = None) -> any:
+        """
+        Gets a configuration value from this component's specific configuration section.
+        """
+        return self.component_specific_config.get(key, default)
+
+    @abstractmethod
+    def setup(self):
+        """
+        Performs one-time setup for the component.
+        This is where a component would initialize its internal state,
+        load resources, or validate its configuration before starting.
+        Should transition state to INITIALIZED or FAILED.
+        """
+        self.logger.info(f"Setting up component '{self.name}'...")
+        # Subclasses should implement their setup logic here
+        # and set self.state accordingly.
+        # For MVP, we might just set to INITIALIZED if no errors.
+        # If setup fails, it should log an error and set self.state = BaseComponent.STATE_FAILED
+        pass
+
+    @abstractmethod
+    def start(self):
+        """
+        Starts the component's main operations.
+        This could involve starting threads, subscribing to events, etc.
+        Should only be called when the component is INITIALIZED.
+        Should transition state to STARTED or FAILED.
+        """
+        self.logger.info(f"Starting component '{self.name}'...")
+        # Subclasses should implement their start logic here
+        pass
+
+    @abstractmethod
+    def stop(self):
+        """
+        Stops the component's operations and performs cleanup.
+        This could involve stopping threads, unsubscribing from events,
+        releasing resources, etc.
+        Should transition state to STOPPED.
+        """
+        self.logger.info(f"Stopping component '{self.name}'...")
+        # Subclasses should implement their stop logic here
+        pass
+
+    def get_state(self) -> str:
+        """Returns the current state of the component."""
+        return self.state
