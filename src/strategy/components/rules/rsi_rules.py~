@@ -1,0 +1,138 @@
+# src/strategy/components/rules/rsi_rules.py
+import logging
+from typing import Dict, Any, Tuple, List, Optional
+
+# from src.strategy.base.strategy import RuleBase # As per STRATEGY_IMPLEMENTATION.MD
+from src.core.component import BaseComponent # Using BaseComponent for now
+from src.strategy.components.indicators.oscillators import RSIIndicator 
+
+class RSIRule(BaseComponent): # Replace BaseComponent with RuleBase if you have it
+    """
+    Generates trading signals based on RSI oversold/overbought levels.
+    """
+    def __init__(self, instance_name: str, config_loader, event_bus, component_config_key: str,
+                 rsi_indicator: RSIIndicator, parameters: Optional[Dict[str, Any]] = None):
+        # If using RuleBase, the __init__ might be simpler:
+        # def __init__(self, name: str, parameters: Dict[str, Any], rsi_indicator: RSIIndicator):
+        #     super().__init__(name, parameters)
+        #     self.rsi_indicator = rsi_indicator
+        
+        super().__init__(instance_name, config_loader, component_config_key) # For BaseComponent
+        self.logger = logging.getLogger(f"{__name__}.{instance_name}")
+        self.rsi_indicator = rsi_indicator # Dependency
+
+        if parameters: # For direct parameter passing
+            self.oversold_threshold: float = parameters.get('oversold_threshold', 30.0)
+            self.overbought_threshold: float = parameters.get('overbought_threshold', 70.0)
+            self._weight: float = parameters.get('weight', 1.0)
+        else: # For loading from main config
+            self.oversold_threshold: float = self.get_specific_config('oversold_threshold', 30.0)
+            self.overbought_threshold: float = self.get_specific_config('overbought_threshold', 70.0)
+            self._weight: float = self.get_specific_config('weight', 1.0)
+            
+        self._last_rsi_value: Optional[float] = None
+        self._current_signal_state: int = 0 # 0: None, 1: Long (after buy signal), -1: Short (after sell signal)
+        self.logger.info(f"RSIRule '{self.name}' initialized with OS={self.oversold_threshold}, OB={self.overbought_threshold}, W={self._weight}")
+
+    def evaluate(self, bar_data: Optional[Dict[str, Any]] = None) -> Tuple[bool, float, Optional[str]]:
+        """
+        Evaluates the RSI rule.
+        Args:
+            bar_data: Not directly used by this rule if RSI is updated externally, but good practice for RuleBase.
+        Returns:
+            Tuple of (rule_triggered: bool, signal_strength: float (1.0 for buy, -1.0 for sell, 0.0 for none), signal_type: str)
+        """
+        if not self.rsi_indicator or not self.rsi_indicator.ready:
+            # self.logger.debug(f"'{self.name}' RSI indicator not ready.")
+            return False, 0.0, None
+
+        rsi_value = self.rsi_indicator.value
+        if rsi_value is None:
+            return False, 0.0, None
+
+        signal_strength = 0.0
+        triggered = False
+        signal_type = None # "BUY", "SELL", or None
+
+        # Generate signal only on crossover into/out of zones for discrete signals
+        if self._last_rsi_value is not None:
+            # RSI crosses above oversold threshold (potential buy)
+            if self._last_rsi_value <= self.oversold_threshold and rsi_value > self.oversold_threshold:
+                if self._current_signal_state != 1: # Avoid duplicate BUY signals
+                    signal_strength = 1.0 
+                    triggered = True
+                    self._current_signal_state = 1
+                    signal_type = "BUY"
+                    # self.logger.info(f"'{self.name}' triggered BUY: RSI {self._last_rsi_value:.2f} -> {rsi_value:.2f} crossed OS {self.oversold_threshold}")
+            # RSI crosses below overbought threshold (potential sell)
+            elif self._last_rsi_value >= self.overbought_threshold and rsi_value < self.overbought_threshold:
+                if self._current_signal_state != -1: # Avoid duplicate SELL signals
+                    signal_strength = -1.0
+                    triggered = True
+                    self._current_signal_state = -1
+                    signal_type = "SELL"
+                    # self.logger.info(f"'{self.name}' triggered SELL: RSI {self._last_rsi_value:.2f} -> {rsi_value:.2f} crossed OB {self.overbought_threshold}")
+            # Optional: Flat signal if RSI moves back into neutral from an extreme
+            elif self._current_signal_state == 1 and rsi_value < self.overbought_threshold and rsi_value > self.oversold_threshold + 5 : # e.g. moves back to mid-range
+                 # Could generate a FLAT signal or allow portfolio manager to handle exits.
+                 # For simplicity, we'll keep the state until an opposite signal.
+                 pass
+            elif self._current_signal_state == -1 and rsi_value > self.oversold_threshold and rsi_value < self.overbought_threshold - 5:
+                 pass
+
+
+        self._last_rsi_value = rsi_value
+        return triggered, signal_strength, signal_type
+
+    def get_parameters(self) -> Dict[str, Any]:
+        return {
+            'oversold_threshold': self.oversold_threshold,
+            'overbought_threshold': self.overbought_threshold,
+            'weight': self._weight
+        }
+
+    def set_parameters(self, params: Dict[str, Any]) -> None:
+        self.oversold_threshold = params.get('oversold_threshold', self.oversold_threshold)
+        self.overbought_threshold = params.get('overbought_threshold', self.overbought_threshold)
+        self._weight = params.get('weight', self._weight)
+        self.reset_state()
+        self.logger.info(
+            f"RSIRule '{self.name}' parameters updated: OS={self.oversold_threshold}, OB={self.overbought_threshold}, W={self._weight}"
+        )
+        
+    def reset_state(self):
+        self._last_rsi_value = None
+        self._current_signal_state = 0
+        self.logger.debug(f"RSIRule '{self.name}' state reset.")
+
+    @property
+    def parameter_space(self) -> Dict[str, List[Any]]:
+         return {
+            'oversold_threshold': [20.0, 25.0, 30.0, 35.0],
+            'overbought_threshold': [65.0, 70.0, 75.0, 80.0],
+            'weight': [0.3, 0.4, 0.5, 0.6] # Example weights
+        }
+
+    @property
+    def weight(self) -> float: # Required by RuleBase example in STRATEGY_IMPLEMENTATION.MD
+        return self._weight
+
+    @weight.setter
+    def weight(self, value: float) -> None: # Required by RuleBase example
+        self._weight = value
+        
+    # Implement setup, start, stop if inheriting from BaseComponent
+    def setup(self):
+        self.reset_state()
+        # Ensure rsi_indicator is available
+        if not isinstance(self.rsi_indicator, RSIIndicator):
+            self.logger.error(f"RSIRule '{self.name}' was not provided with a valid RSIIndicator instance.")
+            self.state = BaseComponent.STATE_FAILED
+            return
+        self.state = BaseComponent.STATE_INITIALIZED
+        self.logger.info(f"RSIRule '{self.name}' setup complete.")
+
+    def stop(self):
+        self.reset_state()
+        self.state = BaseComponent.STATE_STOPPED
+        self.logger.info(f"RSIRule '{self.name}' stopped.")
