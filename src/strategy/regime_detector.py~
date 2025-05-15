@@ -1,8 +1,7 @@
 # src/strategy/regime_detector.py
 from typing import Any, Dict, Tuple, Optional, Type, TYPE_CHECKING
 
-
-from src.strategy.classifier import Classifier
+from .classifier import Classifier
 from ..strategy.components.indicators.oscillators import RSIIndicator
 from ..strategy.components.indicators.volatility import ATRIndicator
 from ..strategy.components.indicators.trend import SimpleMATrendIndicator

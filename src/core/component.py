@@ -1,16 +1,11 @@
 # src/core/component.py
 import logging
 from abc import ABC, abstractmethod
-from typing import Any, TYPE_CHECKING # For type hinting SimpleConfigLoader
+from typing import Any, Dict, Optional
 
-if TYPE_CHECKING: # Avoid circular import for type hinting
-    from .config import SimpleConfigLoader
+logger_component_base = logging.getLogger(__name__) # Module-level logger for this file
 
 class BaseComponent(ABC):
-    """
-    Abstract base class for all components in the ADMF-Trader system.
-    Defines a common interface and basic lifecycle management.
-    """
     STATE_CREATED = "CREATED"
     STATE_INITIALIZED = "INITIALIZED"
     STATE_STARTED = "STARTED"
@@ -19,80 +14,61 @@ class BaseComponent(ABC):
 
     def __init__(self, 
                  instance_name: str, 
-                 config_loader: 'SimpleConfigLoader', # Use type hint
-                 component_config_key: str = None):
-        """
-        Initializes the BaseComponent.
-
-        Args:
-            instance_name (str): The unique name of this component instance.
-            config_loader (SimpleConfigLoader): The application's configuration loader instance.
-            component_config_key (str, optional): The key within the global configuration
-                                                 that holds settings specific to this component.
-                                                 Example: "components.data_handler".
-        """
-        self.name = instance_name # Public name for the component instance
-        self._config_loader = config_loader 
-        self._component_config_key = component_config_key
-        
-        # Set up a dedicated logger for each component instance
+                 config_loader: Any, 
+                 component_config_key: Optional[str] = None):
+        self.name: str = instance_name
+        self.state: str = BaseComponent.STATE_CREATED
         self.logger = logging.getLogger(f"component.{self.name}") 
-        self.state = BaseComponent.STATE_CREATED
-        
-        self.component_specific_config: dict = {}
-        if self._component_config_key:
-            if self._config_loader: # Ensure config_loader is provided
-                self.component_specific_config = self._config_loader.get_section(self._component_config_key)
-                if not self.component_specific_config:
-                    self.logger.warning(
-                        f"No specific configuration found for key '{self._component_config_key}' "
-                        f"for component '{self.name}'. Using empty config."
-                    )
-            else:
+
+        self._config_loader = config_loader
+        self._component_config_key: Optional[str] = component_config_key
+        self.component_specific_config: Dict[str, Any] = {}
+
+        if self._config_loader and self._component_config_key:
+            # --- ADD INFO LOGGING FOR THE KEY BEING USED ---
+            self.logger.info(f"Attempting to load specific config for '{self.name}' using key: '{self._component_config_key}'")
+            # -------------------------------------------------
+            loaded_config = self._config_loader.get(self._component_config_key)
+            
+            if isinstance(loaded_config, dict):
+                self.component_specific_config = loaded_config
+                self.logger.info(f"Specific configuration loaded for '{self.name}' using key '{self._component_config_key}'. Content: {self.component_specific_config}")
+            elif loaded_config is not None:
                 self.logger.warning(
-                    f"ConfigLoader not provided to component '{self.name}', "
-                    f"cannot load specific config for key '{self._component_config_key}'."
+                    f"Specific configuration for key '{self._component_config_key}' for component '{self.name}' "
+                    f"is not a dictionary (found type: {type(loaded_config)}, value: {loaded_config}). Using empty specific config."
                 )
-        
+            else: 
+                self.logger.warning(
+                    f"No specific configuration found for key '{self._component_config_key}' for component '{self.name}'. Using empty config. `get` returned None."
+                )
+        elif self._config_loader and not self._component_config_key:
+            self.logger.debug(f"No component_config_key provided for '{self.name}'. Using empty specific config.")
+        elif not self._config_loader:
+            self.logger.warning(f"No config_loader provided for component '{self.name}'. Component may not be configurable.")
+            
         self.logger.info(f"Component '{self.name}' created. State: {self.state}")
 
     def get_specific_config(self, key: str, default: Any = None) -> Any:
-        """
-        Gets a configuration value from this component's specific configuration section.
-        """
+        if not isinstance(self.component_specific_config, dict):
+            self.logger.warning(f"Component specific config for '{self.name}' is not a dictionary. Cannot get key '{key}'. Returning default.")
+            return default
         return self.component_specific_config.get(key, default)
+
+    def get_state(self) -> str:
+        return self.state
 
     @abstractmethod
     def setup(self):
-        """
-        Performs one-time setup for the component.
-        Should transition state to INITIALIZED or FAILED.
-        """
         self.logger.info(f"Setting up component '{self.name}'...")
-        # Subclasses implement setup and set self.state
         pass
 
     @abstractmethod
     def start(self):
-        """
-        Starts the component's main operations.
-        Should only be called when the component is INITIALIZED.
-        Should transition state to STARTED or FAILED.
-        """
         self.logger.info(f"Starting component '{self.name}'...")
-        # Subclasses implement start and set self.state
         pass
 
     @abstractmethod
     def stop(self):
-        """
-        Stops the component's operations and performs cleanup.
-        Should transition state to STOPPED.
-        """
         self.logger.info(f"Stopping component '{self.name}'...")
-        # Subclasses implement stop and set self.state
         pass
-    
-    def get_state(self) -> str:
-        """Returns the current state of the component."""
-        return self.state
