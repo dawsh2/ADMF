@@ -2,25 +2,25 @@
 import argparse
 import logging
 import sys
-import datetime # Keep for type hints and potential fallback timestamps
-from typing import Optional, Dict, Any, List # Ensure List is imported
+import datetime 
+from typing import Optional, Dict, Any, List 
 
 # Core imports
 from src.core.config import SimpleConfigLoader
 from src.core.logging_setup import setup_logging
 from src.core.exceptions import ConfigurationError, ADMFTraderError, ComponentError, DependencyNotFoundError
 from src.core.component import BaseComponent
-from src.core.event import Event, EventType # Keep for type hints if used by components directly
+from src.core.event import Event, EventType 
 from src.core.event_bus import EventBus
 from src.core.container import Container
 
 # Application Component imports
 from src.data.csv_data_handler import CSVDataHandler
 from src.strategy.implementations.ensemble_strategy import EnsembleSignalStrategy
-from src.strategy.regime_detector import RegimeDetector # <--- IMPORT RegimeDetector
+from src.strategy.regime_detector import RegimeDetector 
 from src.risk.basic_risk_manager import BasicRiskManager
 from src.execution.simulated_execution_handler import SimulatedExecutionHandler
-from src.risk.basic_portfolio import BasicPortfolio
+from src.risk.basic_portfolio import BasicPortfolio # Ensure this is the updated version
 from src.core.dummy_component import DummyComponent
 from src.strategy.optimization.basic_optimizer import BasicOptimizer
 
@@ -43,7 +43,6 @@ def main():
     max_bars_to_process = args.bars
     run_optimization_mode = args.optimize
 
-    # --- Basic Setup (Config, Logging, Container, EventBus) ---
     if not logging.getLogger().hasHandlers():
         logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s', stream=sys.stdout)
 
@@ -63,7 +62,6 @@ def main():
     container.register_instance("event_bus", event_bus)
     container.register_instance("container", container)
 
-    # --- Component Registration (Common for both modes) ---
     csv_args = {"instance_name": "SPY_CSV_Loader", "config_loader": config_loader,
                 "event_bus": event_bus, "component_config_key": "components.data_handler_csv",
                 "max_bars": max_bars_to_process }
@@ -78,12 +76,9 @@ def main():
     container.register_type("strategy", EnsembleSignalStrategy, True, constructor_kwargs=ensemble_strat_args)
     logger.info("EnsembleSignalStrategy registered as 'strategy'.")
 
-    # --- ADD REGISTRATION FOR REGIMEDETECTOR HERE ---
-    regime_detector_service_name = "MyPrimaryRegimeDetector" # This is the key for resolving
-    regime_detector_instance_name = "MyPrimaryRegimeDetector_Instance" # Passed to __init__
-    regime_detector_config_key = "my_regime_detector_config"  # Matches your YAML key
-
-    # Corrected constructor_kwargs for RegimeDetector
+    regime_detector_service_name = "MyPrimaryRegimeDetector"
+    regime_detector_instance_name = "MyPrimaryRegimeDetector_Instance"
+    regime_detector_config_key = "my_regime_detector_config"
     regime_detector_constructor_kwargs = {
         "instance_name": regime_detector_instance_name,
         "config_loader": config_loader,
@@ -91,18 +86,24 @@ def main():
         "component_config_key": regime_detector_config_key
     }
     container.register_type(
-        regime_detector_service_name,   # Service name/key (positional)
-        RegimeDetector,                 # Component class (positional)
-        True,                           # is_singleton (positional)
-        constructor_kwargs=regime_detector_constructor_kwargs # Keyword argument
+        regime_detector_service_name,
+        RegimeDetector,
+        True, 
+        constructor_kwargs=regime_detector_constructor_kwargs
     )
     logger.info(f"RegimeDetector registered as '{regime_detector_service_name}'.")
-    # ----------------------------------------------------
 
-    portfolio_args = {"instance_name": "BasicPortfolio", "config_loader": config_loader,
-                      "event_bus": event_bus, "component_config_key": "components.basic_portfolio"}
+    # --- MODIFIED BasicPortfolio REGISTRATION ---
+    portfolio_args = {
+        "instance_name": "BasicPortfolio", 
+        "config_loader": config_loader,
+        "event_bus": event_bus, 
+        "container": container, # <--- ADDED CONTAINER HERE
+        "component_config_key": "components.basic_portfolio"
+    }
     container.register_type("portfolio_manager", BasicPortfolio, True, constructor_kwargs=portfolio_args)
     logger.info("BasicPortfolio registered as 'portfolio_manager'.")
+    # ------------------------------------------
 
     risk_manager_args = {"instance_name": "BasicRiskMan1", "config_loader": config_loader,
                          "event_bus": event_bus, "component_config_key": "components.basic_risk_manager",
@@ -124,8 +125,6 @@ def main():
                            "listen_to_event_type_str": "ORDER"}
     container.register_type("order_consumer", DummyComponent, True, constructor_kwargs=order_consumer_args)
 
-
-    # --- Mode-Specific Logic ---
     if run_optimization_mode:
         logger.info("OPTIMIZATION MODE DETECTED.")
         if max_bars_to_process is not None:
@@ -179,7 +178,6 @@ def main():
             logger.critical(f"CRITICAL ERROR during optimization setup or run: {e}", exc_info=True)
             sys.exit(1)
     else:
-        # Normal Backtest Mode
         if max_bars_to_process is not None and max_bars_to_process > 0:
              logger.info(f"Standard backtest: Using first {max_bars_to_process} bars from the dataset.")
         else:
@@ -202,7 +200,7 @@ def run_application_logic(app_container: Container):
     
     data_handler: Optional[CSVDataHandler] = None
     strategy: Optional[EnsembleSignalStrategy] = None
-    regime_detector: Optional[RegimeDetector] = None # Variable for RegimeDetector
+    regime_detector: Optional[RegimeDetector] = None 
     portfolio_manager: Optional[BasicPortfolio] = None
     risk_manager: Optional[BasicRiskManager] = None 
     execution_handler: Optional[SimulatedExecutionHandler] = None
@@ -214,7 +212,7 @@ def run_application_logic(app_container: Container):
     try:
         data_handler = app_container.resolve("data_handler")
         strategy = app_container.resolve("strategy") 
-        regime_detector = app_container.resolve("MyPrimaryRegimeDetector") # Resolve RegimeDetector
+        regime_detector = app_container.resolve("MyPrimaryRegimeDetector") 
         portfolio_manager = app_container.resolve("portfolio_manager")
         risk_manager = app_container.resolve("risk_manager") 
         execution_handler = app_container.resolve("execution_handler")
@@ -226,7 +224,7 @@ def run_application_logic(app_container: Container):
         components_to_manage = [
             data_handler, 
             strategy, 
-            regime_detector, # Add RegimeDetector to the list
+            regime_detector, 
             portfolio_manager, 
             risk_manager, 
             execution_handler, 
@@ -234,7 +232,6 @@ def run_application_logic(app_container: Container):
             order_logger_comp   
         ]
 
-        # Setup phase
         for comp in components_to_manage:
             if comp is None:
                 logger.error("A core component was not resolved. Aborting setup.")
@@ -252,7 +249,6 @@ def run_application_logic(app_container: Container):
             logger.info("Standard run: Setting active dataset to 'full' in DataHandler (respects --bars if provided).")
             data_handler.set_active_dataset("full")
 
-        # Start phase
         for comp in components_to_manage:
              if isinstance(comp, BaseComponent):
                 if comp.get_state() == BaseComponent.STATE_INITIALIZED:
@@ -265,7 +261,6 @@ def run_application_logic(app_container: Container):
                     logger.warning(f"Skipping start for component '{comp.name}' as it's not in INITIALIZED state (current: {comp.get_state()}).")
 
         logger.info("All operational components started. Event flow: BAR -> Strategy -> RiskManager -> ORDER -> ExecutionHandler -> FILL -> Portfolio.")
-        # RegimeDetector also listens to BAR events.
 
     except (DependencyNotFoundError, ComponentError, ADMFTraderError) as e: 
         logger.error(f"Error during application logic: {e}", exc_info=True)
@@ -322,4 +317,3 @@ if __name__ == "__main__":
             handlers=[logging.StreamHandler(sys.stdout)]
         )
     main()
-
