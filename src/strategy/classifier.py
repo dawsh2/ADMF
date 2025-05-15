@@ -1,11 +1,9 @@
-
-
-S# src/strategy/classifier.py
+# src/strategy/classifier.py
 from abc import abstractmethod
-from typing import Any, Dict, Optional, List # Added List for type hinting
+from typing import Any, Dict, Optional, List 
 
 from ..core.component import BaseComponent
-from ..core.event import Event, EventType # Assuming Event and EventType are in core.event
+from ..core.event import Event, EventType 
 
 class Classifier(BaseComponent):
     """
@@ -32,8 +30,8 @@ class Classifier(BaseComponent):
         """
         super().__init__(instance_name, config_loader, component_config_key)
         self._event_bus = event_bus
-        self._current_classification: Optional[str] = None # Explicitly type hinted
-        self._classification_history: List[Dict[str, Any]] = [] # Explicitly type hinted
+        self._current_classification: Optional[str] = None 
+        self._classification_history: List[Dict[str, Any]] = [] 
     
     @abstractmethod
     def classify(self, data: Dict[str, Any]) -> str:
@@ -75,30 +73,24 @@ class Classifier(BaseComponent):
         This typically involves subscribing to relevant data events (e.g., BAR events).
         """
         self.logger.info(f"Setting up classifier '{self.name}'")
-        # Subscribe to BAR events or other relevant data events
         if self._event_bus:
-            # Assuming BAR is a string key for the event type. 
-            # If EventType.BAR is an enum, use that.
             self._event_bus.subscribe(EventType.BAR, self.on_bar) 
-        self.state = BaseComponent.STATE_INITIALIZED
+        self.state = BaseComponent.STATE_INITIALIZED # Correctly set by BaseComponent or here
         self.logger.info(f"Classifier '{self.name}' initialized and subscribed to BAR events.")
     
-    def on_bar(self, event: Event): # Type hint for event
+    def on_bar(self, event: Event): 
         """
         Process bar event, update classification, and publish if changed.
         
         Args:
             event: Bar event containing market data.
         """
-        # Extract market data from event
-        # Ensure data is a dictionary as expected by classify method
-        data: Dict[str, Any] = event.payload # Assuming payload contains the bar data
+        data: Dict[str, Any] = event.payload 
         
         if not isinstance(data, dict):
             self.logger.warning(f"Received BAR event with non-dict payload for {self.name}. Skipping classification.")
             return
 
-        # Classify the data using the subclass's implementation
         try:
             new_classification = self.classify(data)
         except Exception as e:
@@ -109,20 +101,13 @@ class Classifier(BaseComponent):
             self.logger.error(f"Classifier {self.name} returned non-string classification: {new_classification}. Skipping update.")
             return
             
-        # Check if classification changed
         classification_changed = new_classification != self._current_classification
-        
         previous_classification_for_event = self._current_classification
-        
-        # Update current classification
         self._current_classification = new_classification
         
-        # Record in history
-        # Ensure timestamp exists in data, provide a fallback or log if missing
         timestamp = data.get('timestamp')
         if timestamp is None:
             self.logger.warning(f"Timestamp missing in BAR event data for {self.name}. History record may be incomplete.")
-            # Consider using event timestamp if available and appropriate: event.timestamp
 
         self._classification_history.append({
             'timestamp': timestamp, 
@@ -130,7 +115,6 @@ class Classifier(BaseComponent):
             'changed': classification_changed
         })
         
-        # Emit classification event if changed and event_bus is available
         if classification_changed and self._event_bus:
             try:
                 classification_event = self._create_classification_event(data, new_classification, previous_classification_for_event)
@@ -142,37 +126,47 @@ class Classifier(BaseComponent):
     def _create_classification_event(self, data: Dict[str, Any], classification: str, previous_classification: Optional[str]) -> Event:
         """
         Create a classification event.
-        
-        Args:
-            data: Market data that triggered the classification.
-            classification: The new classification label.
-            previous_classification: The classification label before this change.
-            
-        Returns:
-            Event object for the CLASSIFICATION event type.
         """
-        # Ensure timestamp exists for the event payload
         timestamp = data.get('timestamp') 
-        # Consider a fallback for timestamp if critical for event payload
-        # e.g., if data.get('timestamp') is None, use a current timestamp or event.timestamp
-
         payload = {
             'timestamp': timestamp,
-            'classifier_name': self.name, # Using 'classifier_name' for clarity
+            'classifier_name': self.name,
             'classification': classification,
             'previous_classification': previous_classification
         }
-        return Event(EventType.CLASSIFICATION, payload)
+        # Ensure EventType.CLASSIFICATION exists in your src.core.event.EventType enum
+        return Event(EventType.CLASSIFICATION, payload) 
     
     def start(self):
-        """Start the classifier. (Lifecycle method from BaseComponent)"""
-        super().start() # Call parent's start method
-        self.logger.info(f"Starting classifier '{self.name}'")
-        # Additional start logic for the classifier can go here if needed
-    
+        """Start the classifier."""
+        # Call the abstract parent's start (which just logs in your case)
+        super().start() # Calls BaseComponent.start() which logs "Starting component..."
+        
+        # Explicitly set the state for this component if parent doesn't
+        if self.state == BaseComponent.STATE_INITIALIZED:
+            self.state = BaseComponent.STATE_STARTED
+            self.logger.info(f"Classifier '{self.name}' successfully started. State: {self.state}")
+        else:
+            self.logger.warning(f"Classifier '{self.name}' was not in INITIALIZED state (was {self.state}) before attempting to start. State not changed by Classifier.start().")
+
     def stop(self):
-        """Stop the classifier. (Lifecycle method from BaseComponent)"""
-        # Additional stop logic for the classifier can go here if needed
-        self.logger.info(f"Stopping classifier '{self.name}'")
-        super().stop() # Call parent's stop method
+        """Stop the classifier."""
+        # Call the abstract parent's stop (if it has one, or implement logic here)
+        # super().stop() # Uncomment if BaseComponent has a concrete stop or if it's also abstract
+        
+        self.logger.info(f"Stopping classifier '{self.name}'...")
+        # Add any specific cleanup for the classifier here, e.g., unsubscribing
+        if self._event_bus and hasattr(self._event_bus, 'unsubscribe'):
+             try:
+                 self._event_bus.unsubscribe(EventType.BAR, self.on_bar)
+                 self.logger.info(f"Classifier '{self.name}' unsubscribed from BAR events.")
+             except Exception as e: # Be specific about expected exceptions if possible
+                 self.logger.error(f"Error unsubscribing {self.name} from BAR events: {e}", exc_info=True)
+
+        self.state = BaseComponent.STATE_STOPPED
+        self.logger.info(f"Classifier '{self.name}' stopped. State: {self.state}")
+        # If BaseComponent.stop() is abstract and meant to be overridden,
+        # ensure super().stop() is called if it exists and does something.
+        # If BaseComponent.stop() is concrete and sets state, call it at the end.
+        # For now, assuming Classifier handles its own state transition to STOPPED here.
 

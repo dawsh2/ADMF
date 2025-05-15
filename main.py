@@ -3,7 +3,7 @@ import argparse
 import logging
 import sys
 import datetime # Keep for type hints and potential fallback timestamps
-from typing import Optional, Dict, Any # Ensure Dict and Any are imported for type hints
+from typing import Optional, Dict, Any, List # Ensure List is imported
 
 # Core imports
 from src.core.config import SimpleConfigLoader
@@ -16,8 +16,8 @@ from src.core.container import Container
 
 # Application Component imports
 from src.data.csv_data_handler import CSVDataHandler
-# from src.strategy.ma_strategy import MAStrategy # Original MAStrategy, no longer primary strategy
-from src.strategy.implementations.ensemble_strategy import EnsembleSignalStrategy # Import the new ensemble strategy
+from src.strategy.implementations.ensemble_strategy import EnsembleSignalStrategy
+from src.strategy.regime_detector import RegimeDetector # <--- IMPORT RegimeDetector
 from src.risk.basic_risk_manager import BasicRiskManager
 from src.execution.simulated_execution_handler import SimulatedExecutionHandler
 from src.risk.basic_portfolio import BasicPortfolio
@@ -25,7 +25,7 @@ from src.core.dummy_component import DummyComponent
 from src.strategy.optimization.basic_optimizer import BasicOptimizer
 
 
-logger = logging.getLogger(__name__) # Changed from __main__ to __name__ for module context
+logger = logging.getLogger(__name__)
 
 def main():
     parser = argparse.ArgumentParser(description="ADMF-Trader Application")
@@ -44,7 +44,7 @@ def main():
     run_optimization_mode = args.optimize
 
     # --- Basic Setup (Config, Logging, Container, EventBus) ---
-    if not logging.getLogger().hasHandlers(): # Ensure root logger setup if not already
+    if not logging.getLogger().hasHandlers():
         logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s', stream=sys.stdout)
 
     logger.info(f"Attempting to load configuration from: {config_path}")
@@ -54,15 +54,14 @@ def main():
         logger.critical(f"CRITICAL: Config error - {e}. Path: {config_path}", exc_info=True)
         sys.exit(1)
 
-    # Ensure logging is setup using the config loader AFTER it's successfully created
-    setup_logging(config_loader) # setup_logging likely uses config_loader.get('logging.level')
+    setup_logging(config_loader)
     logger.info("Initial configuration loaded and logging system configured.")
 
     container = Container()
     container.register_instance("config_loader", config_loader)
     event_bus = EventBus()
     container.register_instance("event_bus", event_bus)
-    container.register_instance("container", container) # Register container itself if components need it
+    container.register_instance("container", container)
 
     # --- Component Registration (Common for both modes) ---
     csv_args = {"instance_name": "SPY_CSV_Loader", "config_loader": config_loader,
@@ -70,15 +69,35 @@ def main():
                 "max_bars": max_bars_to_process }
     container.register_type("data_handler", CSVDataHandler, True, constructor_kwargs=csv_args)
 
-    # Updated Strategy Registration to use EnsembleSignalStrategy
     ensemble_strat_args = {
-        "instance_name": "SPY_Ensemble_Strategy", # A unique name for this instance
+        "instance_name": "SPY_Ensemble_Strategy",
         "config_loader": config_loader,
         "event_bus": event_bus,
-        "component_config_key": "components.ensemble_strategy" # Points to the new config section
+        "component_config_key": "components.ensemble_strategy"
     }
     container.register_type("strategy", EnsembleSignalStrategy, True, constructor_kwargs=ensemble_strat_args)
     logger.info("EnsembleSignalStrategy registered as 'strategy'.")
+
+    # --- ADD REGISTRATION FOR REGIMEDETECTOR HERE ---
+    regime_detector_service_name = "MyPrimaryRegimeDetector" # This is the key for resolving
+    regime_detector_instance_name = "MyPrimaryRegimeDetector_Instance" # Passed to __init__
+    regime_detector_config_key = "my_regime_detector_config"  # Matches your YAML key
+
+    # Corrected constructor_kwargs for RegimeDetector
+    regime_detector_constructor_kwargs = {
+        "instance_name": regime_detector_instance_name,
+        "config_loader": config_loader,
+        "event_bus": event_bus,
+        "component_config_key": regime_detector_config_key
+    }
+    container.register_type(
+        regime_detector_service_name,   # Service name/key (positional)
+        RegimeDetector,                 # Component class (positional)
+        True,                           # is_singleton (positional)
+        constructor_kwargs=regime_detector_constructor_kwargs # Keyword argument
+    )
+    logger.info(f"RegimeDetector registered as '{regime_detector_service_name}'.")
+    # ----------------------------------------------------
 
     portfolio_args = {"instance_name": "BasicPortfolio", "config_loader": config_loader,
                       "event_bus": event_bus, "component_config_key": "components.basic_portfolio"}
@@ -95,7 +114,6 @@ def main():
                      "event_bus": event_bus, "component_config_key": "components.simulated_execution_handler"}
     container.register_type("execution_handler", SimulatedExecutionHandler, True, constructor_kwargs=sim_exec_args)
 
-    # Dummy signal/order loggers (optional, can be removed if not needed for debugging)
     signal_consumer_args = {"instance_name": "SignalLogger", "config_loader": config_loader,
                             "event_bus": event_bus, "component_config_key": "components.dummy_service",
                             "listen_to_event_type_str": "SIGNAL"}
@@ -123,7 +141,6 @@ def main():
 
         try:
             optimizer: BasicOptimizer = container.resolve("optimizer_service")
-            # The optimizer's setup method should resolve its dependencies internally from the container
             optimizer.setup() 
             if optimizer.get_state() == BaseComponent.STATE_INITIALIZED:
                 optimizer.start()
@@ -134,7 +151,6 @@ def main():
                 if optimization_results:
                     best_train_params = optimization_results.get("best_parameters_on_train")
                     best_train_metric_val = optimization_results.get("best_training_metric_value")
-                    # Ensure metric_name_optimized is fetched correctly from the optimizer instance
                     metric_name_optimized = getattr(optimizer, '_metric_to_optimize', 
                                                     config_loader.get('components.optimizer.metric_to_optimize', 'get_final_portfolio_value'))
                     
@@ -155,13 +171,13 @@ def main():
                 else:
                     logger.info("OPTIMIZATION FAILED: Optimizer run_grid_search() returned no results (None).")
                 
-                optimizer.stop() # Stop the optimizer after the run
+                optimizer.stop()
             else:
                 logger.error("Failed to initialize optimizer. Cannot run optimization.")
 
-        except (DependencyNotFoundError, ADMFTraderError, ComponentError, Exception) as e: # Added ComponentError
+        except (DependencyNotFoundError, ADMFTraderError, ComponentError, Exception) as e:
             logger.critical(f"CRITICAL ERROR during optimization setup or run: {e}", exc_info=True)
-            sys.exit(1) # Exit on critical error
+            sys.exit(1)
     else:
         # Normal Backtest Mode
         if max_bars_to_process is not None and max_bars_to_process > 0:
@@ -169,56 +185,61 @@ def main():
         else:
             logger.info("Standard backtest: Processing all available bars from the dataset.")
 
-        system_name = config_loader.get('system.name', 'ADMF-Trader') # Get system name safely
+        system_name = config_loader.get('system.name', 'ADMF-Trader')
         logger.info(f"App Name: {system_name} - Running Standard Backtest")
         logger.info("Bootstrap complete. Starting application logic...")
         try:
-            run_application_logic(container) # Pass the container
-        except (DependencyNotFoundError, ADMFTraderError, ComponentError, Exception) as e: # Added ComponentError
+            run_application_logic(container)
+        except (DependencyNotFoundError, ADMFTraderError, ComponentError, Exception) as e:
             logger.critical(f"CRITICAL ERROR during application logic: {e}", exc_info=True)
-            sys.exit(1) # Exit on critical error
+            sys.exit(1)
 
     logger.info("ADMF-Trader MVP finished.")
 
 
-def run_application_logic(app_container: Container): # Added type hint for app_container
+def run_application_logic(app_container: Container):
     logger.info("Running main application logic (standard backtest)...")
     
-    # Resolve all components needed for a standard run
-    # Type hints for resolved components for clarity
     data_handler: Optional[CSVDataHandler] = None
-    strategy: Optional[EnsembleSignalStrategy] = None # Changed to EnsembleSignalStrategy
+    strategy: Optional[EnsembleSignalStrategy] = None
+    regime_detector: Optional[RegimeDetector] = None # Variable for RegimeDetector
     portfolio_manager: Optional[BasicPortfolio] = None
     risk_manager: Optional[BasicRiskManager] = None 
     execution_handler: Optional[SimulatedExecutionHandler] = None
-    signal_logger_comp: Optional[DummyComponent] = None # Renamed to avoid conflict with logger module
-    order_logger_comp: Optional[DummyComponent] = None   # Renamed
+    signal_logger_comp: Optional[DummyComponent] = None
+    order_logger_comp: Optional[DummyComponent] = None
 
-    components_to_manage: List[Optional[BaseComponent]] = [] # List to hold resolved components
+    components_to_manage: List[Optional[BaseComponent]] = []
 
     try:
-        # Resolve components from the container
         data_handler = app_container.resolve("data_handler")
         strategy = app_container.resolve("strategy") 
+        regime_detector = app_container.resolve("MyPrimaryRegimeDetector") # Resolve RegimeDetector
         portfolio_manager = app_container.resolve("portfolio_manager")
         risk_manager = app_container.resolve("risk_manager") 
         execution_handler = app_container.resolve("execution_handler")
         signal_logger_comp = app_container.resolve("signal_consumer")
         order_logger_comp = app_container.resolve("order_consumer")
         
-        logger.info("DataHandler, Strategy, PortfolioManager, RiskManager, ExecutionHandler, and Loggers resolved.")
+        logger.info("DataHandler, Strategy, RegimeDetector, PortfolioManager, RiskManager, ExecutionHandler, and Loggers resolved.")
 
         components_to_manage = [
-            data_handler, strategy, portfolio_manager, risk_manager, execution_handler, 
-            signal_logger_comp, order_logger_comp   
+            data_handler, 
+            strategy, 
+            regime_detector, # Add RegimeDetector to the list
+            portfolio_manager, 
+            risk_manager, 
+            execution_handler, 
+            signal_logger_comp, 
+            order_logger_comp   
         ]
 
         # Setup phase
         for comp in components_to_manage:
-            if comp is None: # Should ideally not happen if resolve is successful
+            if comp is None:
                 logger.error("A core component was not resolved. Aborting setup.")
                 raise ComponentError("Core component resolution failed during setup.")
-            if isinstance(comp, BaseComponent): # Ensure it's a component before calling methods
+            if isinstance(comp, BaseComponent):
                 logger.info(f"--- Setting up {comp.name} ---")
                 comp.setup()
                 logger.info(f"State of '{comp.name}' after setup: {comp.get_state()}")
@@ -227,11 +248,9 @@ def run_application_logic(app_container: Container): # Added type hint for app_c
             else:
                 logger.warning(f"Item {type(comp).__name__} is not a BaseComponent, skipping setup for it directly.")
 
-
-        # Explicitly set active dataset for standard run AFTER data_handler setup
         if data_handler and isinstance(data_handler, CSVDataHandler) and hasattr(data_handler, "set_active_dataset"):
             logger.info("Standard run: Setting active dataset to 'full' in DataHandler (respects --bars if provided).")
-            data_handler.set_active_dataset("full") # "full" means use all data loaded (which was limited by --bars)
+            data_handler.set_active_dataset("full")
 
         # Start phase
         for comp in components_to_manage:
@@ -246,17 +265,15 @@ def run_application_logic(app_container: Container): # Added type hint for app_c
                     logger.warning(f"Skipping start for component '{comp.name}' as it's not in INITIALIZED state (current: {comp.get_state()}).")
 
         logger.info("All operational components started. Event flow: BAR -> Strategy -> RiskManager -> ORDER -> ExecutionHandler -> FILL -> Portfolio.")
-        # The DataHandler (CSVDataHandler) will start publishing BAR events after its start() method.
+        # RegimeDetector also listens to BAR events.
 
     except (DependencyNotFoundError, ComponentError, ADMFTraderError) as e: 
         logger.error(f"Error during application logic: {e}", exc_info=True)
-        # No need to re-raise if sys.exit is called in main's except block
-    except Exception as e: # Catch any other unexpected errors
+    except Exception as e:
         logger.error(f"An unexpected error occurred during application logic: {e}", exc_info=True)
     finally:
         logger.info("--- Initiating application shutdown sequence (standard backtest) ---")
 
-        # Close positions before stopping components
         if portfolio_manager and isinstance(portfolio_manager, BasicPortfolio) and \
            portfolio_manager.get_state() not in [BaseComponent.STATE_CREATED, BaseComponent.STATE_FAILED]:
             
@@ -269,7 +286,7 @@ def run_application_logic(app_container: Container): # Added type hint for app_c
             if not last_timestamp_for_close and hasattr(portfolio_manager, 'get_last_processed_timestamp'):
                  last_timestamp_for_close = portfolio_manager.get_last_processed_timestamp()
             
-            if not last_timestamp_for_close: # Absolute fallback
+            if not last_timestamp_for_close:
                 last_timestamp_for_close = datetime.datetime.now(datetime.timezone.utc)
                 logger.warning(f"Using current time as fallback for closing positions: {last_timestamp_for_close}")
             
@@ -279,18 +296,16 @@ def run_application_logic(app_container: Container): # Added type hint for app_c
         else:
             logger.warning("PortfolioManager not available or not in a valid state to close open positions.")
 
-        # Stop components in reverse order of start/setup
         for comp in reversed(components_to_manage):
             if comp and isinstance(comp, BaseComponent) and hasattr(comp, 'stop') and callable(comp.stop):
-                # Only stop if it was likely started or setup
                 if hasattr(comp, 'get_state') and comp.get_state() not in [BaseComponent.STATE_CREATED, BaseComponent.STATE_STOPPED, BaseComponent.STATE_FAILED]: 
                     logger.info(f"--- Stopping {comp.name} (Current State: {comp.get_state()}) ---")
                     try:
                         comp.stop()
                         logger.info(f"State of '{comp.name}' after stop: {comp.get_state()}")
-                    except Exception as e: # Catch errors during individual component stop
+                    except Exception as e:
                         logger.error(f"Error stopping component '{comp.name}': {e}", exc_info=True)
-                elif hasattr(comp, 'name'): # Log if component was not in a stoppable state
+                elif hasattr(comp, 'name'):
                     logger.debug(f"Component '{comp.name}' was in {comp.get_state()} state; stop action might be minimal or skipped.")
             elif comp and hasattr(comp, 'name'): 
                  logger.warning(f"Item '{comp.name}' ({type(comp).__name__}) may not be a standard BaseComponent or wasn't fully operational to stop.")
@@ -300,13 +315,11 @@ def run_application_logic(app_container: Container): # Added type hint for app_c
     logger.info("Main application logic (standard backtest) finished.")
 
 if __name__ == "__main__":
-    # Ensure logging is configured at the earliest point possible for __main__
-    # This basicConfig is a fallback if setup_logging isn't reached or fails early.
-    # setup_logging called within main() will refine this with config.
     if not logging.getLogger().hasHandlers():
         logging.basicConfig(
-            level=logging.INFO, # Default level
+            level=logging.INFO,
             format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
-            handlers=[logging.StreamHandler(sys.stdout)] # Explicitly set handler
+            handlers=[logging.StreamHandler(sys.stdout)]
         )
     main()
+
