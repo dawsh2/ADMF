@@ -1,0 +1,176 @@
+S# src/strategy/classifier.py
+from abc import abstractmethod
+from typing import Any, Dict, Optional, List # Added List for type hinting
+
+from ..core.component import BaseComponent
+from ..core.event import Event, EventType # Assuming Event and EventType are in core.event
+
+class Classifier(BaseComponent):
+    """
+    Base class for all market data classifiers.
+    
+    Classifiers analyze market data and produce categorical labels without
+    directly generating trading signals. Examples include regime detectors,
+    market state classifiers, and volatility classifiers.
+    """
+    
+    def __init__(self, 
+                instance_name: str, 
+                config_loader, 
+                event_bus,
+                component_config_key: str = None):
+        """
+        Initialize the Classifier.
+        
+        Args:
+            instance_name (str): The unique name of this classifier instance.
+            config_loader: Configuration loader instance.
+            event_bus: Event bus for publishing classification events and subscribing to data.
+            component_config_key (str, optional): Configuration key for this component.
+        """
+        super().__init__(instance_name, config_loader, component_config_key)
+        self._event_bus = event_bus
+        self._current_classification: Optional[str] = None # Explicitly type hinted
+        self._classification_history: List[Dict[str, Any]] = [] # Explicitly type hinted
+    
+    @abstractmethod
+    def classify(self, data: Dict[str, Any]) -> str:
+        """
+        Classify market data into a categorical label.
+        
+        This method must be implemented by subclasses.
+        
+        Args:
+            data: Market data (e.g., a bar) to classify.
+            
+        Returns:
+            str: Classification label (e.g., "trending_up", "high_volatility").
+        """
+        pass
+    
+    def get_current_classification(self) -> Optional[str]:
+        """
+        Returns the current classification label.
+        
+        Returns:
+            str: Current classification label or None if not yet classified.
+        """
+        return self._current_classification
+    
+    def get_classification_history(self) -> List[Dict[str, Any]]:
+        """
+        Returns the history of classifications with timestamps and change flags.
+        
+        Returns:
+            list: List of classification records. Each record is a dictionary
+                  containing 'timestamp', 'classification', and 'changed' (bool).
+        """
+        return self._classification_history
+    
+    def setup(self):
+        """
+        Set up classifier resources.
+        This typically involves subscribing to relevant data events (e.g., BAR events).
+        """
+        self.logger.info(f"Setting up classifier '{self.name}'")
+        # Subscribe to BAR events or other relevant data events
+        if self._event_bus:
+            # Assuming BAR is a string key for the event type. 
+            # If EventType.BAR is an enum, use that.
+            self._event_bus.subscribe(EventType.BAR, self.on_bar) 
+        self.state = BaseComponent.STATE_INITIALIZED
+        self.logger.info(f"Classifier '{self.name}' initialized and subscribed to BAR events.")
+    
+    def on_bar(self, event: Event): # Type hint for event
+        """
+        Process bar event, update classification, and publish if changed.
+        
+        Args:
+            event: Bar event containing market data.
+        """
+        # Extract market data from event
+        # Ensure data is a dictionary as expected by classify method
+        data: Dict[str, Any] = event.payload # Assuming payload contains the bar data
+        
+        if not isinstance(data, dict):
+            self.logger.warning(f"Received BAR event with non-dict payload for {self.name}. Skipping classification.")
+            return
+
+        # Classify the data using the subclass's implementation
+        try:
+            new_classification = self.classify(data)
+        except Exception as e:
+            self.logger.error(f"Error during classification in {self.name} for data {data}: {e}", exc_info=True)
+            return
+
+        if not isinstance(new_classification, str):
+            self.logger.error(f"Classifier {self.name} returned non-string classification: {new_classification}. Skipping update.")
+            return
+            
+        # Check if classification changed
+        classification_changed = new_classification != self._current_classification
+        
+        previous_classification_for_event = self._current_classification
+        
+        # Update current classification
+        self._current_classification = new_classification
+        
+        # Record in history
+        # Ensure timestamp exists in data, provide a fallback or log if missing
+        timestamp = data.get('timestamp')
+        if timestamp is None:
+            self.logger.warning(f"Timestamp missing in BAR event data for {self.name}. History record may be incomplete.")
+            # Consider using event timestamp if available and appropriate: event.timestamp
+
+        self._classification_history.append({
+            'timestamp': timestamp, 
+            'classification': new_classification,
+            'changed': classification_changed
+        })
+        
+        # Emit classification event if changed and event_bus is available
+        if classification_changed and self._event_bus:
+            try:
+                classification_event = self._create_classification_event(data, new_classification, previous_classification_for_event)
+                self._event_bus.publish(classification_event)
+                self.logger.debug(f"Classifier '{self.name}' published CLASSIFICATION event: New='{new_classification}', Prev='{previous_classification_for_event}'")
+            except Exception as e:
+                self.logger.error(f"Error creating or publishing CLASSIFICATION event in {self.name}: {e}", exc_info=True)
+
+    def _create_classification_event(self, data: Dict[str, Any], classification: str, previous_classification: Optional[str]) -> Event:
+        """
+        Create a classification event.
+        
+        Args:
+            data: Market data that triggered the classification.
+            classification: The new classification label.
+            previous_classification: The classification label before this change.
+            
+        Returns:
+            Event object for the CLASSIFICATION event type.
+        """
+        # Ensure timestamp exists for the event payload
+        timestamp = data.get('timestamp') 
+        # Consider a fallback for timestamp if critical for event payload
+        # e.g., if data.get('timestamp') is None, use a current timestamp or event.timestamp
+
+        payload = {
+            'timestamp': timestamp,
+            'classifier_name': self.name, # Using 'classifier_name' for clarity
+            'classification': classification,
+            'previous_classification': previous_classification
+        }
+        return Event(EventType.CLASSIFICATION, payload)
+    
+    def start(self):
+        """Start the classifier. (Lifecycle method from BaseComponent)"""
+        super().start() # Call parent's start method
+        self.logger.info(f"Starting classifier '{self.name}'")
+        # Additional start logic for the classifier can go here if needed
+    
+    def stop(self):
+        """Stop the classifier. (Lifecycle method from BaseComponent)"""
+        # Additional stop logic for the classifier can go here if needed
+        self.logger.info(f"Stopping classifier '{self.name}'")
+        super().stop() # Call parent's stop method
+

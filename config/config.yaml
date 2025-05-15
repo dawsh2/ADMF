@@ -15,18 +15,17 @@ components:
     symbol: "SPY" # Symbol for the strategy
     
     # MA Crossover part (parameters for the parent MAStrategy logic)
-    short_window_default: 10 
+    short_window_default: 10
     long_window_default: 20
     ma_rule.weight: 0.6 # Weight for MA signals in ensemble
 
     rsi_indicator: # This block corresponds to component_config_key 'components.ensemble_strategy.rsi_indicator'
       period: 14
-    
-    rsi_rule:      # This block corresponds to component_config_key 'components.ensemble_strategy.rsi_rule'
+      
+    rsi_rule: # This block corresponds to component_config_key 'components.ensemble_strategy.rsi_rule'
       oversold_threshold: 30.0
       overbought_threshold: 70.0
       weight: 0.4
-
 
   # Data Handler
   data_handler_csv:
@@ -51,9 +50,9 @@ components:
   # Execution Handler
   simulated_execution_handler:
     default_quantity: 100 # Fallback if order has no quantity
-    commission_per_trade: 0.005 
-    commission_type: "per_share" 
-    passthrough: false 
+    commission_per_trade: 0.005
+    commission_type: "per_share"
+    passthrough: false
     fill_price_logic: "signal_price"
 
   # Optimizer
@@ -63,5 +62,43 @@ components:
     data_handler_service_name: "data_handler"
     risk_manager_service_name: "risk_manager"
     execution_handler_service_name: "execution_handler"
-    metric_to_optimize: "get_final_portfolio_value" 
+    metric_to_optimize: "get_final_portfolio_value"
     higher_metric_is_better: True
+
+  # This section defines the specific configuration for an instance of RegimeDetector
+  # that might be named 'MyPrimaryRegimeDetector' when registered in the container.
+  # The 'component_config_key' for that RegimeDetector instance would then be 'my_regime_detector_config'.
+  my_regime_detector_config: 
+    min_regime_duration: 3 # How many bars a new regime must persist before switching
+    indicators:
+      # 'rsi_14', 'atr_20', 'trend_10_30' are arbitrary names you give to these indicator instances.
+      # They will be used as keys in the regime_thresholds section.
+      rsi_14: 
+        type: "rsi" # This string must match a case in _get_indicator_class
+        parameters: {"period": 14}
+      atr_20:
+        type: "atr"
+        parameters: {"period": 20}
+      trend_10_30:
+        type: "simple_ma_trend"
+        parameters: {"short_period": 10, "long_period": 30}
+    
+    regime_thresholds:
+      # Define your regimes here. The keys are the regime names.
+      # The inner keys must match the instance names defined in the 'indicators' section above.
+      trending_up_volatile:
+        trend_10_30: {"min": 0.5}   # e.g., trend value > 0.5% (short MA is 0.5% above long MA)
+        atr_20: {"min": 0.015}     # e.g., ATR value > 0.015 (absolute, depends on price scale)
+      
+      trending_up_low_vol:
+        trend_10_30: {"min": 0.5}
+        atr_20: {"max": 0.008}
+        
+      ranging_low_vol:
+        trend_10_30: {"min": -0.2, "max": 0.2} # e.g., trend value between -0.2% and 0.2%
+        atr_20: {"max": 0.005}
+        
+      oversold_in_uptrend: # Example combining different indicator types
+        rsi_14: {"max": 35}        # RSI < 35
+        trend_10_30: {"min": 0.1}
+
