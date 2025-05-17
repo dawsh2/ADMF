@@ -78,7 +78,7 @@ def main():
 
     regime_detector_service_name = "MyPrimaryRegimeDetector"
     regime_detector_instance_name = "MyPrimaryRegimeDetector_Instance"
-    regime_detector_config_key = "my_regime_detector_config"
+    regime_detector_config_key = "components.MyPrimaryRegimeDetector"
     regime_detector_constructor_kwargs = {
         "instance_name": regime_detector_instance_name,
         "config_loader": config_loader,

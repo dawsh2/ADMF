@@ -146,7 +146,7 @@ class BasicOptimizer(BaseComponent):
 
             last_ts = data_handler.get_last_timestamp() or portfolio_manager.get_last_processed_timestamp() or datetime.datetime.now(datetime.timezone.utc)
             self.logger.debug(f"Optimizer: Closing positions for '{dataset_type}' run with {params_to_test} at {last_ts}")
-            portfolio_manager.close_all_open_positions(last_ts)
+            portfolio_manager.close_all_positions(last_ts)
             
             metric_method = getattr(portfolio_manager, self._metric_to_optimize)
             metric_value = metric_method()

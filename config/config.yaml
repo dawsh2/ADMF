@@ -65,10 +65,8 @@ components:
     metric_to_optimize: "get_final_portfolio_value"
     higher_metric_is_better: True
 
-  # This section defines the specific configuration for an instance of RegimeDetector
-  # that might be named 'MyPrimaryRegimeDetector' when registered in the container.
-  # The 'component_config_key' for that RegimeDetector instance would then be 'my_regime_detector_config'.
-  my_regime_detector_config: 
+  # Configuration for the RegimeDetector instance registered as 'MyPrimaryRegimeDetector'
+  MyPrimaryRegimeDetector: 
     min_regime_duration: 3 # How many bars a new regime must persist before switching
     indicators:
       # 'rsi_14', 'atr_20', 'trend_10_30' are arbitrary names you give to these indicator instances.
@@ -102,3 +100,5 @@ components:
         rsi_14: {"max": 35}        # RSI < 35
         trend_10_30: {"min": 0.1}
 
+# Note: The 'my_regime_detector_config:' block that was previously at the top level has been moved
+# and renamed to 'MyPrimaryRegimeDetector:' under the 'components:' section.

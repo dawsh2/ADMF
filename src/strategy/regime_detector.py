@@ -1,17 +1,13 @@
 # src/strategy/regime_detector.py
 from typing import Any, Dict, Tuple, Optional, Type, TYPE_CHECKING
 
-
 from src.strategy.classifier import Classifier
+# Assuming these are the correct paths based on your project structure
 from ..strategy.components.indicators.oscillators import RSIIndicator
 from ..strategy.components.indicators.volatility import ATRIndicator
 from ..strategy.components.indicators.trend import SimpleMATrendIndicator
 
-# For type hinting BaseIndicator if you create/have one, otherwise remove
 if TYPE_CHECKING:
-    # Define a common interface or base class your indicators might adhere to,
-    # or use a Union of known indicator types for type hinting.
-    # For now, we'll assume they have common methods like update, value, ready.
     class BaseIndicatorInterface: # pragma: no cover
         def update(self, data: Dict[str, Any]): ...
         @property
@@ -21,7 +17,6 @@ if TYPE_CHECKING:
         def get_parameters(self) -> Dict[str, Any]: ...
         def set_parameters(self, params: Dict[str, Any]) -> bool: ...
 else:
-    # At runtime, BaseIndicatorInterface might not exist if it's just for type checking
     BaseIndicatorInterface = object
 
 
@@ -36,24 +31,10 @@ class RegimeDetector(Classifier):
                 config_loader, 
                 event_bus,
                 component_config_key: str = None):
-        """
-        Initialize the RegimeDetector.
-
-        Args:
-            instance_name (str): The unique name of this classifier instance.
-            config_loader: Configuration loader instance.
-            event_bus: Event bus for publishing classification events and subscribing to data.
-            component_config_key (str, optional): Configuration key for this component.
-        """
         super().__init__(instance_name, config_loader, event_bus, component_config_key)
         
-        # Stores instantiated indicator objects
         self._regime_indicators: Dict[str, BaseIndicatorInterface] = {} 
-        
-        # Configuration for regime thresholds, e.g., {"high_vol": {"volatility_atr": {"min": 0.5}}}
         self._regime_thresholds: Dict[str, Any] = self.get_specific_config("regime_thresholds", {})
-        
-        # Stabilization parameters
         self._min_regime_duration: int = self.get_specific_config("min_regime_duration", 1)
         self._current_regime_duration: int = 0
         self._pending_regime: Optional[str] = None
@@ -62,10 +43,6 @@ class RegimeDetector(Classifier):
         self.logger.info(f"RegimeDetector '{self.name}' initialized. Min duration: {self._min_regime_duration}, Thresholds: {self._regime_thresholds}")
 
     def _get_indicator_class(self, indicator_type_name: str) -> Optional[Type[BaseIndicatorInterface]]:
-        """
-        Factory method to get indicator class by type name.
-        Maps string identifiers (used in config) to actual indicator classes.
-        """
         if indicator_type_name == "rsi":
             return RSIIndicator
         elif indicator_type_name == "atr":
@@ -73,19 +50,10 @@ class RegimeDetector(Classifier):
         elif indicator_type_name == "simple_ma_trend":
             return SimpleMATrendIndicator
         else:
-            self.logger.error(f"Unknown indicator type specified in config: '{indicator_type_name}' for RegimeDetector '{self.name}'.")
+            self.logger.error(f"Unknown indicator type specified: '{indicator_type_name}' for RegimeDetector '{self.name}'.")
             return None
 
     def _setup_regime_indicators(self):
-        """
-        Initialize indicators used for regime detection based on configuration.
-        Example config structure for an indicator:
-        "indicators": {
-            "my_rsi": {"type": "rsi", "parameters": {"period": 14}},
-            "my_atr": {"type": "atr", "parameters": {"period": 20}},
-            "my_trend": {"type": "simple_ma_trend", "parameters": {"short_period": 10, "long_period": 30}}
-        }
-        """
         indicator_configs: Dict[str, Any] = self.get_specific_config("indicators", {})
         if not indicator_configs:
             self.logger.warning(f"No indicators configured for RegimeDetector '{self.name}'. It will likely always classify as 'default'.")
@@ -93,180 +61,185 @@ class RegimeDetector(Classifier):
 
         for indicator_instance_name, config_dict in indicator_configs.items():
             indicator_type_str = config_dict.get("type")
-            params_from_config = config_dict.get("parameters", {}) # These are passed to indicator's __init__
+            params_from_config = config_dict.get("parameters", {}) 
             
             if not indicator_type_str:
-                self.logger.error(f"Indicator type not specified for '{indicator_instance_name}' in RegimeDetector '{self.name}' config.")
+                self.logger.error(f"Indicator type not specified for '{indicator_instance_name}' in {self.name} config.")
                 continue
 
             IndicatorClass = self._get_indicator_class(indicator_type_str)
             if IndicatorClass:
                 try:
-                    # Pass parameters directly to the indicator's constructor
-                    # The indicator's __init__ should handle these parameters.
-                    # Also pass other common args if your indicators expect them (like instance_name, config_loader, event_bus)
-                    # For simplicity, assuming indicators primarily take 'parameters' dict or specific args like 'period'.
-                    # Your indicator __init__ methods take 'parameters' dict.
                     self._regime_indicators[indicator_instance_name] = IndicatorClass(
-                        instance_name=f"{self.name}_{indicator_instance_name}", # Give unique name
-                        parameters=params_from_config,
-                        # config_loader=self._config_loader, # if indicators need these
-                        # event_bus=self._event_bus         # if indicators need these
+                        instance_name=f"{self.name}_{indicator_instance_name}", 
+                        config_loader=self._config_loader,
+                        event_bus=self._event_bus,     
+                        component_config_key=None, # Indicators get params directly, not separate config block by key
+                        parameters=params_from_config
                     )
-                    self.logger.info(f"Initialized indicator '{indicator_instance_name}' of type '{indicator_type_str}' for RegimeDetector '{self.name}'.")
+                    self.logger.info(f"Initialized indicator '{indicator_instance_name}' of type '{indicator_type_str}' for {self.name}.")
                 except Exception as e:
-                    self.logger.error(f"Failed to initialize indicator '{indicator_instance_name}' of type '{indicator_type_str}': {e}", exc_info=True)
-            else:
-                # Error already logged by _get_indicator_class
-                pass
+                    self.logger.error(f"Failed to initialize indicator '{indicator_instance_name}' for {self.name}: {e}", exc_info=True)
         
         if not self._regime_indicators:
-            self.logger.warning(f"No indicators were successfully initialized for RegimeDetector '{self.name}'. Classification may be unreliable.")
+            self.logger.warning(f"No indicators were successfully initialized for {self.name}. Classification may be unreliable.")
 
     def setup(self):
-        """Initialize indicators and call parent's setup to subscribe to events."""
-        super().setup() # This subscribes to BAR events via on_bar in Classifier base
+        super().setup()
         self._setup_regime_indicators()
         self.logger.info(f"RegimeDetector '{self.name}' setup complete.")
     
     def classify(self, data: Dict[str, Any]) -> str:
-        """
-        Classify market data into a regime label.
-        This method is called by the parent Classifier's on_bar method.
-        
-        Args:
-            data: Market data (e.g., a bar) to classify.
-            
-        Returns:
-            str: Regime label (e.g., "high_volatility", "trending_up").
-        """
+        """ Classify market data into a regime label. """
+        current_bar_timestamp = data.get('timestamp', 'N/A') # Get timestamp for logging
+
         if not self._regime_indicators or not self._regime_thresholds:
             raw_detected_regime = self._current_classification if self._current_classification is not None else "default"
-            self.logger.debug(f"RegimeDetector '{self.name}' not fully configured (indicators/thresholds missing). Raw detection: '{raw_detected_regime}'.")
+            # self.logger.debug(f"RegimeDetector '{self.name}' at {current_bar_timestamp}: Not fully configured. Raw: '{raw_detected_regime}'.") # Can be noisy
         else:
-            # 1. Update all underlying indicators
             for indicator_name, indicator_obj in self._regime_indicators.items():
                 try:
-                    indicator_obj.update(data)
+                    if hasattr(indicator_obj, 'update') and callable(getattr(indicator_obj, 'update')):
+                        indicator_obj.update(data) # Pass the full bar data
+                    else:
+                        self.logger.warning(f"Indicator '{indicator_name}' in {self.name} has no callable update method.")
                 except Exception as e:
-                    self.logger.error(f"Error updating indicator '{indicator_name}' in {self.name}: {e}", exc_info=True)
+                    self.logger.error(f"Error updating indicator '{indicator_name}' in {self.name} for bar {current_bar_timestamp}: {e}", exc_info=True)
             
-            # 2. Get current values from indicators
             indicator_values: Dict[str, Optional[float]] = {}
-            for name, indicator_obj in self._regime_indicators.items():
-                if indicator_obj.ready: # Check if indicator has enough data
-                    indicator_values[name] = indicator_obj.value
-                else:
-                    self.logger.debug(f"Indicator '{name}' not ready in {self.name}. Its value will not be used for classification this bar.")
+            all_necessary_indicators_ready = True # Flag to track if all indicators needed by *any* rule are ready
             
-            # 3. Apply regime classification rules
-            raw_detected_regime = self._determine_regime_from_indicators(indicator_values)
-            self.logger.debug(f"RegimeDetector '{self.name}' raw detection: '{raw_detected_regime}' based on values: {indicator_values}")
+            # Collect values from all configured indicators, note if any are not ready
+            for name, indicator_obj in self._regime_indicators.items():
+                if hasattr(indicator_obj, 'ready') and hasattr(indicator_obj, 'value'):
+                    if indicator_obj.ready:
+                        indicator_values[name] = indicator_obj.value
+                    else:
+                        indicator_values[name] = None # Mark as None if not ready
+                        # Check if this non-ready indicator is actually used in any threshold
+                        for regime_def in self._regime_thresholds.values():
+                            if isinstance(regime_def, dict) and name in regime_def:
+                                all_necessary_indicators_ready = False # A needed indicator is not ready
+                                self.logger.debug(f"RegimeDetector '{self.name}' at {current_bar_timestamp}: Indicator '{name}' not ready for classification.")
+                                break # No need to check other regimes for this specific indicator
+                else:
+                    self.logger.warning(f"Indicator '{name}' in {self.name} missing 'ready' or 'value' property.")
+                    indicator_values[name] = None
+                    all_necessary_indicators_ready = False
 
-        # 4. Apply stabilization logic
-        final_regime = self._apply_stabilization(raw_detected_regime)
-        # self.logger.debug(f"RegimeDetector '{self.name}' final stabilized regime: '{final_regime}'") # Already logged in _apply_stabilization
-        
+
+            # **** ADDED DETAILED LOGGING OF INDICATOR VALUES ****
+            self.logger.info(f"RegimeDet '{self.name}' at {current_bar_timestamp} - Values for classification: {indicator_values}")
+
+            if not all_necessary_indicators_ready and any(iv is None for iv_name, iv in indicator_values.items() if any(iv_name in rd_conditions for rd_conditions in self._regime_thresholds.values() if isinstance(rd_conditions, dict))):
+                # If any indicator that is actually part of a rule is None (not ready), default.
+                self.logger.debug(f"RegimeDetector '{self.name}' at {current_bar_timestamp}: Not all necessary indicators ready, defaulting.")
+                raw_detected_regime = "default"
+            else:
+                raw_detected_regime = self._determine_regime_from_indicators(indicator_values, current_bar_timestamp)
+            
+            self.logger.debug(f"RegimeDetector '{self.name}' at {current_bar_timestamp}: Raw detection: '{raw_detected_regime}'.")
+
+        final_regime = self._apply_stabilization(raw_detected_regime, current_bar_timestamp)
         return final_regime
     
-    def _determine_regime_from_indicators(self, indicator_values: Dict[str, Optional[float]]) -> str:
-        """
-        Apply rules to classify the current regime based on indicator values.
-        Returns "default" if no specific regime matches or if necessary indicators are not ready/present.
-        """
-        if not indicator_values and self._regime_thresholds: # No ready indicators but thresholds exist
-            self.logger.debug(f"No valid indicator values available for regime determination in {self.name}, but thresholds are defined. Returning 'default'.")
-            return "default"
-        if not self._regime_thresholds: # No thresholds defined
-             self.logger.debug(f"No regime thresholds defined for {self.name}. Returning 'default'.")
+    def _determine_regime_from_indicators(self, indicator_values: Dict[str, Optional[float]], current_bar_timestamp: Any) -> str:
+        if not self._regime_thresholds:
+             self.logger.debug(f"RegimeDet '{self.name}' at {current_bar_timestamp}: No regime thresholds defined. Defaulting.")
              return "default"
             
         for regime_name, conditions in self._regime_thresholds.items():
-            if regime_name == "default": # Skip explicit "default" in thresholds, it's a fallback
+            if regime_name == "default": 
                 continue
 
             matches_all_conditions = True
-            if not isinstance(conditions, dict) or not conditions: # Ensure conditions is a non-empty dict
-                self.logger.warning(f"Conditions for regime '{regime_name}' in {self.name} are invalid (not a dict or empty). Skipping this regime.")
+            if not isinstance(conditions, dict) or not conditions: 
+                self.logger.warning(f"RegimeDet '{self.name}' at {current_bar_timestamp}: Conditions for regime '{regime_name}' are invalid. Skipping.")
                 continue
 
+            # Check if all indicators required for *this specific regime* are available
+            required_indicator_names = list(conditions.keys())
+            all_required_indicators_available_for_this_regime = True
+            for req_ind_name in required_indicator_names:
+                if req_ind_name not in indicator_values or indicator_values[req_ind_name] is None:
+                    all_required_indicators_available_for_this_regime = False
+                    self.logger.debug(f"RegimeDet '{self.name}' at {current_bar_timestamp}: Regime '{regime_name}' requires '{req_ind_name}', which is not ready/available.")
+                    break
+            
+            if not all_required_indicators_available_for_this_regime:
+                matches_all_conditions = False
+                continue # Try next regime definition
+
+            # All required indicators for this regime are available, now check thresholds
             for indicator_instance_name_in_config, threshold_config in conditions.items():
-                if indicator_instance_name_in_config not in indicator_values or indicator_values[indicator_instance_name_in_config] is None:
-                    matches_all_conditions = False
-                    self.logger.debug(f"Regime '{regime_name}': Indicator '{indicator_instance_name_in_config}' missing or not ready. Condition not met.")
-                    break 
-                
-                value = indicator_values[indicator_instance_name_in_config]
+                value = indicator_values[indicator_instance_name_in_config] # Already checked for None above for this regime
                 
                 min_val = threshold_config.get("min")
                 max_val = threshold_config.get("max")
                 
                 if min_val is not None and value < float(min_val):
                     matches_all_conditions = False
+                    self.logger.debug(f"RegimeDet '{self.name}' at {current_bar_timestamp}: Regime '{regime_name}', Ind '{indicator_instance_name_in_config}' ({value:.4f}) < min ({min_val}). No match.")
                     break
                 if max_val is not None and value > float(max_val):
                     matches_all_conditions = False
+                    self.logger.debug(f"RegimeDet '{self.name}' at {current_bar_timestamp}: Regime '{regime_name}', Ind '{indicator_instance_name_in_config}' ({value:.4f}) > max ({max_val}). No match.")
                     break
             
             if matches_all_conditions:
-                self.logger.debug(f"Regime '{regime_name}' matched in {self.name}.")
+                self.logger.info(f"RegimeDet '{self.name}' at {current_bar_timestamp}: Regime '{regime_name}' MATCHED. Indicator values: {indicator_values}")
                 return regime_name
                 
-        self.logger.debug(f"No specific regime matched in {self.name} with indicator values {indicator_values}. Returning 'default'.")
+        self.logger.debug(f"RegimeDet '{self.name}' at {current_bar_timestamp}: No specific regime matched. Defaulting. Indicator values: {indicator_values}")
         return "default"
 
-    def _apply_stabilization(self, detected_regime: str) -> str:
-        """
-        Apply stabilization logic to prevent rapid regime switching.
-        Uses self._current_classification (from parent Classifier) as the true current regime state.
-        """
+    def _apply_stabilization(self, detected_regime: str, current_bar_timestamp: Any) -> str:
         true_current_regime = self._current_classification 
         
-        if true_current_regime is None: # Initial state, first bar processed by on_bar
-            self.logger.debug(f"Stabilization in {self.name}: Initial state. Setting current duration to 1 for detected regime '{detected_regime}'.")
+        if true_current_regime is None: 
+            self.logger.debug(f"RegimeDet '{self.name}' Stabilization at {current_bar_timestamp}: Initial state. Setting duration 1 for detected '{detected_regime}'.")
             self._current_regime_duration = 1
             self._pending_regime = None 
             self._pending_duration = 0
-            # self._current_classification will be set by parent class after this method returns.
-            # So, the first detected_regime becomes the initial true_current_regime.
             return detected_regime 
 
         if detected_regime == true_current_regime:
             self._current_regime_duration += 1
-            self._pending_regime = None 
-            self._pending_duration = 0
-            self.logger.debug(f"Stabilization in {self.name}: Detected_raw '{detected_regime}' matches current_actual '{true_current_regime}'. Duration: {self._current_regime_duration}.")
+            if self._pending_regime is not None: # Clear pending if current regime re-asserts itself
+                self.logger.debug(f"RegimeDet '{self.name}' Stabilization at {current_bar_timestamp}: Detected '{detected_regime}' matches current '{true_current_regime}'. Pending '{self._pending_regime}' cleared.")
+                self._pending_regime = None 
+                self._pending_duration = 0
+            # else: # Already in this regime, just increment duration
+            #     self.logger.debug(f"RegimeDet '{self.name}' Stabilization at {current_bar_timestamp}: Still in '{true_current_regime}'. Duration: {self._current_regime_duration}.")
             return true_current_regime
         else:
-            # Raw detected regime is different from the current actual regime
             if self._pending_regime == detected_regime:
                 self._pending_duration += 1
-                self.logger.debug(f"Stabilization in {self.name}: Pending_raw '{detected_regime}' confirmed again. Pending_duration: {self._pending_duration}.")
+                # self.logger.debug(f"RegimeDet '{self.name}' Stabilization at {current_bar_timestamp}: Pending '{detected_regime}' confirmed again. Pending duration: {self._pending_duration}.")
             else:
+                self.logger.info(f"RegimeDet '{self.name}' Stabilization at {current_bar_timestamp}: New pending regime '{detected_regime}' (was '{true_current_regime}'). Initiating pending duration.")
                 self._pending_regime = detected_regime
-                self._pending_duration = 1 # Reset counter for new pending regime
-                self.logger.debug(f"Stabilization in {self.name}: New pending_raw '{detected_regime}' initiated. Pending_duration: {self._pending_duration}.")
+                self._pending_duration = 1 
 
             if self._pending_duration >= self._min_regime_duration:
-                self.logger.info(f"Stabilization in {self.name}: Regime changing from '{true_current_regime}' to '{self._pending_regime}' after meeting min_duration {self._min_regime_duration}.")
-                self._current_regime_duration = 1 # Reset duration for the new regime
+                self.logger.info(f"RegimeDet '{self.name}' Stabilization at {current_bar_timestamp}: Regime SWITCH from '{true_current_regime}' to '{self._pending_regime}' after meeting min_duration {self._min_regime_duration}.")
+                self._current_regime_duration = 1 
                 newly_confirmed_regime = self._pending_regime
                 self._pending_regime = None 
                 self._pending_duration = 0
                 return newly_confirmed_regime
             else:
                 self._current_regime_duration +=1 
-                self.logger.debug(f"Stabilization in {self.name}: Pending_raw '{self._pending_regime}' (duration {self._pending_duration}/{self._min_regime_duration}) not yet stable. Maintaining current_actual '{true_current_regime}' (duration {self._current_regime_duration}).")
+                self.logger.debug(f"RegimeDet '{self.name}' Stabilization at {current_bar_timestamp}: Pending '{self._pending_regime}' (dur {self._pending_duration}/{self._min_regime_duration}) not stable. Maintaining '{true_current_regime}' (dur {self._current_regime_duration}).")
                 return true_current_regime
     
     def get_regime_data(self) -> Dict[str, Any]:
-        """
-        Get additional data about the current regime, including duration and indicator values.
-        """
         indicator_values = {}
         for name, indicator_obj in self._regime_indicators.items():
-            if indicator_obj.ready:
+            if hasattr(indicator_obj, 'ready') and indicator_obj.ready and hasattr(indicator_obj, 'value'):
                 indicator_values[name] = indicator_obj.value
+            else:
+                indicator_values[name] = None
 
         return {
             'regime': self.get_current_classification(), 

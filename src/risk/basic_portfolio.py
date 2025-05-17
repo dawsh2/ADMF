@@ -1,19 +1,17 @@
 # src/risk/basic_portfolio.py
 import logging
-import datetime 
-from typing import Dict, Any, Optional, List, Tuple
+import datetime # For type hinting and operations
+from typing import Dict, Any, Optional, List, Tuple 
 import uuid
-import statistics 
-import copy 
 
 from ..core.component import BaseComponent
 from ..core.event import Event, EventType
-from ..core.exceptions import ComponentError, DependencyNotFoundError
+from ..core.exceptions import ComponentError, DependencyNotFoundError 
 
 class BasicPortfolio(BaseComponent):
     """
     Manages the portfolio's positions, cash, and tracks performance.
-    Enhanced to be regime-aware for P&L attribution.
+    This version will be enhanced to be regime-aware.
     """
     def __init__(self, 
                  instance_name: str, 
@@ -28,9 +26,8 @@ class BasicPortfolio(BaseComponent):
         self.current_cash: float = self.initial_cash
         
         self.open_positions: Dict[str, Dict[str, Any]] = {}
-        self._trade_log: List[Dict[str, Any]] = [] 
+        self._trade_log: List[Dict[str, Any]] = []
         
-        self.total_pnl: float = 0.0
         self.realized_pnl: float = 0.0
         self.unrealized_pnl: float = 0.0
         self.current_holdings_value: float = 0.0
@@ -41,10 +38,12 @@ class BasicPortfolio(BaseComponent):
         self.regime_detector_key: str = self.get_specific_config('regime_detector_service_name', "MyPrimaryRegimeDetector")
         self._current_market_regime: Optional[str] = "default" 
 
+        self._portfolio_value_history: List[Tuple[Optional[datetime.datetime], float]] = []
+        
         self.logger.info(f"BasicPortfolio '{self.name}' initialized with initial cash: {self.initial_cash:.2f}")
 
     def setup(self):
-        super().setup()
+        super().setup() 
         self.logger.info(f"Setting up BasicPortfolio '{self.name}'...")
         if self._event_bus:
             self._event_bus.subscribe(EventType.FILL, self.on_fill)
@@ -63,471 +62,407 @@ class BasicPortfolio(BaseComponent):
                 if hasattr(self._regime_detector, 'get_current_classification') and callable(getattr(self._regime_detector, 'get_current_classification')):
                     initial_regime = self._regime_detector.get_current_classification()
                     self._current_market_regime = initial_regime if initial_regime else "default"
-                    self.logger.info(f"Initial market regime set to: {self._current_market_regime}")
-            else:
-                self.logger.error(f"Failed to resolve RegimeDetector with key '{self.regime_detector_key}'.")
+                else:
+                    self._current_market_regime = "default" # Fallback
+                self.logger.info(f"Initial market regime set to: {self._current_market_regime}")
+            else: # Should ideally not happen if resolve doesn't raise error but returns None
+                self.logger.warning(f"Failed to resolve RegimeDetector with key '{self.regime_detector_key}'. Regime-aware tracking will use 'default' regime.")
+                self._current_market_regime = "default"
         except DependencyNotFoundError:
-            self.logger.error(f"Dependency '{self.regime_detector_key}' (RegimeDetector) not found. Regime-aware tracking will be limited.")
+            self.logger.warning(f"Dependency '{self.regime_detector_key}' (RegimeDetector) not found. Regime-aware tracking will use 'default' regime.")
+            self._current_market_regime = "default"
         except Exception as e:
             self.logger.error(f"Error resolving RegimeDetector '{self.regime_detector_key}': {e}", exc_info=True)
+            self._current_market_regime = "default"
 
-        self._update_portfolio_value(datetime.datetime.now(datetime.timezone.utc))
+        self._update_portfolio_value(datetime.datetime.now(datetime.timezone.utc)) 
         self.state = BaseComponent.STATE_INITIALIZED
         self.logger.info(f"BasicPortfolio '{self.name}' setup complete. State: {self.state}")
 
-    def get_current_position_quantity(self, symbol: str) -> float:
-        position = self.open_positions.get(symbol)
-        if position:
-            if position['direction'] == 'LONG':
-                return position.get('quantity', 0.0)
-            elif position['direction'] == 'SHORT':
-                return -position.get('quantity', 0.0) 
-        return 0.0
-        
-    def get_current_position_direction(self, symbol: str) -> Optional[str]:
-        position = self.open_positions.get(symbol)
-        if position:
-            return position.get('direction')
-        return None
-
-    def on_classification_change(self, event: Event):
-        if not self._regime_detector:
-            return
-
-        payload = event.payload
-        classifier_name = payload.get('classifier_name')
-        new_regime = payload.get('classification')
-        event_timestamp = payload.get('timestamp') 
-        bar_close_price = payload.get('bar_close_price') 
-
-        if not event_timestamp: 
-            self.logger.warning(f"Classification event for '{classifier_name}' missing timestamp. Skipping regime change processing.")
-            return
-
-        if classifier_name != self._regime_detector.name:
-            return
-        
-        if new_regime == self._current_market_regime:
-            return 
-
-        self.logger.info(f"Portfolio '{self.name}': Market regime changed from '{self._current_market_regime}' to '{new_regime}' at {event_timestamp} (price: {bar_close_price}).")
-        
-        old_market_regime = self._current_market_regime
-        self._current_market_regime = new_regime
-
-        for symbol in list(self.open_positions.keys()):
-            position = self.open_positions[symbol]
-            segment_end_price = bar_close_price if bar_close_price is not None else self._last_bar_prices.get(symbol)
-
-            if segment_end_price is None:
-                self.logger.warning(f"Cannot segment trade for {symbol} due to missing price at regime change. Position regime updated, P&L segment not logged.")
-                position['current_segment_regime'] = new_regime
-                continue
-
-            segment_pnl = 0
-            if position['direction'] == 'LONG':
-                segment_pnl = (segment_end_price - position['current_segment_entry_price']) * position['quantity']
-            elif position['direction'] == 'SHORT':
-                segment_pnl = (position['current_segment_entry_price'] - segment_end_price) * position['quantity']
-            
-            self._log_trade_segment(
-                symbol=symbol, trade_id=position['trade_id'],
-                segment_entry_timestamp=position['current_segment_entry_timestamp'],
-                segment_exit_timestamp=event_timestamp, 
-                direction=position['direction'],
-                segment_entry_price=position['current_segment_entry_price'],
-                segment_exit_price=segment_end_price,
-                quantity=position['quantity'], commission=0.0, 
-                pnl=segment_pnl, regime=old_market_regime
-            )
-            
-            position['current_segment_entry_price'] = segment_end_price
-            position['current_segment_entry_timestamp'] = event_timestamp
-            position['current_segment_regime'] = new_regime
-            self.logger.info(f"Position for {symbol} segmented. Old segment in '{old_market_regime}' PnL: {segment_pnl:.2f}. New segment starts in '{new_regime}' at {segment_end_price}.")
-
-        self._update_portfolio_value(event_timestamp)
-
-
-    def on_fill(self, fill_event: Event):
-        payload = fill_event.payload
-        self.logger.info(f"BasicPortfolio '{self.name}' received FILL event. Payload keys: {list(payload.keys())}. Full payload: {payload}")
-        
-        symbol = payload['symbol']
-        fill_price = float(payload['fill_price'])
-        # --- CORRECTED KEY: Use 'quantity_filled' from FILL event payload ---
-        quantity = float(payload['quantity_filled']) 
-        # --------------------------------------------------------------------
-        direction = payload['direction'] 
-        commission = float(payload.get('commission', 0.0))
-        fill_timestamp = payload.get('timestamp') 
-        
-        if not isinstance(fill_timestamp, datetime.datetime):
-            self.logger.warning(f"Fill event for {symbol} has non-datetime timestamp '{fill_timestamp}' of type {type(fill_timestamp)}. Attempting conversion or fallback.")
-            try:
-                if hasattr(fill_timestamp, 'to_pydatetime'): 
-                    fill_timestamp = fill_timestamp.to_pydatetime()
-                elif isinstance(fill_timestamp, str): # Basic ISO format check
-                    fill_timestamp = datetime.datetime.fromisoformat(fill_timestamp.replace("Z", "+00:00"))
-                
-                if fill_timestamp.tzinfo is None: 
-                    fill_timestamp = fill_timestamp.replace(tzinfo=datetime.timezone.utc)
-            except Exception as e:
-                self.logger.error(f"Error processing fill_timestamp '{payload.get('timestamp')}': {e}. Using current time.", exc_info=True)
-                fill_timestamp = datetime.datetime.now(datetime.timezone.utc)
-
-        self.current_cash -= commission
-        active_regime = self._current_market_regime 
-
-        if symbol not in self.open_positions: 
-            if direction == 'BUY':
-                self.open_positions[symbol] = {
-                    'quantity': quantity, 'direction': 'LONG',
-                    'initial_entry_price': fill_price, 'initial_entry_timestamp': fill_timestamp,
-                    'trade_id': str(uuid.uuid4()), 
-                    'current_segment_entry_price': fill_price, 'current_segment_entry_timestamp': fill_timestamp,
-                    'current_segment_regime': active_regime, 'initial_entry_regime': active_regime
-                }
-                self.current_cash -= quantity * fill_price
-                self.logger.info(f"Opened LONG {quantity} {symbol} at {fill_price} in regime '{active_regime}'. Trade ID: {self.open_positions[symbol]['trade_id']}")
-            elif direction == 'SELL': 
-                self.open_positions[symbol] = {
-                    'quantity': quantity, 'direction': 'SHORT',
-                    'initial_entry_price': fill_price, 'initial_entry_timestamp': fill_timestamp,
-                    'trade_id': str(uuid.uuid4()),
-                    'current_segment_entry_price': fill_price, 'current_segment_entry_timestamp': fill_timestamp,
-                    'current_segment_regime': active_regime, 'initial_entry_regime': active_regime
-                }
-                self.current_cash += quantity * fill_price
-                self.logger.info(f"Opened SHORT {quantity} {symbol} at {fill_price} in regime '{active_regime}'. Trade ID: {self.open_positions[symbol]['trade_id']}")
-        else: 
-            position = self.open_positions[symbol]
-            
-            if position['direction'] == 'LONG':
-                if direction == 'SELL': 
-                    sold_quantity = min(quantity, position['quantity'])
-                    trade_pnl = (fill_price - position['current_segment_entry_price']) * sold_quantity
-                    
-                    self._log_trade_segment(
-                        symbol=symbol, trade_id=position['trade_id'],
-                        segment_entry_timestamp=position['current_segment_entry_timestamp'],
-                        segment_exit_timestamp=fill_timestamp, direction=position['direction'],
-                        segment_entry_price=position['current_segment_entry_price'],
-                        segment_exit_price=fill_price, quantity=sold_quantity,
-                        commission=commission * (sold_quantity / quantity) if quantity != 0 else commission, 
-                        pnl=trade_pnl, regime=position['current_segment_regime'] 
-                    )
-                    self.current_cash += sold_quantity * fill_price
-                    position['quantity'] -= sold_quantity
-                    if position['quantity'] < 1e-9: 
-                        del self.open_positions[symbol]
-                        self.logger.info(f"Closed LONG {symbol}. Segment PnL: {trade_pnl:.2f} in regime '{position['current_segment_regime']}'.")
-                    else: 
-                        self.logger.info(f"Partially closed LONG {sold_quantity} {symbol}. Segment PnL: {trade_pnl:.2f}. Remaining: {position['quantity']}. New segment starts in regime '{active_regime}'.")
-                        position['current_segment_entry_price'] = fill_price 
-                        position['current_segment_entry_timestamp'] = fill_timestamp
-                        position['current_segment_regime'] = active_regime
-                elif direction == 'BUY': 
-                    segment_close_pnl = (fill_price - position['current_segment_entry_price']) * position['quantity']
-                    self._log_trade_segment(symbol, position['trade_id'], position['current_segment_entry_timestamp'], fill_timestamp, position['direction'], position['current_segment_entry_price'], fill_price, position['quantity'], 0, segment_close_pnl, position['current_segment_regime'])
-
-                    new_total_quantity = position['quantity'] + quantity
-                    new_avg_initial_price = ((position['initial_entry_price'] * position['quantity']) + (fill_price * quantity)) / new_total_quantity
-                    position['initial_entry_price'] = new_avg_initial_price
-                    position['quantity'] = new_total_quantity
-                    self.current_cash -= quantity * fill_price
-                    
-                    position['current_segment_entry_price'] = fill_price 
-                    position['current_segment_entry_timestamp'] = fill_timestamp
-                    position['current_segment_regime'] = active_regime
-                    self.logger.info(f"Increased LONG {symbol}. New avg initial entry: {new_avg_initial_price:.2f}. New segment in '{active_regime}'.")
-
-            elif position['direction'] == 'SHORT':
-                if direction == 'BUY': 
-                    covered_quantity = min(quantity, position['quantity'])
-                    trade_pnl = (position['current_segment_entry_price'] - fill_price) * covered_quantity
-                    
-                    self._log_trade_segment(
-                        symbol=symbol, trade_id=position['trade_id'],
-                        segment_entry_timestamp=position['current_segment_entry_timestamp'],
-                        segment_exit_timestamp=fill_timestamp, direction=position['direction'],
-                        segment_entry_price=position['current_segment_entry_price'],
-                        segment_exit_price=fill_price, quantity=covered_quantity,
-                        commission=commission * (covered_quantity / quantity) if quantity != 0 else commission, 
-                        pnl=trade_pnl, regime=position['current_segment_regime']
-                    )
-                    self.current_cash -= covered_quantity * fill_price
-                    position['quantity'] -= covered_quantity
-                    if position['quantity'] < 1e-9: 
-                        del self.open_positions[symbol]
-                        self.logger.info(f"Covered SHORT {symbol}. Segment PnL: {trade_pnl:.2f} in regime '{position['current_segment_regime']}'.")
-                    else: 
-                        self.logger.info(f"Partially covered SHORT {covered_quantity} {symbol}. Segment PnL: {trade_pnl:.2f}. Remaining: {position['quantity']}. New segment starts in regime '{active_regime}'.")
-                        position['current_segment_entry_price'] = fill_price
-                        position['current_segment_entry_timestamp'] = fill_timestamp
-                        position['current_segment_regime'] = active_regime
-                elif direction == 'SELL': 
-                    segment_close_pnl = (position['current_segment_entry_price'] - fill_price) * position['quantity']
-                    self._log_trade_segment(symbol, position['trade_id'], position['current_segment_entry_timestamp'], fill_timestamp, position['direction'], position['current_segment_entry_price'], fill_price, position['quantity'], 0, segment_close_pnl, position['current_segment_regime'])
-
-                    new_total_quantity = position['quantity'] + quantity
-                    new_avg_initial_price = ((position['initial_entry_price'] * position['quantity']) + (fill_price * quantity)) / new_total_quantity
-                    position['initial_entry_price'] = new_avg_initial_price
-                    position['quantity'] = new_total_quantity
-                    self.current_cash += quantity * fill_price
-
-                    position['current_segment_entry_price'] = fill_price
-                    position['current_segment_entry_timestamp'] = fill_timestamp
-                    position['current_segment_regime'] = active_regime
-                    self.logger.info(f"Increased SHORT {symbol}. New avg initial entry: {new_avg_initial_price:.2f}. New segment in '{active_regime}'.")
-        
-        self._update_portfolio_value(fill_timestamp)
-
-    def _log_trade_segment(self, symbol: str, trade_id: str, 
-                           segment_entry_timestamp: datetime.datetime, segment_exit_timestamp: datetime.datetime,
-                           direction: str, segment_entry_price: float, segment_exit_price: float,
-                           quantity: float, commission: float, pnl: float, regime: str):
-        segment_id = str(uuid.uuid4())
-        trade_record = {
-            'symbol': symbol, 'trade_id': trade_id, 'segment_id': segment_id,
-            'entry_timestamp': segment_entry_timestamp, 'exit_timestamp': segment_exit_timestamp,
-            'direction': direction, 'segment_entry_price': segment_entry_price, 
-            'segment_exit_price': segment_exit_price, 'quantity': quantity,
-            'commission': commission, 'pnl': pnl, 'regime': regime
-        }
-        self._trade_log.append(trade_record)
-        self.realized_pnl += (pnl - commission) 
-        self.logger.debug(f"Logged trade segment for {symbol}: ID={segment_id}, PnL={pnl:.2f}, Commission={commission:.2f}, Net PnL={(pnl-commission):.2f}, Regime='{regime}'")
-
-    def on_bar(self, bar_event: Event):
-        payload = bar_event.payload
-        symbol = payload['symbol']
-        close_price = float(payload['close'])
-        timestamp = payload.get('timestamp') 
-
-        if not isinstance(timestamp, datetime.datetime):
-            try:
-                if hasattr(timestamp, 'to_pydatetime'): 
-                    timestamp = timestamp.to_pydatetime()
-                if timestamp.tzinfo is None: 
-                    timestamp = timestamp.replace(tzinfo=datetime.timezone.utc)
-            except Exception as e:
-                self.logger.warning(f"Bar event for {symbol} has invalid timestamp format '{payload.get('timestamp')}': {e}. Using current time.")
-                timestamp = datetime.datetime.now(datetime.timezone.utc)
-
-        self._last_bar_prices[symbol] = close_price
-        self._update_portfolio_value(timestamp)
-
-    def _update_portfolio_value(self, timestamp: Optional[datetime.datetime]):
-        if timestamp is None: 
-            timestamp = datetime.datetime.now(datetime.timezone.utc)
-            self.logger.debug(f"Portfolio value update called with None timestamp, using current time: {timestamp}")
-
-        self.unrealized_pnl = 0.0
-        self.current_holdings_value = 0.0
-        
-        for symbol, position in self.open_positions.items():
-            last_price = self._last_bar_prices.get(symbol)
-            if last_price is not None:
-                market_value = position['quantity'] * last_price
-                # For short positions, market_value is negative, representing liability
-                if position['direction'] == 'SHORT':
-                    self.current_holdings_value -= market_value 
-                else:
-                    self.current_holdings_value += market_value
-                
-                if position['direction'] == 'LONG':
-                    self.unrealized_pnl += (last_price - position['current_segment_entry_price']) * position['quantity']
-                elif position['direction'] == 'SHORT':
-                    self.unrealized_pnl += (position['current_segment_entry_price'] - last_price) * position['quantity']
-        
-        self.current_total_value = self.current_cash + self.current_holdings_value
-        current_total_pnl = self.realized_pnl + self.unrealized_pnl
-
-        if self._event_bus:
-            portfolio_status = {
-                'timestamp': timestamp, 'cash': self.current_cash,
-                'holdings_value': self.current_holdings_value, 'total_value': self.current_total_value,
-                'realized_pnl': self.realized_pnl, 'unrealized_pnl': self.unrealized_pnl,
-                'total_pnl': current_total_pnl, 'open_positions_count': len(self.open_positions)
-            }
-            # self._event_bus.publish(Event(EventType.PORTFOLIO_UPDATE, portfolio_status)) 
-        
-        self.logger.info(
-            f"Portfolio Update at {timestamp}: "
-            f"Cash={self.current_cash:.2f}, Holdings Value={self.current_holdings_value:.2f}, "
-            f"Total Value={self.current_total_value:.2f}, Realized PnL={self.realized_pnl:.2f}"
-        )
-        
-    def close_all_open_positions(self, timestamp: datetime.datetime):
-        self.logger.info(f"'{self.name}' initiating closing of all open positions at {timestamp}.")
-        for symbol in list(self.open_positions.keys()): 
-            position = self.open_positions[symbol]
-            # Use current_segment_entry_price as a fallback if last_price is not available for some reason
-            last_price = self._last_bar_prices.get(symbol, position['current_segment_entry_price']) 
-
-            if last_price is None: 
-                self.logger.warning(f"No price for {symbol} to close position. Position might remain open in records.")
-                continue
-
-            final_segment_pnl = 0
-            commission_on_close = 0.0 # Actual commission would come from a fill event. For synthetic close, assume 0.
-
-            if position['direction'] == 'LONG':
-                final_segment_pnl = (last_price - position['current_segment_entry_price']) * position['quantity']
-                self.current_cash += position['quantity'] * last_price
-            elif position['direction'] == 'SHORT':
-                final_segment_pnl = (position['current_segment_entry_price'] - last_price) * position['quantity']
-                self.current_cash -= position['quantity'] * last_price # Cash out for buying back short
-            
-            self._log_trade_segment(
-                symbol=symbol, trade_id=position['trade_id'],
-                segment_entry_timestamp=position['current_segment_entry_timestamp'],
-                segment_exit_timestamp=timestamp, direction=position['direction'],
-                segment_entry_price=position['current_segment_entry_price'],
-                segment_exit_price=last_price, quantity=position['quantity'],
-                commission=commission_on_close, 
-                pnl=final_segment_pnl, regime=position['current_segment_regime']
-            )
-            self.logger.info(f"Synthetically closed {position['direction']} {position['quantity']} {symbol} at {last_price}. Final segment PnL: {final_segment_pnl:.2f} in regime '{position['current_segment_regime']}'.")
-            del self.open_positions[symbol]
-
-        self._update_portfolio_value(timestamp) 
-        self.logger.info(f"'{self.name}' finished attempting to close all open positions.")
-
-    def get_performance_by_regime(self) -> Dict[str, Dict[str, Any]]:
-        performance_by_regime: Dict[str, Dict[str, Any]] = {}
-        for segment in self._trade_log:
-            regime = segment.get('regime', 'unknown_regime')
-            if regime not in performance_by_regime:
-                performance_by_regime[regime] = {
-                    'total_gross_pnl': 0.0, 'trade_segments': 0, 'winning_segments': 0,
-                    'losing_segments': 0, 'total_commission': 0.0, 'net_pnl_values': [] 
-                }
-            
-            stats = performance_by_regime[regime]
-            segment_pnl = segment['pnl']
-            segment_commission = segment.get('commission', 0.0)
-            
-            stats['total_gross_pnl'] += segment_pnl 
-            stats['trade_segments'] += 1
-            stats['total_commission'] += segment_commission
-            net_segment_pnl = segment_pnl - segment_commission
-            stats['net_pnl_values'].append(net_segment_pnl)
-
-            if net_segment_pnl > 0:
-                stats['winning_segments'] += 1
-            elif net_segment_pnl < 0:
-                stats['losing_segments'] += 1
-        
-        for regime, stats in performance_by_regime.items():
-            stats['net_pnl_sum'] = sum(stats['net_pnl_values']) 
-            if stats['trade_segments'] > 0:
-                stats['win_rate'] = stats['winning_segments'] / stats['trade_segments'] if stats['trade_segments'] > 0 else 0.0
-                
-                pnl_values = stats.pop('net_pnl_values', []) 
-                if len(pnl_values) > 1:
-                    mean_pnl = statistics.mean(pnl_values)
-                    std_dev_pnl = statistics.stdev(pnl_values)
-                    stats['sharpe_ratio'] = (mean_pnl / std_dev_pnl) * (252**0.5) if std_dev_pnl > 1e-9 else 0.0 
-                elif len(pnl_values) == 1: 
-                    stats['sharpe_ratio'] = float('inf') if pnl_values[0] > 0 else float('-inf') if pnl_values[0] < 0 else 0.0
-                else: 
-                    stats['sharpe_ratio'] = 0.0
-            else:
-                stats['win_rate'] = 0.0
-                stats['sharpe_ratio'] = 0.0
-        return performance_by_regime
-        
     def start(self):
         super().start()
-        if self.state == BaseComponent.STATE_INITIALIZED:
-            self.state = BaseComponent.STATE_STARTED
-            self.logger.info(f"BasicPortfolio '{self.name}' started. Monitoring FILL and BAR events...")
-        elif self.state == BaseComponent.STATE_STARTED:
-             self.logger.info(f"BasicPortfolio '{self.name}' already started.")
-        else:
-            self.logger.warning(f"BasicPortfolio '{self.name}' not starting, current state: {self.state}")
+        self.logger.info(f"BasicPortfolio '{self.name}' started. Monitoring FILL, BAR and CLASSIFICATION events...")
+        if not self._portfolio_value_history: # Should have been populated by setup
+             self._update_portfolio_value(datetime.datetime.now(datetime.timezone.utc))
+
 
     def stop(self):
-        if self.state not in [BaseComponent.STATE_CREATED, BaseComponent.STATE_FAILED, BaseComponent.STATE_STOPPED]:
-            self.logger.info("--- BasicPortfolio Final Summary ---")
-            self.logger.info(f"Initial Cash: {self.initial_cash:.2f}")
-            self.logger.info(f"Final Cash: {self.current_cash:.2f}")
-            if self.open_positions:
-                self.logger.info("Final Open Positions (should be closed by close_all_open_positions):")
-                for symbol, pos_data in self.open_positions.items():
-                    self.logger.info(f"  {symbol}: Quantity={pos_data['quantity']}, Direction={pos_data['direction']}, Entry={pos_data['initial_entry_price']:.2f}")
-            else:
-                self.logger.info("Final Holdings: None (all positions closed)")
-            self.logger.info(f"Final Portfolio Value: {self.current_total_value:.2f}")
-            self.logger.info(f"Total Realized P&L: {self.realized_pnl:.2f}") 
-            self.logger.info(f"Number of Trade Segments Logged: {len(self._trade_log)}")
-
-            try:
-                perf_by_regime = self.get_performance_by_regime()
-                self.logger.info("--- Performance by Regime ---")
-                if perf_by_regime:
-                    for regime, stats in perf_by_regime.items():
-                        self.logger.info(f"  Regime: {regime}")
-                        for stat_name, stat_value in stats.items():
-                            if isinstance(stat_value, float):
-                                self.logger.info(f"    {stat_name.replace('_', ' ').title()}: {stat_value:.2f}")
-                            else:
-                                self.logger.info(f"    {stat_name.replace('_', ' ').title()}: {stat_value}")
-                else:
-                    self.logger.info("  No trade segments logged to report performance by regime.")
-            except Exception as e:
-                self.logger.error(f"Error generating performance by regime report: {e}", exc_info=True)
-
-        super().stop() 
-        self.logger.info(f"Stopping BasicPortfolio '{self.name}'...")
-        if self._event_bus and hasattr(self._event_bus, 'unsubscribe'):
+        self.logger.info(f"Stopping {self.name}...")
+        self._log_final_performance_summary()
+        
+        if self._event_bus:
             try:
                 self._event_bus.unsubscribe(EventType.FILL, self.on_fill)
                 self._event_bus.unsubscribe(EventType.BAR, self.on_bar)
                 self._event_bus.unsubscribe(EventType.CLASSIFICATION, self.on_classification_change)
                 self.logger.info(f"'{self.name}' unsubscribed from FILL, BAR, and CLASSIFICATION events.")
             except Exception as e:
-                self.logger.error(f"Error unsubscribing {self.name} from events: {e}", exc_info=True)
+                self.logger.error(f"Error unsubscribing '{self.name}': {e}", exc_info=True)
         
-        if self.state != BaseComponent.STATE_STOPPED:
-             self.state = BaseComponent.STATE_STOPPED
-        self.logger.info(f"BasicPortfolio '{self.name}' stopped. State: {self.state}")
+        super().stop()
+        self.logger.info(f"{self.name} stopped. State: {self.state}")
 
-    def get_current_holdings(self) -> List[Dict[str, Any]]:
-        holdings = []
-        for symbol, data in self.open_positions.items():
-            holdings.append({
-                "symbol": symbol,
-                "quantity": data['quantity'],
-                "direction": data['direction'],
-                "initial_entry_price": data['initial_entry_price'], 
-                "current_segment_entry_price": data['current_segment_entry_price'],
-                "current_segment_regime": data['current_segment_regime']
-            })
-        return holdings
+    def on_classification_change(self, event: Event):
+        if not event.payload or not isinstance(event.payload, dict):
+            self.logger.warning(f"'{self.name}' received CLASSIFICATION event with invalid payload.")
+            return
+            
+        new_regime = event.payload.get('classification')
+        timestamp = event.payload.get('timestamp', datetime.datetime.now(datetime.timezone.utc))
 
-    def get_current_cash(self) -> float:
-        return self.current_cash
+        if new_regime and new_regime != self._current_market_regime:
+            self.logger.info(f"Market regime changed from '{self._current_market_regime}' to '{new_regime}' at {timestamp} for '{self.name}'.")
+            self._current_market_regime = new_regime
+        elif not new_regime:
+            self.logger.warning(f"Received CLASSIFICATION event with no 'classification' in payload for '{self.name}'.")
+
+    def _get_current_regime(self) -> str:
+        return self._current_market_regime or "default"
+
+    def on_fill(self, event: Event):
+        fill_data = event.payload
+        if not isinstance(fill_data, dict):
+            self.logger.error(f"'{self.name}' received FILL event with non-dict payload: {fill_data}")
+            return
+
+        symbol = fill_data.get('symbol')
+        timestamp = fill_data.get('timestamp') 
+        quantity_filled = float(fill_data.get('quantity_filled', 0.0))
+        fill_price = float(fill_data.get('fill_price', 0.0))
+        commission = float(fill_data.get('commission', 0.0))
+        direction = fill_data.get('direction', '').upper()  # 'BUY' or 'SELL'
+        
+        if not all([symbol, quantity_filled > 0, fill_price > 0, direction in ['BUY', 'SELL'], timestamp is not None]):
+            self.logger.error(f"'{self.name}' received incomplete or invalid FILL data: {fill_data}")
+            return
+
+        self.current_cash -= commission
+        current_regime = self._get_current_regime()
+
+        if symbol not in self.open_positions:
+            self.open_positions[symbol] = {
+                'quantity': 0.0,  # Signed: positive for long, negative for short
+                'avg_entry_price': 0.0, # Weighted average entry price for the current overall holding
+                'cost_basis': 0.0, # Net cost of establishing the current quantity (negative for shorts if proceeds held)
+                'entry_timestamp': None,
+                'trade_id': str(uuid.uuid4()), # ID for the current continuous holding (flips get new ID)
+                'current_segment_entry_price': 0.0,
+                'current_segment_regime': current_regime,
+                'initial_entry_regime_for_trade': current_regime # Regime when this trade_id started
+            }
+        
+        pos = self.open_positions[symbol]
+        current_pos_quantity = pos['quantity']
+        current_pos_direction_is_long = current_pos_quantity > 0
+        current_pos_direction_is_short = current_pos_quantity < 0
+
+        pnl_from_fill = 0.0
+        
+        if direction == 'BUY':
+            if current_pos_direction_is_short: # Buying to cover/reduce a short position
+                qty_to_cover = min(quantity_filled, abs(current_pos_quantity))
+                pnl_from_fill = (pos['current_segment_entry_price'] - fill_price) * qty_to_cover
+                self.realized_pnl += pnl_from_fill
+                self.current_cash -= (qty_to_cover * fill_price) # Cash out to buy back shares
+
+                self.logger.info(f"Covered SHORT {qty_to_cover:.2f} {symbol} at {fill_price:.2f}. PnL: {pnl_from_fill:.2f} in regime '{pos['current_segment_regime']}'.")
+                self._trade_log.append({
+                    'symbol': symbol, 'trade_id': pos['trade_id'], 'segment_id': str(uuid.uuid4()),
+                    'entry_timestamp': pos['entry_timestamp'], 'exit_timestamp': timestamp, 
+                    'direction': 'SHORT', 'entry_price': pos['current_segment_entry_price'], 'exit_price': fill_price,
+                    'quantity': qty_to_cover, 'commission': commission, 
+                    'pnl': pnl_from_fill, 'regime': pos['current_segment_regime']
+                })
+                pos['quantity'] += qty_to_cover # Becomes less negative or zero
+                pos['cost_basis'] += qty_to_cover * pos['current_segment_entry_price'] # Reducing liability from short sale proceeds
+
+                if pos['quantity'] == 0: # Short position fully closed
+                    if quantity_filled > qty_to_cover: # Fill results in flipping to long
+                        remaining_qty = quantity_filled - qty_to_cover
+                        pos['trade_id'] = str(uuid.uuid4()) # New trade for the new long position
+                        pos['initial_entry_regime_for_trade'] = current_regime
+                        pos['entry_timestamp'] = timestamp
+                        pos['quantity'] = remaining_qty
+                        pos['cost_basis'] = remaining_qty * fill_price
+                        pos['current_segment_entry_price'] = fill_price
+                        pos['current_segment_regime'] = current_regime
+                        self.current_cash -= remaining_qty * fill_price
+                        self.logger.info(f"Flipped to LONG {remaining_qty:.2f} {symbol} at {fill_price:.2f} in regime '{current_regime}'. New Trade ID: {pos['trade_id']}")
+                else: # Still short, just reduced
+                    # Avg entry price for shorts might need re-evaluation if partial cover. For now, segment price is key.
+                    self.logger.info(f"Reduced SHORT {symbol} by {qty_to_cover:.2f}. Remaining: {pos['quantity']:.2f}")
+
+            else: # Opening new long or adding to existing long
+                if current_pos_quantity == 0: # Opening new long
+                    pos['entry_timestamp'] = timestamp
+                    pos['trade_id'] = str(uuid.uuid4()) # Ensure new trade_id
+                    pos['initial_entry_regime_for_trade'] = current_regime
+                    pos['current_segment_entry_price'] = fill_price
+                    pos['current_segment_regime'] = current_regime
+                    self.logger.info(f"Opened LONG {quantity_filled:.2f} {symbol} at {fill_price:.2f} in regime '{current_regime}'. Trade ID: {pos['trade_id']}")
+                else: # Adding to existing long
+                    self.logger.info(f"Adding to LONG {symbol}. Old Qty: {pos['quantity']:.2f}, New Qty: {pos['quantity'] + quantity_filled:.2f}")
+                    # Update average entry price for the segment if regime hasn't changed
+                    if pos['current_segment_regime'] == current_regime:
+                         new_total_cost = (pos['current_segment_entry_price'] * pos['quantity']) + (fill_price * quantity_filled)
+                         pos['current_segment_entry_price'] = new_total_cost / (pos['quantity'] + quantity_filled)
+                    else: # Regime changed, start new segment accounting
+                        pos['current_segment_entry_price'] = fill_price
+                        pos['current_segment_regime'] = current_regime
+
+                pos['quantity'] += quantity_filled
+                pos['cost_basis'] += quantity_filled * fill_price
+                self.current_cash -= quantity_filled * fill_price
+        
+        elif direction == 'SELL':
+            if current_pos_direction_is_long: # Selling to close/reduce a long position
+                qty_to_sell = min(quantity_filled, current_pos_quantity)
+                pnl_from_fill = (fill_price - pos['current_segment_entry_price']) * qty_to_sell
+                self.realized_pnl += pnl_from_fill
+                self.current_cash += qty_to_sell * fill_price
+
+                self.logger.info(f"Closed LONG {qty_to_sell:.2f} {symbol} at {fill_price:.2f}. PnL: {pnl_from_fill:.2f} in regime '{pos['current_segment_regime']}'.")
+                self._trade_log.append({
+                    'symbol': symbol, 'trade_id': pos['trade_id'], 'segment_id': str(uuid.uuid4()),
+                    'entry_timestamp': pos['entry_timestamp'], 'exit_timestamp': timestamp, 
+                    'direction': 'LONG', 'entry_price': pos['current_segment_entry_price'], 'exit_price': fill_price,
+                    'quantity': qty_to_sell, 'commission': commission, 
+                    'pnl': pnl_from_fill, 'regime': pos['current_segment_regime']
+                })
+                pos['quantity'] -= qty_to_sell
+                pos['cost_basis'] -= pos['current_segment_entry_price'] * qty_to_sell 
+
+                if pos['quantity'] == 0: # Long position fully closed
+                    if quantity_filled > qty_to_sell: # Fill results in flipping to short
+                        remaining_qty = quantity_filled - qty_to_sell
+                        pos['trade_id'] = str(uuid.uuid4()) # New trade for the new short position
+                        pos['initial_entry_regime_for_trade'] = current_regime
+                        pos['entry_timestamp'] = timestamp
+                        pos['quantity'] = -remaining_qty # Negative for short
+                        pos['cost_basis'] = -(remaining_qty * fill_price) # Representing value of borrowed shares
+                        pos['current_segment_entry_price'] = fill_price
+                        pos['current_segment_regime'] = current_regime
+                        self.current_cash += remaining_qty * fill_price # Proceeds from short sale
+                        self.logger.info(f"Flipped to SHORT {remaining_qty:.2f} {symbol} at {fill_price:.2f} in regime '{current_regime}'. New Trade ID: {pos['trade_id']}")
+                else: # Still long, just reduced
+                     self.logger.info(f"Reduced LONG {symbol} by {qty_to_sell:.2f}. Remaining: {pos['quantity']:.2f}")
+
+
+            else: # Opening new short or adding to existing short
+                if current_pos_quantity == 0: # Opening new short
+                    pos['entry_timestamp'] = timestamp
+                    pos['trade_id'] = str(uuid.uuid4())
+                    pos['initial_entry_regime_for_trade'] = current_regime
+                    pos['current_segment_entry_price'] = fill_price
+                    pos['current_segment_regime'] = current_regime
+                    self.logger.info(f"Opened SHORT {quantity_filled:.2f} {symbol} at {fill_price:.2f} in regime '{current_regime}'. Trade ID: {pos['trade_id']}")
+                else: # Adding to existing short
+                    self.logger.info(f"Adding to SHORT {symbol}. Old Qty: {pos['quantity']:.2f}, New Qty: {pos['quantity'] - quantity_filled:.2f}")
+                    if pos['current_segment_regime'] == current_regime:
+                        new_total_proceeds = (abs(pos['quantity']) * pos['current_segment_entry_price']) + (quantity_filled * fill_price)
+                        pos['current_segment_entry_price'] = new_total_proceeds / (abs(pos['quantity']) + quantity_filled)
+                    else: # Regime changed
+                        pos['current_segment_entry_price'] = fill_price
+                        pos['current_segment_regime'] = current_regime
+                
+                pos['quantity'] -= quantity_filled # More negative
+                pos['cost_basis'] -= quantity_filled * fill_price # Accumulating proceeds (negative cost)
+                self.current_cash += quantity_filled * fill_price
+        
+        # Clean up if position truly flat
+        if pos['quantity'] == 0:
+            self.logger.info(f"Position in {symbol} fully closed and flattened.")
+            del self.open_positions[symbol]
+        else:
+            pos['avg_entry_price'] = abs(pos['cost_basis'] / pos['quantity']) if pos['quantity'] != 0 else 0
+            pos['direction'] = 'LONG' if pos['quantity'] > 0 else 'SHORT'
+
+        self._update_portfolio_value(timestamp)
+
+    def on_bar(self, event: Event):
+        bar_data = event.payload
+        if not isinstance(bar_data, dict):
+            self.logger.warning(f"'{self.name}' received BAR event with non-dict payload: {bar_data}")
+            return
+        
+        symbol = bar_data.get('symbol')
+        close_price = bar_data.get('close')
+        timestamp = bar_data.get('timestamp', datetime.datetime.now(datetime.timezone.utc))
+
+        if symbol and isinstance(close_price, (int, float)):
+            self._last_bar_prices[symbol] = float(close_price)
+            if symbol in self.open_positions:
+                # If current market regime changed (detected by on_classification_change)
+                # and it's different from the segment's current regime, update the segment.
+                # This is a simplified way to handle intra-trade regime changes for P&L segmenting.
+                # More advanced: close old segment, open new one.
+                if self.open_positions[symbol]['current_segment_regime'] != self._get_current_regime():
+                    self.logger.info(f"Regime for open position {symbol} updated from '{self.open_positions[symbol]['current_segment_regime']}' to '{self._get_current_regime()}' based on latest classification.")
+                    # For P&L: The segment would effectively end here, and a new one starts.
+                    # A simpler approach for now: update the regime for subsequent PnL calculations on close.
+                    # The current_segment_entry_price would ideally reset to current market price here
+                    # if we were creating a new distinct segment for accounting.
+                    self.open_positions[symbol]['current_segment_regime'] = self._get_current_regime()
+                    # self.open_positions[symbol]['current_segment_entry_price'] = close_price # If starting new segment accounting
+        
+        self._update_portfolio_value(timestamp)
+    
+    def _update_unrealized_pnl(self):
+        self.unrealized_pnl = 0.0
+        for symbol, position_data in self.open_positions.items():
+            if symbol in self._last_bar_prices and position_data['quantity'] != 0:
+                current_price = self._last_bar_prices[symbol]
+                segment_entry_price = position_data['current_segment_entry_price']
+                quantity = position_data['quantity'] # Signed quantity
+                
+                # For long (quantity > 0): (current_price - entry_price) * quantity
+                # For short (quantity < 0): (entry_price - current_price) * abs(quantity)
+                # which is also (current_price - entry_price) * quantity (since quantity is negative)
+                self.unrealized_pnl += (current_price - segment_entry_price) * quantity
+        
+    def _update_portfolio_value(self, timestamp: Optional[datetime.datetime]):
+        if timestamp is None: 
+            timestamp = datetime.datetime.now(datetime.timezone.utc)
+            self.logger.debug(f"'{self.name}' _update_portfolio_value called with None timestamp, using current time: {timestamp}")
+
+        self.current_holdings_value = 0.0
+        for symbol, position_data in self.open_positions.items():
+            if symbol in self._last_bar_prices and position_data['quantity'] != 0:
+                self.current_holdings_value += self._last_bar_prices[symbol] * position_data['quantity'] # quantity is signed
+            elif position_data['quantity'] != 0: # Position exists but no bar price yet (e.g., just opened)
+                 # This case is less ideal, means we might not have latest mark-to-market
+                 # For shorts, holding value is negative.
+                 self.current_holdings_value += position_data['current_segment_entry_price'] * position_data['quantity'] 
+        
+        self._update_unrealized_pnl() 
+        # Total value is cash + current market value of long positions - current market value of short positions (obligations)
+        # Since current_holdings_value uses signed quantity, it already accounts for this.
+        self.current_total_value = self.current_cash + self.current_holdings_value 
+        
+        self._portfolio_value_history.append((timestamp, self.current_total_value))
+        self.logger.info(
+            f"Portfolio Update at {timestamp}: "
+            f"Cash={self.current_cash:.2f}, Holdings Value={self.current_holdings_value:.2f}, "
+            f"Total Value={self.current_total_value:.2f}, Realized PnL={self.realized_pnl:.2f}" 
+        )
+        
+    def get_current_position_quantity(self, symbol: str) -> float:
+        """ Returns the current quantity of the given symbol held. Positive for long, negative for short."""
+        if symbol in self.open_positions:
+            return self.open_positions[symbol].get('quantity', 0.0)
+        return 0.0
 
     def get_last_processed_timestamp(self) -> Optional[datetime.datetime]:
-        if self._trade_log:
-            latest_exit_ts = None
-            for segment in self._trade_log:
-                exit_ts = segment.get('exit_timestamp')
-                if isinstance(exit_ts, datetime.datetime):
-                    if latest_exit_ts is None or exit_ts > latest_exit_ts:
-                        latest_exit_ts = exit_ts
-            return latest_exit_ts
-            
-        elif self.open_positions:
-            latest_entry_ts = None
-            for pos in self.open_positions.values():
-                entry_ts = pos.get('current_segment_entry_timestamp')
-                if isinstance(entry_ts, datetime.datetime):
-                    if latest_entry_ts is None or entry_ts > latest_entry_ts:
-                        latest_entry_ts = entry_ts
-            return latest_entry_ts
+        if self._portfolio_value_history:
+            return self._portfolio_value_history[-1][0]
         return None
 
+    def close_all_positions(self, timestamp: datetime.datetime, data_for_closure: Optional[Dict[str, float]] = None) -> None:
+        self.logger.info(f"'{self.name}' initiating closing of all open positions at {timestamp}.")
+        symbols_to_close = list(self.open_positions.keys()) 
+
+        for symbol in symbols_to_close:
+            if symbol not in self.open_positions: 
+                continue
+
+            position_data = self.open_positions[symbol]
+            if position_data['quantity'] == 0: # Should not happen if cleanup is good, but as a safe guard
+                del self.open_positions[symbol]
+                continue
+
+            close_price = None
+            if data_for_closure and symbol in data_for_closure:
+                close_price = data_for_closure[symbol]
+            elif symbol in self._last_bar_prices:
+                close_price = self._last_bar_prices[symbol]
+            else:
+                self.logger.warning(f"No close price available for '{symbol}' to synthetically close position. Using its current segment entry price {position_data['current_segment_entry_price']}.")
+                close_price = position_data['current_segment_entry_price'] 
+
+            fill_direction = 'SELL' if position_data['quantity'] > 0 else 'BUY'
+            
+            synthetic_fill_data = {
+                'symbol': symbol, 'timestamp': timestamp,
+                'quantity_filled': abs(position_data['quantity']), 
+                'fill_price': close_price, 'commission': 0.0, 
+                'direction': fill_direction,
+                'exchange': 'SYNTHETIC_CLOSE', 'fill_id': f"syn_fill_{uuid.uuid4()}", 'order_id': f"syn_ord_{uuid.uuid4()}"
+            }
+            self.logger.info(f"Synthetically closing {position_data['direction']} {abs(position_data['quantity']):.2f} {symbol} at {close_price:.2f}.")
+            self.on_fill(Event(EventType.FILL, synthetic_fill_data)) 
+        
+        self._update_portfolio_value(timestamp) 
+        self.logger.info(f"'{self.name}' finished attempting to close all open positions.")
+
+    def get_final_portfolio_value(self) -> float:
+        if self._portfolio_value_history:
+            # The last entry in history should reflect the final state after all events and closures
+            return self._portfolio_value_history[-1][1] 
+        # Fallback if no history (e.g., no events processed, or error before first update)
+        # This might happen if optimizer calls it on a fresh, un-run portfolio instance.
+        return self.current_total_value 
+
+    def _log_final_performance_summary(self):
+        self.logger.info(f"--- {self.name} Final Summary ---")
+        self.logger.info(f"Initial Cash: {self.initial_cash:.2f}")
+        self.logger.info(f"Final Cash: {self.current_cash:.2f}")
+        
+        open_pos_display = {sym: data['quantity'] for sym, data in self.open_positions.items() if data.get('quantity', 0) != 0}
+        if open_pos_display:
+            self.logger.info(f"Final Open Holdings: {open_pos_display}")
+        else:
+            self.logger.info("Final Open Holdings: None (all positions were closed).")
+
+        self.logger.info(f"Final Portfolio Value: {self.current_total_value:.2f}")
+        self.logger.info(f"Total Realized P&L: {self.realized_pnl:.2f}")
+        self.logger.info(f"Number of Trade Segments Logged: {len(self._trade_log)}")
+
+        self.logger.info("--- Performance by Regime ---")
+        regime_performance: Dict[str, Dict[str, Any]] = {}
+        for trade in self._trade_log:
+            regime = trade.get('regime', 'unknown') 
+            if regime not in regime_performance:
+                regime_performance[regime] = {'pnl': 0.0, 'commission': 0.0, 'count': 0, 'wins': 0, 'losses': 0, 'pnl_values': []}
+            
+            trade_pnl = trade.get('pnl', 0.0)
+            trade_commission = trade.get('commission', 0.0)
+
+            regime_performance[regime]['pnl'] += trade_pnl
+            regime_performance[regime]['commission'] += trade_commission
+            regime_performance[regime]['count'] += 1
+            regime_performance[regime]['pnl_values'].append(trade_pnl) # Store net PnL for Sharpe
+            if trade_pnl > 0: # Net PnL > 0 is a win
+                regime_performance[regime]['wins'] += 1
+            elif trade_pnl < 0:
+                 regime_performance[regime]['losses'] += 1
+
+        for regime, metrics in regime_performance.items():
+            self.logger.info(f"  Regime: {regime}")
+            gross_pnl = metrics['pnl'] + metrics['commission'] # Recalculate gross PnL for clarity
+            net_pnl_sum = metrics['pnl'] 
+            self.logger.info(f"    Total Gross Pnl: {gross_pnl:.2f}") 
+            self.logger.info(f"    Trade Segments: {metrics['count']}")
+            self.logger.info(f"    Winning Segments: {metrics['wins']}")
+            self.logger.info(f"    Losing Segments: {metrics['losses']}")
+            self.logger.info(f"    Total Commission: {metrics['commission']:.2f}")
+            self.logger.info(f"    Net Pnl Sum: {net_pnl_sum:.2f}") 
+            win_rate = (metrics['wins'] / metrics['count']) if metrics['count'] > 0 else 0
+            self.logger.info(f"    Win Rate: {win_rate:.2f}")
+            
+            if metrics['count'] > 1: # Need at least 2 trades for meaningful std dev
+                pnl_values = metrics['pnl_values']
+                avg_pnl = sum(pnl_values) / metrics['count']
+                variance = sum((x - avg_pnl) ** 2 for x in pnl_values) / (metrics['count'] -1) # Sample variance
+                std_dev_pnl = variance**0.5 if variance > 0 else 0
+                
+                # Basic Sharpe: (Mean of PnL per trade) / (Std Dev of PnL per trade)
+                # This is a simplified Sharpe, not annualized return over risk-free rate.
+                # For a more standard Sharpe, you'd typically use periodic returns (e.g., daily).
+                sharpe = (avg_pnl / std_dev_pnl) if std_dev_pnl > 0 else float('inf') if avg_pnl > 0 else 0.0 
+                # Simple annualization factor for daily-ish data (sqrt(252)), adjust if segment PnLs are not daily-like
+                sharpe_annualized_factor = (252**0.5) if metrics['count'] > 30 else 1 # Arbitrary: only annualize if "enough" data
+                sharpe_display = sharpe * sharpe_annualized_factor if std_dev_pnl > 0 else "N/A"
+
+                self.logger.info(f"    Sharpe Ratio (from segment PnLs): {sharpe_display if isinstance(sharpe_display, str) else f'{sharpe_display:.2f}'}")
+            else:
+                self.logger.info("    Sharpe Ratio (from segment PnLs): N/A (insufficient data or zero volatility)")
