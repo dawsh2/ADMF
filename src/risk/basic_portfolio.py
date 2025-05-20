@@ -169,14 +169,42 @@ class BasicPortfolio(BaseComponent):
                 self.logger.info(f"Covered SHORT segment {qty_closed:.2f} {symbol} at {fill_price:.2f} (entry {segment_entry_price:.2f}). PnL: {pnl_from_this_fill:.2f} in regime '{pos['current_segment_regime']}'.")
             
             self.realized_pnl += pnl_from_this_fill
-            self._trade_log.append({
-                'symbol': symbol, 'trade_id': pos['trade_id'], 'segment_id': str(uuid.uuid4()),
-                'entry_timestamp': pos['entry_timestamp'], 'exit_timestamp': timestamp, 
-                'direction': 'LONG' if current_pos_qty > 0 else 'SHORT', 
-                'entry_price': segment_entry_price, 'exit_price': fill_price,
-                'quantity': qty_closed, 'commission': commission, 
-                'pnl': pnl_from_this_fill, 'regime': pos['current_segment_regime']
-            })
+            # Track both entry and exit regimes for boundary trades
+            entry_regime = pos['current_segment_regime']
+            exit_regime = self._get_current_regime()
+            
+            # Create a unique identifier for this trade segment
+            segment_id = str(uuid.uuid4())
+            
+            # Create more detailed trade log entry
+            trade_entry = {
+                'symbol': symbol,
+                'trade_id': pos['trade_id'],
+                'segment_id': segment_id,
+                'entry_timestamp': pos['entry_timestamp'],
+                'exit_timestamp': timestamp,
+                'direction': 'LONG' if current_pos_qty > 0 else 'SHORT',
+                'entry_price': segment_entry_price,
+                'exit_price': fill_price,
+                'quantity': qty_closed,
+                'commission': commission,
+                'pnl': pnl_from_this_fill,
+                'entry_regime': entry_regime,
+                'exit_regime': exit_regime,
+                'is_boundary_trade': (entry_regime != exit_regime),
+                # For backward compatibility, keep the 'regime' field as the entry regime
+                'regime': entry_regime
+            }
+            
+            self._trade_log.append(trade_entry)
+            
+            # Log boundary trades specifically for analysis
+            if entry_regime != exit_regime:
+                self.logger.info(
+                    f"Boundary trade detected: {trade_entry['direction']} {trade_entry['quantity']:.2f} {symbol} " +
+                    f"opened in '{entry_regime}' and closed in '{exit_regime}'. " +
+                    f"PnL: {pnl_from_this_fill:.2f}, Segment ID: {segment_id}"
+                )
 
         # Update position quantity and cash
         pre_update_cash = self.current_cash
@@ -453,6 +481,136 @@ class BasicPortfolio(BaseComponent):
             return self._portfolio_value_history[-1][1] 
         return self.current_total_value 
 
+    def _calculate_performance_by_regime(self) -> Dict[str, Dict[str, Any]]:
+        """
+        Calculate performance metrics broken down by market regime.
+        
+        Returns:
+            Dict[str, Dict[str, Any]]: Dictionary with regime names as keys and performance metrics as values
+        """
+        # Initialize performance dictionaries
+        regime_performance: Dict[str, Dict[str, Any]] = {}
+        boundary_trades_performance: Dict[str, Dict[str, Any]] = {}
+        
+        # Helper function to ensure regime exists in performance dictionary
+        def ensure_regime_exists(regime, performance_dict):
+            if regime not in performance_dict:
+                performance_dict[regime] = {
+                    'pnl': 0.0,
+                    'commission': 0.0,
+                    'count': 0,
+                    'wins': 0,
+                    'losses': 0,
+                    'pnl_values': [],
+                    'boundary_trade_count': 0,
+                    'boundary_trades_pnl': 0.0,
+                    'pure_regime_count': 0,
+                    'pure_regime_pnl': 0.0,
+                    'sharpe_ratio': None,
+                    'win_rate': 0.0,
+                    'avg_pnl': 0.0,
+                    'std_dev_pnl': 0.0,
+                    'gross_pnl': 0.0,
+                    'net_pnl': 0.0
+                }
+        
+        # Process all trades, tracking boundary trades separately
+        for trade in self._trade_log:
+            # Determine entry and exit regimes
+            entry_regime = trade.get('entry_regime', trade.get('regime', 'unknown'))
+            exit_regime = trade.get('exit_regime', entry_regime)
+            is_boundary_trade = trade.get('is_boundary_trade', (entry_regime != exit_regime))
+            
+            # Extract trade metrics
+            trade_pnl = trade.get('pnl', 0.0)
+            trade_commission = trade.get('commission', 0.0)
+            
+            # Primary attribution is to the entry regime (consistent with previous behavior)
+            ensure_regime_exists(entry_regime, regime_performance)
+            regime_data = regime_performance[entry_regime]
+            
+            # Update metrics for the entry regime
+            regime_data['pnl'] += trade_pnl
+            regime_data['commission'] += trade_commission
+            regime_data['count'] += 1
+            regime_data['pnl_values'].append(trade_pnl)
+            
+            # Track if this is a boundary trade
+            if is_boundary_trade:
+                regime_data['boundary_trade_count'] += 1
+                regime_data['boundary_trades_pnl'] += trade_pnl
+                
+                # Also track this in a special boundary_trades_performance dict for analysis
+                ensure_regime_exists(f"{entry_regime}_to_{exit_regime}", boundary_trades_performance)
+                boundary_data = boundary_trades_performance[f"{entry_regime}_to_{exit_regime}"]
+                boundary_data['pnl'] += trade_pnl
+                boundary_data['commission'] += trade_commission
+                boundary_data['count'] += 1
+                boundary_data['pnl_values'].append(trade_pnl)
+                
+                if trade_pnl > 0:
+                    boundary_data['wins'] += 1
+                elif trade_pnl < 0:
+                    boundary_data['losses'] += 1
+            else:
+                # This is a "pure" regime trade (opened and closed in same regime)
+                regime_data['pure_regime_count'] += 1
+                regime_data['pure_regime_pnl'] += trade_pnl
+            
+            # Update win/loss counts for the primary regime attribution
+            if trade_pnl > 0:
+                regime_data['wins'] += 1
+            elif trade_pnl < 0:
+                regime_data['losses'] += 1
+        
+        # Calculate additional metrics for each regime
+        for regime_dict in [regime_performance, boundary_trades_performance]:
+            for regime, metrics in regime_dict.items():
+                # Skip if no trades
+                if metrics['count'] == 0:
+                    continue
+                    
+                # Calculate win rate
+                metrics['win_rate'] = (metrics['wins'] / metrics['count']) if metrics['count'] > 0 else 0.0
+                
+                # Calculate gross and net PnL
+                metrics['gross_pnl'] = metrics['pnl'] - metrics['commission']
+                metrics['net_pnl'] = metrics['pnl']
+                
+                # Calculate average PnL per trade
+                metrics['avg_pnl'] = sum(metrics['pnl_values']) / metrics['count']
+                
+                # Calculate Sharpe ratio if we have enough trades
+                if metrics['count'] > 1:
+                    pnl_values = metrics['pnl_values']
+                    avg_pnl = metrics['avg_pnl']
+                    
+                    # Calculate standard deviation
+                    variance = sum((x - avg_pnl) ** 2 for x in pnl_values) / (metrics['count'] - 1)
+                    metrics['std_dev_pnl'] = variance**0.5 if variance > 0 else 0
+                    
+                    # Calculate annualized Sharpe ratio (assuming 252 trading days per year)
+                    if metrics['std_dev_pnl'] > 0:
+                        metrics['sharpe_ratio'] = (avg_pnl / metrics['std_dev_pnl']) * (252**0.5)
+                    elif avg_pnl > 0:
+                        metrics['sharpe_ratio'] = float('inf')  # Infinite Sharpe for positive return with no volatility
+                    else:
+                        metrics['sharpe_ratio'] = 0.0  # Zero Sharpe for zero or negative return with no volatility
+        
+        # Add boundary trades summary to the main performance dict
+        regime_performance['_boundary_trades_summary'] = boundary_trades_performance
+        
+        return regime_performance
+    
+    def get_performance_by_regime(self) -> Dict[str, Dict[str, Any]]:
+        """
+        Public method to access performance metrics broken down by market regime.
+        
+        Returns:
+            Dict[str, Dict[str, Any]]: Dictionary with regime names as keys and performance metrics as values
+        """
+        return self._calculate_performance_by_regime()
+    
     def _log_final_performance_summary(self):
         self.logger.info(f"--- {self.name} Final Summary ---")
         self.logger.info(f"Initial Cash: {self.initial_cash:.2f}")
@@ -467,36 +625,57 @@ class BasicPortfolio(BaseComponent):
         self.logger.info(f"Number of Trade Segments Logged: {len(self._trade_log)}")
 
         self.logger.info("--- Performance by Regime ---")
-        regime_performance: Dict[str, Dict[str, Any]] = {}
-        for trade in self._trade_log:
-            regime = trade.get('regime', 'unknown') 
-            if regime not in regime_performance:
-                regime_performance[regime] = {'pnl': 0.0, 'commission': 0.0, 'count': 0, 'wins': 0, 'losses': 0, 'pnl_values': []}
-            
-            trade_pnl = trade.get('pnl', 0.0); trade_commission = trade.get('commission', 0.0)
-            regime_performance[regime]['pnl'] += trade_pnl
-            regime_performance[regime]['commission'] += trade_commission
-            regime_performance[regime]['count'] += 1
-            regime_performance[regime]['pnl_values'].append(trade_pnl) 
-            if trade_pnl > 0: regime_performance[regime]['wins'] += 1
-            elif trade_pnl < 0: regime_performance[regime]['losses'] += 1
-
+        regime_performance = self._calculate_performance_by_regime()
+        
+        # Log performance for each regime (excluding boundary trades summary)
         for regime, metrics in regime_performance.items():
+            # Skip the boundary trades summary section, we'll handle it separately
+            if regime == '_boundary_trades_summary':
+                continue
+                
             self.logger.info(f"  Regime: {regime}")
-            gross_pnl = metrics['pnl'] + metrics['commission']; net_pnl_sum = metrics['pnl'] 
-            self.logger.info(f"    Total Gross Pnl: {gross_pnl:.2f}") 
+            self.logger.info(f"    Total Gross Pnl: {metrics['gross_pnl']:.2f}") 
             self.logger.info(f"    Trade Segments: {metrics['count']}")
+            
+            # Add boundary trade information if applicable
+            if 'boundary_trade_count' in metrics and metrics['boundary_trade_count'] > 0:
+                pure_count = metrics.get('pure_regime_count', 0)
+                boundary_count = metrics.get('boundary_trade_count', 0)
+                boundary_pnl = metrics.get('boundary_trades_pnl', 0.0)
+                pure_pnl = metrics.get('pure_regime_pnl', 0.0)
+                
+                self.logger.info(f"    - Pure Regime Trades: {pure_count} (PnL: {pure_pnl:.2f})")
+                self.logger.info(f"    - Boundary Trades: {boundary_count} (PnL: {boundary_pnl:.2f})")
+            
             self.logger.info(f"    Winning Segments: {metrics['wins']}")
             self.logger.info(f"    Losing Segments: {metrics['losses']}")
             self.logger.info(f"    Total Commission: {metrics['commission']:.2f}")
-            self.logger.info(f"    Net Pnl Sum: {net_pnl_sum:.2f}") 
-            win_rate = (metrics['wins'] / metrics['count']) if metrics['count'] > 0 else 0
-            self.logger.info(f"    Win Rate: {win_rate:.2f}")
+            self.logger.info(f"    Net Pnl Sum: {metrics['net_pnl']:.2f}") 
+            self.logger.info(f"    Win Rate: {metrics['win_rate']:.2f}")
             
-            if metrics['count'] > 1:
-                pnl_values = metrics['pnl_values']; avg_pnl = sum(pnl_values) / metrics['count']
-                variance = sum((x - avg_pnl) ** 2 for x in pnl_values) / (metrics['count'] -1) 
-                std_dev_pnl = variance**0.5 if variance > 0 else 0
-                sharpe = (avg_pnl / std_dev_pnl) * (252**0.5) if std_dev_pnl > 0 else float('inf') if avg_pnl > 0 else 0.0 
-                self.logger.info(f"    Sharpe Ratio (annualized from segment PnLs): {sharpe:.2f}")
-            else: self.logger.info("    Sharpe Ratio (from segment PnLs): N/A")
+            if metrics.get('sharpe_ratio') is not None:
+                self.logger.info(f"    Sharpe Ratio (annualized from segment PnLs): {metrics['sharpe_ratio']:.2f}")
+            else:
+                self.logger.info("    Sharpe Ratio (from segment PnLs): N/A")
+        
+        # Log boundary trades details if any exist
+        boundary_trades = regime_performance.get('_boundary_trades_summary', {})
+        if boundary_trades:
+            self.logger.info("--- Boundary Trades Details ---")
+            total_boundary_trades = sum(metrics['count'] for metrics in boundary_trades.values())
+            total_boundary_pnl = sum(metrics['pnl'] for metrics in boundary_trades.values())
+            
+            self.logger.info(f"  Total Boundary Trades: {total_boundary_trades}")
+            self.logger.info(f"  Total Boundary Trades PnL: {total_boundary_pnl:.2f}")
+            
+            for transition, metrics in boundary_trades.items():
+                self.logger.info(f"  Transition: {transition}")
+                self.logger.info(f"    Count: {metrics['count']}")
+                self.logger.info(f"    PnL: {metrics['pnl']:.2f}")
+                self.logger.info(f"    Win Rate: {metrics['win_rate']:.2f}")
+                
+                if metrics.get('sharpe_ratio') is not None and metrics['count'] > 1:
+                    self.logger.info(f"    Sharpe Ratio: {metrics['sharpe_ratio']:.2f}")
+                
+                # Add separation line between transitions
+                self.logger.info("    " + "-" * 40)

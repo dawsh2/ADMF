@@ -23,6 +23,8 @@ from src.execution.simulated_execution_handler import SimulatedExecutionHandler
 from src.risk.basic_portfolio import BasicPortfolio # Ensure this is the updated version
 from src.core.dummy_component import DummyComponent
 from src.strategy.optimization.basic_optimizer import BasicOptimizer
+from src.strategy.optimization.enhanced_optimizer import EnhancedOptimizer
+from src.strategy.regime_adaptive_strategy import RegimeAdaptiveStrategy
 
 
 logger = logging.getLogger(__name__)
@@ -67,14 +69,27 @@ def main():
                 "max_bars": max_bars_to_process }
     container.register_type("data_handler", CSVDataHandler, True, constructor_kwargs=csv_args)
 
-    ensemble_strat_args = {
-        "instance_name": "SPY_Ensemble_Strategy",
-        "config_loader": config_loader,
-        "event_bus": event_bus,
-        "component_config_key": "components.ensemble_strategy"
-    }
-    container.register_type("strategy", EnsembleSignalStrategy, True, constructor_kwargs=ensemble_strat_args)
-    logger.info("EnsembleSignalStrategy registered as 'strategy'.")
+    # If we're optimizing, use the regular strategy
+    if run_optimization_mode:
+        ensemble_strat_args = {
+            "instance_name": "SPY_Ensemble_Strategy",
+            "config_loader": config_loader,
+            "event_bus": event_bus,
+            "component_config_key": "components.ensemble_strategy"
+        }
+        container.register_type("strategy", EnsembleSignalStrategy, True, constructor_kwargs=ensemble_strat_args)
+        logger.info("EnsembleSignalStrategy registered as 'strategy' for optimization mode.")
+    else:
+        # For regular runs, use the RegimeAdaptiveStrategy
+        adaptive_strat_args = {
+            "instance_name": "RegimeAdaptiveStrategy",
+            "config_loader": config_loader,
+            "event_bus": event_bus,
+            "container": container,
+            "component_config_key": "components.regime_adaptive_strategy"
+        }
+        container.register_type("strategy", RegimeAdaptiveStrategy, True, constructor_kwargs=adaptive_strat_args)
+        logger.info("RegimeAdaptiveStrategy registered as 'strategy' for regular mode.")
 
     regime_detector_service_name = "MyPrimaryRegimeDetector"
     regime_detector_instance_name = "MyPrimaryRegimeDetector_Instance"
@@ -132,14 +147,14 @@ def main():
         else:
             logger.info("Optimizer will run each parameter set on the full dataset (as configured in CSVDataHandler, before train/test split).")
 
-        optimizer_args = {"instance_name": "GridOptimizer", "config_loader": config_loader,
+        optimizer_args = {"instance_name": "EnhancedOptimizer", "config_loader": config_loader,
                           "event_bus": event_bus, "component_config_key": "components.optimizer",
                           "container": container}
-        container.register_type("optimizer_service", BasicOptimizer, True, constructor_kwargs=optimizer_args)
-        logger.info("BasicOptimizer registered as 'optimizer_service'.")
+        container.register_type("optimizer_service", EnhancedOptimizer, True, constructor_kwargs=optimizer_args)
+        logger.info("EnhancedOptimizer registered as 'optimizer_service'.")
 
         try:
-            optimizer: BasicOptimizer = container.resolve("optimizer_service")
+            optimizer: EnhancedOptimizer = container.resolve("optimizer_service")
             optimizer.setup() 
             if optimizer.get_state() == BaseComponent.STATE_INITIALIZED:
                 optimizer.start()

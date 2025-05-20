@@ -1,0 +1,65 @@
+# Phase 3: Regime-Specific Optimization Configuration Examples
+# These configurations can be added to your main config.yaml file
+
+system:
+  name: "ADMF-Trader-Phase3"
+  version: "0.3.0"
+
+components:
+  # Enhanced Optimizer with Regime-Specific Optimization
+  enhanced_optimizer:
+    # Replace the existing optimizer configuration with this one for regime-specific optimization
+    strategy_service_name: "strategy"  # Must match the DI key for your strategy
+    portfolio_service_name: "portfolio_manager"
+    data_handler_service_name: "data_handler"
+    risk_manager_service_name: "risk_manager"
+    execution_handler_service_name: "execution_handler"
+    
+    # Overall optimization metric (for backward compatibility)
+    metric_to_optimize: "get_final_portfolio_value"
+    higher_metric_is_better: true
+    
+    # Regime-specific optimization settings
+    min_trades_per_regime: 5  # Minimum number of trades required to consider regime optimization valid
+    regime_metric: "sharpe_ratio"  # Metric to optimize for each regime
+    output_file_path: "regime_optimized_parameters.json"  # Where to save the optimized parameters
+  
+  # Regime-Adaptive Strategy
+  regime_adaptive_strategy:
+    # Replace the existing strategy configuration with this one for regime adaptation
+    symbol: "SPY"  # Symbol for the strategy
+    
+    # Default parameters (used when no regime-specific parameters are available)
+    short_window_default: 10
+    long_window_default: 20
+    
+    # Regime adaptation settings
+    regime_detector_service_name: "MyPrimaryRegimeDetector"  # Must match the DI key for your regime detector
+    regime_params_file_path: "regime_optimized_parameters.json"  # Path to the file with optimized parameters
+    fallback_to_overall_best: true  # Whether to use overall best parameters when no regime-specific are available
+
+# How to Use These Configurations:
+
+# 1. For Optimization Phase:
+#    - Register the EnhancedOptimizer with your container
+#    - Make sure your BasicPortfolio implementation includes the get_performance_by_regime method
+#    - Run the optimizer using the enhanced_optimizer configuration
+#    - This will produce the regime_optimized_parameters.json file
+
+# Example registration in main.py:
+# optimizer_args = {"instance_name": "EnhancedOptimizer", "config_loader": config_loader,
+#                  "event_bus": event_bus, "component_config_key": "components.enhanced_optimizer",
+#                  "container": container}
+# container.register_type("optimizer_service", EnhancedOptimizer, True, constructor_kwargs=optimizer_args)
+
+# 2. For Trading/Backtest Phase:
+#    - Register the RegimeAdaptiveStrategy with your container
+#    - Make sure the regime_optimized_parameters.json file is available
+#    - Run your strategy
+#    - The strategy will automatically adapt parameters based on detected regimes
+
+# Example registration in main.py:
+# strategy_args = {"instance_name": "RegimeAdaptiveStrategy", "config_loader": config_loader,
+#                 "event_bus": event_bus, "container": container,
+#                 "component_config_key": "components.regime_adaptive_strategy"}
+# container.register_type("strategy", RegimeAdaptiveStrategy, True, constructor_kwargs=strategy_args)

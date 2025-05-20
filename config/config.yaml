@@ -9,7 +9,7 @@ components:
   dummy_service: # For SignalLogger and OrderLogger
     some_setting: "Dummy setting"
 
-  # Configuration for the new Ensemble Strategy
+  # Configuration for the Ensemble Strategy (used during optimization)
   ensemble_strategy:
     # class_path: "src.strategy.implementations.ensemble_strategy.EnsembleSignalStrategy" # If using a factory
     symbol: "SPY" # Symbol for the strategy
@@ -26,6 +26,20 @@ components:
       oversold_threshold: 30.0
       overbought_threshold: 70.0
       weight: 0.4
+      
+  # Configuration for the Regime-Adaptive Strategy (used for regular runs)
+  regime_adaptive_strategy:
+    symbol: "SPY"  # Symbol for the strategy
+    
+    # Default parameters (used when no regime-specific parameters are available)
+    short_window_default: 10
+    long_window_default: 20
+    ma_rule.weight: 0.6
+    
+    # Regime adaptation settings
+    regime_detector_service_name: "MyPrimaryRegimeDetector"
+    regime_params_file_path: "regime_optimized_parameters.json"
+    fallback_to_overall_best: true
 
   # Data Handler
   data_handler_csv:
@@ -55,19 +69,26 @@ components:
     passthrough: false
     fill_price_logic: "signal_price"
 
-  # Optimizer
+  # Optimizer - Enhanced for regime-specific optimization
   optimizer:
     strategy_service_name: "strategy" # Must match the DI key for your strategy
     portfolio_service_name: "portfolio_manager"
     data_handler_service_name: "data_handler"
     risk_manager_service_name: "risk_manager"
     execution_handler_service_name: "execution_handler"
+    
+    # Core optimization metrics
     metric_to_optimize: "get_final_portfolio_value"
     higher_metric_is_better: True
+    
+    # Regime-specific optimization settings
+    min_trades_per_regime: 5  # Minimum trades required for a valid regime optimization
+    regime_metric: "sharpe_ratio"  # Metric to optimize for each regime 
+    output_file_path: "regime_optimized_parameters.json"  # Output file for optimized parameters
 
   # Configuration for the RegimeDetector instance registered as 'MyPrimaryRegimeDetector'
   MyPrimaryRegimeDetector: 
-    min_regime_duration: 3 # How many bars a new regime must persist before switching
+    min_regime_duration: 2 # Reduced from 3 to 2 for more responsive regime detection
     indicators:
       # 'rsi_14', 'atr_20', 'trend_10_30' are arbitrary names you give to these indicator instances.
       # They will be used as keys in the regime_thresholds section.
@@ -76,29 +97,32 @@ components:
         parameters: {"period": 14}
       atr_20:
         type: "atr"
-        parameters: {"period": 20}
+        parameters: {"period": 10}  # Reduced from 20 to be more responsive
       trend_10_30:
         type: "simple_ma_trend"
-        parameters: {"short_period": 10, "long_period": 30}
+        parameters: {"short_period": 5, "long_period": 20}  # Modified to be more responsive
     
     regime_thresholds:
       # Define your regimes here. The keys are the regime names.
       # The inner keys must match the instance names defined in the 'indicators' section above.
       trending_up_volatile:
-        trend_10_30: {"min": 0.5}   # e.g., trend value > 0.5% (short MA is 0.5% above long MA)
-        atr_20: {"min": 0.015}     # e.g., ATR value > 0.015 (absolute, depends on price scale)
+        trend_10_30: {"min": 0.02}   # Adjusted based on observed values
+        atr_20: {"min": 0.15}       # Adjusted based on observed values
       
       trending_up_low_vol:
-        trend_10_30: {"min": 0.5}
-        atr_20: {"max": 0.008}
+        trend_10_30: {"min": 0.02}   # Adjusted based on observed values
+        atr_20: {"max": 0.15}       # Adjusted based on observed values
         
       ranging_low_vol:
-        trend_10_30: {"min": -0.2, "max": 0.2} # e.g., trend value between -0.2% and 0.2%
-        atr_20: {"max": 0.005}
+        trend_10_30: {"min": -0.01, "max": 0.01} # Tightened based on observed values
+        atr_20: {"max": 0.12}       # Adjusted based on observed values
+        
+      trending_down:
+        trend_10_30: {"max": -0.01}  # Adjusted based on observed values
         
       oversold_in_uptrend: # Example combining different indicator types
-        rsi_14: {"max": 35}        # RSI < 35
-        trend_10_30: {"min": 0.1}
+        rsi_14: {"max": 40}        # Keeping at 40
+        trend_10_30: {"min": 0.01}   # Adjusted based on observed values
 
 # Note: The 'my_regime_detector_config:' block that was previously at the top level has been moved
 # and renamed to 'MyPrimaryRegimeDetector:' under the 'components:' section.
