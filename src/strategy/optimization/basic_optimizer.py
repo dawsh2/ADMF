@@ -119,6 +119,16 @@ class BasicOptimizer(BaseComponent):
                 data_handler, strategy, portfolio_manager, risk_manager, execution_handler
             ]
             
+            # Reset portfolio state to ensure a clean start
+            try:
+                self.logger.info(f"Optimizer: Resetting portfolio state before {dataset_type} run with params: {params_to_test}")
+                if hasattr(portfolio_manager, 'reset') and callable(portfolio_manager.reset):
+                    portfolio_manager.reset()
+                else:
+                    self.logger.warning("Portfolio does not have a reset method. State may persist between runs.")
+            except Exception as e:
+                self.logger.error(f"Error resetting portfolio before backtest run: {e}", exc_info=True)
+            
             for comp in components_for_this_run:
                 self.logger.debug(f"Optimizer: Setting up component '{comp.name}' for '{dataset_type}' run.")
                 comp.setup() 

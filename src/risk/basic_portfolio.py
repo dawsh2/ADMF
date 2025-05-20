@@ -48,6 +48,37 @@ class BasicPortfolio(BaseComponent):
         self._portfolio_value_history: List[Tuple[Optional[datetime.datetime], float]] = []
         
         self.logger.info(f"BasicPortfolio '{self.name}' initialized with initial cash: {self.initial_cash:.2f}")
+        
+    def reset(self):
+        """Reset the portfolio to its initial state for a fresh backtest run."""
+        self.logger.info(f"Resetting portfolio '{self.name}' to initial state")
+        
+        # Close any open positions
+        if self.open_positions:
+            now = datetime.datetime.now(datetime.timezone.utc)
+            self.close_all_positions(now)
+            
+        # Reset cash and positions
+        self.current_cash = self.initial_cash
+        self.open_positions = {}
+        self._trade_log = []
+        
+        # Reset performance metrics
+        self.realized_pnl = 0.0
+        self.unrealized_pnl = 0.0
+        self.current_holdings_value = 0.0
+        self.current_total_value = self.initial_cash
+        
+        # Reset market data
+        self._last_bar_prices = {}
+        
+        # Reset history
+        self._portfolio_value_history = []
+        
+        # Reset market regime to default
+        self._current_market_regime = "default"
+        
+        self.logger.info(f"Portfolio '{self.name}' reset successfully. Cash: {self.current_cash:.2f}, Total Value: {self.current_total_value:.2f}")
 
     def setup(self):
         super().setup() 

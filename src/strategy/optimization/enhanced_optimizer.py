@@ -42,7 +42,17 @@ class EnhancedOptimizer(BasicOptimizer):
     def _perform_single_backtest_run(self, params_to_test: Dict[str, Any], dataset_type: str) -> Tuple[Optional[float], Optional[Dict[str, Dict[str, Any]]]]:
         """
         Overridden to also return regime-specific performance metrics.
+        First resets the portfolio to ensure each run starts from the same initial state.
         """
+        # Reset the portfolio state before each run
+        try:
+            portfolio_manager: BasicPortfolio = self._container.resolve(self._portfolio_service_name)
+            self.logger.info(f"Resetting portfolio state before {dataset_type} run with params: {params_to_test}")
+            portfolio_manager.reset()
+        except Exception as e:
+            self.logger.error(f"Error resetting portfolio before backtest run: {e}", exc_info=True)
+            # Continue with the run even if reset fails, as the parent method will handle other errors
+        
         # Get the overall performance metric from parent class
         overall_metric = super()._perform_single_backtest_run(params_to_test, dataset_type)
         
