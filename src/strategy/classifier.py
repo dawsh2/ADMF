@@ -78,12 +78,18 @@ class Classifier(BaseComponent):
             'bar_data': data # Optionally include the bar data that led to this classification state
         })
         
-        if classification_changed and self._event_bus:
+        # Always publish classification event during optimization to ensure regimes are detected
+        # This ensures that even if the classification hasn't changed, the event is published during optimization
+        if self._event_bus:
             try:
                 # Pass the bar data to _create_classification_event
                 classification_event = self._create_classification_event(data, new_classification, previous_classification_for_event)
                 self._event_bus.publish(classification_event)
-                self.logger.info(f"Classifier '{self.name}' published CLASSIFICATION event: New='{new_classification}', Prev='{previous_classification_for_event}' at {timestamp}")
+                
+                if classification_changed:
+                    self.logger.info(f"Classifier '{self.name}' published CLASSIFICATION event: New='{new_classification}', Prev='{previous_classification_for_event}' at {timestamp}")
+                else:
+                    self.logger.debug(f"Classifier '{self.name}' published repeat CLASSIFICATION event: '{new_classification}' at {timestamp}")
             except Exception as e:
                 self.logger.error(f"Error creating or publishing CLASSIFICATION event in {self.name}: {e}", exc_info=True)
 

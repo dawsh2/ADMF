@@ -86,9 +86,9 @@ This implementation plan is designed to deliver value at each phase while buildi
     -   Replace the minimal implementations with the fully featured Core module components.
     -   Ensure the system still works as expected after the extraction.
 
-###   Phase 3: Module Implementation and Expansion
+###   Phase 3: Module Implementation and Regime-Specific Optimization
 
-**Goal**: Implement the remaining modules (Data, Strategy, Risk, Execution) and expand functionality.
+**Goal**: Implement the remaining modules (Data, Strategy, Risk, Execution) and incorporate market regime detection and optimization.
 
 1.  **Implement Data Module**:
     -   Focus on basic CSV data loading and train/test splitting first.
@@ -97,14 +97,23 @@ This implementation plan is designed to deliver value at each phase while buildi
 2.  **Implement Strategy Module**:
     -   Start with simple strategies and indicators.
     -   Build the strategy component framework for reusability.
+    -   Implement regime detection for different market conditions.
+    -   Create RegimeAdaptiveStrategy for dynamic parameter switching.
 
 3.  **Implement Risk Module**:
     -   Implement basic position sizing and risk management.
-    -   Add more advanced risk controls later.
+    -   Add regime-specific performance tracking.
+    -   Track trades that span multiple regimes (boundary trades).
 
 4.  **Implement Execution Module**:
     -   Begin with a simulated broker for backtesting.
     -   Implement order management and slippage/commission models.
+
+5.  **Implement Enhanced Optimization**:
+    -   Develop regime-specific parameter optimization.
+    -   Build framework for tracking performance by market regime.
+    -   Optimize strategy parameters for each detected regime.
+    -   Handle boundary trades that span multiple regimes.
 
     * **Granular Development**: Break down each module's implementation into smaller, iterative tasks.
     * **Testing**:  Prioritize writing unit and integration tests for each component as it's developed.
@@ -139,6 +148,172 @@ This implementation plan is designed to deliver value at each phase while buildi
 * **Communication**:  Maintain clear and consistent communication within the development team.
 * **Version Control**:  Use a version control system (e.g., Git) effectively for code management and collaboration.
 * **Flexibility**: Design the system to be flexible and adaptable to future changes and requirements.
+
+##   Example: Regime-Adaptive Strategy (Phase 3)
+
+The following illustrates how the system implements regime-specific optimization and parameter switching:
+
+```python
+class RegimeAdaptiveStrategy(Strategy):
+    """
+    Strategy that adapts its parameters based on detected market regime.
+    """
+    def __init__(self, name, base_strategy_class, regime_detector, parameters=None):
+        super().__init__(name, parameters)
+        self.base_strategy_class = base_strategy_class
+        self.regime_detector = regime_detector
+        self.regime_strategies = {}
+        self.current_regime = "default"
+        
+    def setup(self):
+        # Load optimized parameters for each regime
+        regime_params = self.load_regime_parameters()
+        
+        # Create a strategy instance for each regime with optimized parameters
+        for regime, params in regime_params.items():
+            strategy = self.base_strategy_class(f"{self.name}_{regime}", params)
+            self.regime_strategies[regime] = strategy
+            
+        # Subscribe to CLASSIFICATION events for regime changes
+        self.event_bus.subscribe(EventType.CLASSIFICATION, self.on_classification)
+    
+    def on_classification(self, event):
+        # Update current regime when classification changes
+        new_regime = event.payload.get("classification")
+        if new_regime and new_regime != self.current_regime:
+            self.logger.info(f"Switching from regime '{self.current_regime}' to '{new_regime}'")
+            self.current_regime = new_regime
+    
+    def on_bar(self, event):
+        # Forward the bar event to the current regime's strategy
+        regime = self.current_regime
+        if regime not in self.regime_strategies:
+            regime = "default"  # Fallback to default if no strategy for current regime
+            
+        # Get signal from the appropriate regime-specific strategy
+        return self.regime_strategies[regime].on_bar(event)
+```
+
+##   Example: Enhanced Optimizer with Regime Support (Phase 3)
+
+```python
+class EnhancedOptimizer(BaseOptimizer):
+    """
+    Optimizer that conducts regime-specific parameter optimization.
+    """
+    def __init__(self, name, parameters=None):
+        super().__init__(name, parameters)
+        self.regime_performance = {}
+        self.min_trades_per_regime = 5
+        
+    def optimize(self, strategy_class, parameter_grid, backtest_func):
+        best_params_by_regime = {}
+        regimes_encountered = set()
+        
+        for params in self.generate_parameter_combinations(parameter_grid):
+            # Reset portfolio before each run
+            self.reset_portfolio()
+            
+            # Run backtest with current parameters
+            result = backtest_func(strategy_class, params)
+            
+            # Analyze performance by regime
+            regime_metrics = result["portfolio"].get_regime_performance()
+            
+            # Update list of encountered regimes
+            regimes_encountered.update(regime_metrics.keys())
+            
+            # Update best parameters for each regime
+            for regime, metrics in regime_metrics.items():
+                if metrics["trade_count"] >= self.min_trades_per_regime:
+                    if regime not in best_params_by_regime or \
+                       metrics["sharpe_ratio"] > best_params_by_regime[regime]["metric"]["value"]:
+                        best_params_by_regime[regime] = {
+                            "parameters": params.copy(),
+                            "metric": {
+                                "name": "sharpe_ratio",
+                                "value": metrics["sharpe_ratio"],
+                                "higher_is_better": True
+                            }
+                        }
+        
+        return {
+            "regime_best_parameters": best_params_by_regime,
+            "regimes_encountered": list(regimes_encountered)
+        }
+```
+
+##   Example: Boundary Trade Handling (Phase 3)
+
+```python
+class BasicPortfolio(BaseComponent):
+    # ... other portfolio methods ...
+    
+    def close_position(self, symbol, quantity, price, timestamp, regime=None):
+        """Close a position with proper regime attribution."""
+        if symbol not in self.open_positions:
+            return None
+            
+        position = self.open_positions[symbol]
+        entry_regime = position.get("regime", "default")
+        exit_regime = regime or self._current_market_regime or "default"
+        
+        # Calculate P&L
+        pnl = self._calculate_pnl(position, quantity, price)
+        
+        # Track as boundary trade if regimes differ
+        is_boundary_trade = entry_regime != exit_regime
+        trade_record = {
+            "symbol": symbol,
+            "entry_time": position["entry_time"],
+            "entry_price": position["entry_price"],
+            "exit_time": timestamp,
+            "exit_price": price,
+            "quantity": quantity,
+            "pnl": pnl,
+            "entry_regime": entry_regime,
+            "exit_regime": exit_regime,
+            "is_boundary_trade": is_boundary_trade
+        }
+        
+        # Add to appropriate regime performance tracking
+        if is_boundary_trade:
+            transition_key = f"{entry_regime}_to_{exit_regime}"
+            if transition_key not in self._boundary_trade_performance:
+                self._boundary_trade_performance[transition_key] = {
+                    "trades": [],
+                    "total_pnl": 0.0,
+                    "win_count": 0,
+                    "loss_count": 0
+                }
+                
+            self._boundary_trade_performance[transition_key]["trades"].append(trade_record)
+            self._boundary_trade_performance[transition_key]["total_pnl"] += pnl
+            if pnl > 0:
+                self._boundary_trade_performance[transition_key]["win_count"] += 1
+            else:
+                self._boundary_trade_performance[transition_key]["loss_count"] += 1
+        else:
+            # Regular single-regime trade tracking
+            if exit_regime not in self._regime_performance:
+                self._regime_performance[exit_regime] = {
+                    "trades": [],
+                    "total_pnl": 0.0,
+                    "win_count": 0,
+                    "loss_count": 0
+                }
+                
+            self._regime_performance[exit_regime]["trades"].append(trade_record)
+            self._regime_performance[exit_regime]["total_pnl"] += pnl
+            if pnl > 0:
+                self._regime_performance[exit_regime]["win_count"] += 1
+            else:
+                self._regime_performance[exit_regime]["loss_count"] += 1
+                
+        # Update portfolio state
+        self._update_portfolio_state_after_trade(symbol, quantity, price, pnl)
+        return trade_record
+```
 
 ##   Example: Ensemble Strategy (Phase 4)
 

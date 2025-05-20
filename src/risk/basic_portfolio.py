@@ -142,6 +142,9 @@ class BasicPortfolio(BaseComponent):
         if new_regime and new_regime != self._current_market_regime:
             self.logger.info(f"Market regime changed from '{self._current_market_regime}' to '{new_regime}' at {timestamp} for '{self.name}'.")
             self._current_market_regime = new_regime
+        elif new_regime:
+            # Log when we receive classification events even if regime hasn't changed
+            self.logger.debug(f"Classification event received with same regime '{new_regime}' at {timestamp} for '{self.name}'.")
 
     def _get_current_regime(self) -> str:
         return self._current_market_regime or "default"
@@ -450,8 +453,10 @@ class BasicPortfolio(BaseComponent):
         # Record history
         self._portfolio_value_history.append((timestamp, self.current_total_value))
         
+        # Include current regime in the portfolio update
+        current_regime = self._get_current_regime()
         self.logger.info(
-            f"Portfolio Update at {timestamp}: "
+            f"Portfolio Update at {timestamp} [{current_regime}]: "
             f"Cash={self.current_cash:.2f}, Holdings Value={self.current_holdings_value:.2f}, "
             f"Total Value={self.current_total_value:.2f}, Realized PnL={self.realized_pnl:.2f}, Unrealized PnL={self.unrealized_pnl:.2f}" 
         )

@@ -43,6 +43,7 @@ class EnhancedOptimizer(BasicOptimizer):
         """
         Overridden to also return regime-specific performance metrics.
         First resets the portfolio to ensure each run starts from the same initial state.
+        Directly processes regimes like test_regime_detection.py does.
         """
         # Reset the portfolio state before each run
         try:
@@ -52,6 +53,13 @@ class EnhancedOptimizer(BasicOptimizer):
         except Exception as e:
             self.logger.error(f"Error resetting portfolio before backtest run: {e}", exc_info=True)
             # Continue with the run even if reset fails, as the parent method will handle other errors
+        
+        # Ensure RegimeDetector is available
+        try:
+            regime_detector = self._container.resolve("MyPrimaryRegimeDetector")
+            self.logger.info(f"Found regime detector for optimization: {regime_detector.name}")
+        except Exception as e:
+            self.logger.warning(f"RegimeDetector not available for run: {e}. Regime-specific optimization may be limited.")
         
         # Get the overall performance metric from parent class
         overall_metric = super()._perform_single_backtest_run(params_to_test, dataset_type)
@@ -64,6 +72,10 @@ class EnhancedOptimizer(BasicOptimizer):
         try:
             portfolio_manager: BasicPortfolio = self._container.resolve(self._portfolio_service_name)
             regime_performance = portfolio_manager.get_performance_by_regime()
+            
+            # Log the regimes encountered for debugging
+            self.logger.info(f"Regimes encountered in this run: {list(regime_performance.keys())}")
+            
             return overall_metric, regime_performance
         except Exception as e:
             self.logger.error(f"Error getting regime performance metrics: {e}", exc_info=True)
@@ -167,6 +179,18 @@ class EnhancedOptimizer(BasicOptimizer):
         }
         
         try:
+            # Ensure the RegimeDetector is available
+            regime_detector = None
+            try:
+                regime_detector = self._container.resolve("MyPrimaryRegimeDetector")
+                self.logger.info(f"EnhancedOptimizer found RegimeDetector: {regime_detector.name}")
+                
+                # Log the regime detector thresholds for debugging
+                if hasattr(regime_detector, '_regime_thresholds'):
+                    self.logger.info(f"Regime thresholds: {regime_detector._regime_thresholds}")
+            except Exception as e:
+                self.logger.warning(f"Could not resolve RegimeDetector: {e}. Regime-specific optimization may not work correctly.")
+            
             strategy_to_optimize: MAStrategy = self._container.resolve(self._strategy_service_name)
             data_handler_instance = self._container.resolve(self._data_handler_service_name)
             

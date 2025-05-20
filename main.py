@@ -75,7 +75,8 @@ def main():
             "instance_name": "SPY_Ensemble_Strategy",
             "config_loader": config_loader,
             "event_bus": event_bus,
-            "component_config_key": "components.ensemble_strategy"
+            "component_config_key": "components.ensemble_strategy",
+            "container": container  # Pass container to allow access to RegimeDetector
         }
         container.register_type("strategy", EnsembleSignalStrategy, True, constructor_kwargs=ensemble_strat_args)
         logger.info("EnsembleSignalStrategy registered as 'strategy' for optimization mode.")
@@ -154,6 +155,17 @@ def main():
         logger.info("EnhancedOptimizer registered as 'optimizer_service'.")
 
         try:
+            # During optimization, specifically set up and start the RegimeDetector first
+            try:
+                regime_detector = container.resolve("MyPrimaryRegimeDetector")
+                logger.info(f"Setting up RegimeDetector '{regime_detector.name}' for optimization")
+                regime_detector.setup()
+                if regime_detector.get_state() == BaseComponent.STATE_INITIALIZED:
+                    regime_detector.start()
+                    logger.info(f"RegimeDetector '{regime_detector.name}' started for optimization")
+            except Exception as e:
+                logger.warning(f"Could not set up RegimeDetector for optimization: {e}")
+            
             optimizer: EnhancedOptimizer = container.resolve("optimizer_service")
             optimizer.setup() 
             if optimizer.get_state() == BaseComponent.STATE_INITIALIZED:

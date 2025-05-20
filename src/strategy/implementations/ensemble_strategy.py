@@ -1,7 +1,8 @@
 # src/strategy/implementations/ensemble_strategy.py
 import logging
+import datetime
 from typing import Dict, Any, List, Optional
-from src.core.component import BaseComponent # <--- ADD THIS LINE
+from src.core.component import BaseComponent
 
 # from src.strategy.base.strategy import Strategy # As per STRATEGY_IMPLEMENTATION.MD
 # from src.core.component import BaseComponent # Using BaseComponent if Strategy base class is not ready
@@ -21,10 +22,15 @@ class EnsembleSignalStrategy(MAStrategy): # Inheriting MAStrategy for quick demo
     An example strategy that combines MA Crossover signals with RSI signals.
     NOTE: This is a simplified ensemble. Ideally, MACrossover logic would also be a separate Rule.
     """
-    def __init__(self, instance_name: str, config_loader, event_bus, component_config_key: str):
+    def __init__(self, instance_name: str, config_loader, event_bus, component_config_key: str, container=None):
         super().__init__(instance_name, config_loader, event_bus, component_config_key) # Initialize MAStrategy part
         self.logger = logging.getLogger(f"{__name__}.{instance_name}")
-
+        
+        self._container = container
+        self._regime_detector = None
+        self._current_regime = "default"
+        self.regime_detector_service_name = "MyPrimaryRegimeDetector"
+        
         # RSI Components - names should be unique if registered in a flat container later
         # Or, the strategy manages them internally if they are not top-level components.
         rsi_indicator_params = {
@@ -59,9 +65,37 @@ class EnsembleSignalStrategy(MAStrategy): # Inheriting MAStrategy for quick demo
         super().setup() # Setup MAStrategy part
         self.rsi_indicator.setup()
         self.rsi_rule.setup()
+        
+        # Subscribe to CLASSIFICATION events to track regime changes
+        if self._event_bus:
+            self._event_bus.subscribe(EventType.CLASSIFICATION, self.on_classification_change)
+            self.logger.info(f"'{self.name}' subscribed to CLASSIFICATION events.")
+            
+        # Try to resolve the regime detector if container is available
+        if self._container:
+            try:
+                self._regime_detector = self._container.resolve(self.regime_detector_service_name)
+                self.logger.info(f"Successfully resolved RegimeDetector: {self._regime_detector.name}")
+                initial_regime = self._regime_detector.get_current_classification()
+                if initial_regime:
+                    self._current_regime = initial_regime
+                    self.logger.info(f"Initial market regime set to: {self._current_regime}")
+            except Exception as e:
+                self.logger.warning(f"Could not resolve RegimeDetector: {e}. Defaulting to 'default' regime.")
+                
         # Event subscriptions are handled by MAStrategy and _on_bar will be overridden
         self.logger.info(f"EnsembleSignalStrategy '{self.name}' setup complete.")
         self.state = BaseComponent.STATE_INITIALIZED
+        
+    def on_classification_change(self, event: Event):
+        """Handle regime classification changes."""
+        payload = event.payload
+        if not isinstance(payload, dict): return
+        new_regime = payload.get('classification')
+        timestamp = payload.get('timestamp', datetime.datetime.now(datetime.timezone.utc))
+        if new_regime and new_regime != self._current_regime:
+            self.logger.info(f"Strategy: Market regime changed from '{self._current_regime}' to '{new_regime}' at {timestamp} for '{self.name}'.")
+            self._current_regime = new_regime
 
 
     def _on_bar_event(self, event: Event):
@@ -75,6 +109,9 @@ class EnsembleSignalStrategy(MAStrategy): # Inheriting MAStrategy for quick demo
         if close_price_val is None or bar_timestamp is None:
             return
         close_price = float(close_price_val)
+        
+        # Log the current regime during trading for debugging
+        self.logger.debug(f"Current market regime during bar processing: {self._current_regime}")
 
         # 1. Update MA part (from parent MAStrategy) and get its potential signal
         # Parent's _on_bar_event will publish its own signal if conditions are met.
@@ -135,18 +172,31 @@ class EnsembleSignalStrategy(MAStrategy): # Inheriting MAStrategy for quick demo
                 "signal_type": final_signal_type_int,
                 "price_at_signal": close_price,
                 "strategy_id": self.name,
-                "reason": f"Ensemble (MA: {ma_signal_type_int}, RSI: {rsi_signal_type_int})"
+                "reason": f"Ensemble (MA: {ma_signal_type_int}, RSI: {rsi_signal_type_int}, Regime: {self._current_regime})"
             }
             signal_event = Event(EventType.SIGNAL, signal_payload)
             self._event_bus.publish(signal_event)
             self.logger.info(
-                f"Ensemble Published SIGNAL: Type={final_signal_type_int}, Symbol={self._symbol}, Price={close_price:.2f}"
+                f"Ensemble Published SIGNAL: Type={final_signal_type_int}, Symbol={self._symbol}, Price={close_price:.2f}, Regime={self._current_regime}"
             )
         elif current_signal_to_publish == 0 and self._current_signal_state != 0:
             # Optional: Generate a FLAT signal if combined strength is neutral and previously in a state
             # self._current_signal_state = 0
             # Or just do nothing, letting existing position ride until next strong signal
             pass
+            
+    def stop(self):
+        # Unsubscribe from CLASSIFICATION events
+        if self._event_bus:
+            try:
+                self._event_bus.unsubscribe(EventType.CLASSIFICATION, self.on_classification_change)
+                self.logger.info(f"'{self.name}' unsubscribed from CLASSIFICATION events.")
+            except Exception as e:
+                self.logger.error(f"Error unsubscribing {self.name} from CLASSIFICATION events: {e}")
+                
+        # Call parent stop method
+        super().stop()
+        self.logger.info(f"EnsembleSignalStrategy '{self.name}' stopped.")
 
 
     def set_parameters(self, params: Dict[str, Any]):
