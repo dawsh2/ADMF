@@ -1,6 +1,7 @@
 # src/strategy/implementations/ensemble_strategy.py
 import logging
 import datetime
+from logging import DEBUG
 from typing import Dict, Any, List, Optional
 from src.core.component import BaseComponent
 
@@ -30,6 +31,10 @@ class EnsembleSignalStrategy(MAStrategy): # Inheriting MAStrategy for quick demo
         self._regime_detector = None
         self._current_regime = "default"
         self.regime_detector_service_name = "MyPrimaryRegimeDetector"
+        
+        # For adaptive testing - store regime-specific parameters
+        self._regime_best_parameters = {}
+        self._adaptive_mode_enabled = False  # Default to disabled - optimizer will enable this
         
         # RSI Components - names should be unique if registered in a flat container later
         # Or, the strategy manages them internally if they are not top-level components.
@@ -91,7 +96,10 @@ class EnsembleSignalStrategy(MAStrategy): # Inheriting MAStrategy for quick demo
         """
         Handle regime classification changes and update parameters.
         """
-        self.logger.info(f"'{self.name}' received classification event: {event}")
+        # No longer printing full classification event to reduce verbosity
+        # Removed verbose event logging to reduce output clutter
+        if self.logger.isEnabledFor(DEBUG):
+            self.logger.debug(f"Classification event received by {self.name}")
         
         if not hasattr(event, 'payload'):
             self.logger.warning(f"'{self.name}' received event without payload attribute: {event}")
@@ -102,14 +110,18 @@ class EnsembleSignalStrategy(MAStrategy): # Inheriting MAStrategy for quick demo
             return
             
         payload = event.payload
-        self.logger.info(f"'{self.name}' classification event payload: {payload}")
+        # Simplified logging to reduce verbosity
+        if self.logger.isEnabledFor(logging.DEBUG):
+            self.logger.debug(f"Classification payload received for regime: {payload.get('classification', 'unknown')}")
         
         if not isinstance(payload, dict):
             self.logger.warning(f"'{self.name}' received non-dict payload: {payload}")
             return
             
         new_regime = payload.get('classification')
-        self.logger.info(f"'{self.name}' extracted classification from payload: {new_regime}")
+        # More concise logging
+        if self.logger.isEnabledFor(logging.DEBUG):
+            self.logger.debug(f"Detected regime: {new_regime}")
         
         if not new_regime:
             self.logger.warning(f"'{self.name}' missing 'classification' in payload: {payload}")
@@ -118,14 +130,17 @@ class EnsembleSignalStrategy(MAStrategy): # Inheriting MAStrategy for quick demo
         timestamp = payload.get('timestamp', datetime.datetime.now(datetime.timezone.utc))
             
         if new_regime == self._current_regime:
-            self.logger.info(f"'{self.name}' regime unchanged: {new_regime}")
+            # Only log regime-unchanged in debug mode
+            if self.logger.isEnabledFor(logging.DEBUG):
+                self.logger.debug(f"Regime unchanged: {new_regime}")
             return
             
-        self.logger.info(f"'{self.name}' market regime changed from '{self._current_regime}' to '{new_regime}' at {timestamp}.")
+        # Only log regime changes once, not to both logger and stdout
+        # Use logger.info level which is visible but less prominent than warnings
+        self.logger.info(f"REGIME CHANGED: '{self._current_regime}' → '{new_regime}' at {timestamp}")
         
-        # Let's force a signal state reset when regime changes to ensure we get new signals
-        self._current_signal_state = 0
-        self.logger.info(f"Reset signal state due to regime change to ensure new signals can be generated")
+        # Always preserve signal state during regime changes
+        self.logger.info(f"Preserving signal state {self._current_signal_state} during regime change")
         
         self._current_regime = new_regime
         
@@ -136,18 +151,36 @@ class EnsembleSignalStrategy(MAStrategy): # Inheriting MAStrategy for quick demo
         """
         Apply parameters specific to the given regime.
         
-        This method looks for optimized parameters in the standard location
-        where EnhancedOptimizer saves them.
+        This method looks for optimized parameters in both:
+        1. In-memory parameters (for adaptive test phase during optimization)
+        2. Saved parameters file (for normal operation)
         
-        IMPORTANT: During optimization, this is disabled to prevent interference
-        with the parameter testing process.
+        IMPORTANT: During optimization TRAINING phase, this is disabled to prevent 
+        interference with parameter testing. But during adaptive TEST phase, we WANT 
+        parameters to change with regimes.
         """
-        # BUGFIX: Skip regime parameter loading during optimization
-        # During optimization, we're testing specific parameter combinations and don't want
-        # them overridden by previously saved regime-specific parameters
+        # Check if we're in adaptive mode with in-memory parameters
+        if self._adaptive_mode_enabled and self._regime_best_parameters:
+            # Use explicit print to ensure this shows up regardless of log level
+            print(f"\n>>> ADAPTIVE MODE ACTIVE: Checking parameters for regime '{regime}' <<<")
+            
+            if regime in self._regime_best_parameters:
+                params = self._regime_best_parameters[regime]
+                # Use stdout print for maximum visibility
+                print(f"\n>>> APPLYING REGIME PARAMETERS: Using optimized parameters for '{regime}': {params} <<<")
+                self.logger.warning(f">>> ADAPTIVE TEST: Applying regime-specific parameters for '{regime}': {params} <<<")
+                self.set_parameters(params)
+                return
+            else:
+                print(f"\n>>> NO PARAMETERS FOR REGIME: '{regime}' not found, using current parameters <<<")
+                self.logger.warning(f">>> ADAPTIVE MODE: No parameters found for regime '{regime}', using current parameters <<<")
+                return
+                
+        # BUGFIX: Skip file-based parameter loading during optimization training phase
+        # During optimization's training phase, we're testing specific parameter combinations
         import sys
-        if '--optimize' in sys.argv:
-            self.logger.debug(f"Skipping regime parameter loading for '{regime}' during optimization (--optimize mode detected)")
+        if '--optimize' in sys.argv and not self._adaptive_mode_enabled:
+            self.logger.debug(f"Skipping regime parameter loading for '{regime}' during optimization training (--optimize mode detected)")
             return
         
         # Default parameters file path
@@ -211,10 +244,10 @@ class EnsembleSignalStrategy(MAStrategy): # Inheriting MAStrategy for quick demo
 
 
     def _on_bar_event(self, event: Event):
-        self.logger.warning(f"ENSEMBLE_DEBUG: {self.name} received BAR event (state: {self.state})")
+        self.logger.debug(f"{self.name} received BAR event (state: {self.state})")
         if event.event_type != EventType.BAR or event.payload.get("symbol") != self._symbol:
             event_symbol = event.payload.get("symbol") if hasattr(event, 'payload') else 'N/A'
-            self.logger.warning(f"ENSEMBLE_DEBUG: {self.name} ignoring event - type: {event.event_type}, symbol: {event_symbol}, expected: {self._symbol}")
+            self.logger.debug(f"{self.name} ignoring event - type: {event.event_type}, symbol: {event_symbol}, expected: {self._symbol}")
             return
         
         bar_data: Dict[str, Any] = event.payload
@@ -247,12 +280,12 @@ class EnsembleSignalStrategy(MAStrategy): # Inheriting MAStrategy for quick demo
                 if self._current_signal_state != 1: 
                     ma_signal_type_int = 1
                     rsi_overbought = getattr(self.rsi_rule, '_overbought_threshold', 'N/A')
-                    self.logger.warning(f"SIGNAL_DEBUG: MA BUY signal with params: short_window={self._short_window}, long_window={self._long_window}, overbought={rsi_overbought}, regime={self._current_regime}")
+                    self.logger.debug(f"MA BUY signal: short_window={self._short_window}, regime={self._current_regime}")
             elif self._prev_short_ma >= self._prev_long_ma and current_short_ma < current_long_ma:
                 if self._current_signal_state != -1: 
                     ma_signal_type_int = -1
                     rsi_overbought = getattr(self.rsi_rule, '_overbought_threshold', 'N/A')
-                    self.logger.warning(f"SIGNAL_DEBUG: MA SELL signal with params: short_window={self._short_window}, long_window={self._long_window}, overbought={rsi_overbought}, regime={self._current_regime}")
+                    self.logger.debug(f"MA SELL signal: short_window={self._short_window}, regime={self._current_regime}")
         
         # Update MA prev values
         if current_short_ma is not None: self._prev_short_ma = current_short_ma
@@ -266,7 +299,7 @@ class EnsembleSignalStrategy(MAStrategy): # Inheriting MAStrategy for quick demo
         if rsi_triggered:
             rsi_signal_type_int = int(rsi_strength) # 1 for BUY, -1 for SELL
             # Log the parameters being used when signals are generated
-            self.logger.warning(f"SIGNAL_DEBUG: RSI signal triggered ({rsi_signal_type_str}) with params: short_window={self._short_window}, overbought_threshold={getattr(self.rsi_rule, '_overbought_threshold', 'N/A')}, regime={self._current_regime}")
+            self.logger.debug(f"RSI {rsi_signal_type_str} signal: regime={self._current_regime}")
 
         # 3. Combine Signals Using Voting Weights System
         final_signal_type_int: Optional[int] = None
@@ -355,49 +388,90 @@ class EnsembleSignalStrategy(MAStrategy): # Inheriting MAStrategy for quick demo
 
 
     def set_parameters(self, params: Dict[str, Any]):
-        self.logger.warning(f"PARAM_DEBUG: EnsembleSignalStrategy.set_parameters called with: {params}")
+        self.logger.debug(f"EnsembleSignalStrategy.set_parameters called with: {params}")
         super().set_parameters(params) # For MAStrategy part (this stores extended params with underscores)
         
         # CRITICAL FIX: Update ensemble strategy's own parameter copies
         if "short_window" in params:
-            old_short = getattr(self, '_short_window', 'unset')
             self._short_window = params["short_window"]
-            self.logger.warning(f"PARAM_DEBUG: Updated ensemble _short_window from {old_short} to {self._short_window}")
         if "long_window" in params:
-            old_long = getattr(self, '_long_window', 'unset')
             self._long_window = params["long_window"]
-            self.logger.warning(f"PARAM_DEBUG: Updated ensemble _long_window from {old_long} to {self._long_window}")
+        
+        # Log the current regime and adaptive mode status for debugging
+        current_regime = getattr(self, '_current_regime', 'unknown')
+        adaptive_mode = getattr(self, '_adaptive_mode_enabled', False)
+        self.logger.info(f"Parameters updated for regime: {current_regime}, adaptive_mode: {adaptive_mode}")
         
         # Parameters for RSI components might be prefixed, e.g., "rsi_indicator.period"
         rsi_indicator_params = {k.split('.', 1)[1]: v for k, v in params.items() if k.startswith("rsi_indicator.")}
         if rsi_indicator_params:
-            self.logger.warning(f"PARAM_DEBUG: '{self.name}' updating RSI indicator parameters: {rsi_indicator_params}")
+            self.logger.debug(f"'{self.name}' updating RSI indicator parameters: {rsi_indicator_params}")
             self.rsi_indicator.set_parameters(rsi_indicator_params)
-            # Re-setup indicator to ensure parameters take effect
-            self.rsi_indicator.setup()
+            # Note: Not calling setup() to preserve indicator state during regime changes
 
         rsi_rule_params = {k.split('.', 1)[1]: v for k, v in params.items() if k.startswith("rsi_rule.")}
         if rsi_rule_params:
-            self.logger.warning(f"PARAM_DEBUG: '{self.name}' updating RSI rule parameters: {rsi_rule_params}")
+            self.logger.debug(f"'{self.name}' updating RSI rule parameters: {rsi_rule_params}")
             self.rsi_rule.set_parameters(rsi_rule_params)
-            # Re-setup rule to ensure parameters take effect
-            self.rsi_rule.setup()
+            # Note: Not calling setup() to preserve rule state during regime changes
             
         # BUGFIX: Properly handle ma_rule.weight parameter 
         # The parent class can't store "ma_rule.weight" as an attribute due to the dot,
         # so we need to handle it manually here
         if 'ma_rule.weight' in params:
             self.ma_weight = params['ma_rule.weight']
-            self.logger.warning(f"PARAM_DEBUG: '{self.name}' storing extended parameter: ma_rule.weight={self.ma_weight}")
+            self.logger.debug(f"'{self.name}' storing extended parameter: ma_rule.weight={self.ma_weight}")
             
-        # CRITICAL FIX: Reset signal states when parameters change during optimization
-        # This ensures each parameter combination gets a fresh start
-        self._current_signal_state = 0
-        # Also reset MA strategy signal state from parent class
-        if hasattr(self, '_prev_short_ma'):
-            self._prev_short_ma = None
-        if hasattr(self, '_prev_long_ma'):
-            self._prev_long_ma = None
+        # Preserve signal states during all parameter changes, regardless of adaptive mode
+        self.logger.info(f"Preserving signal states during parameter changes - current signal: {self._current_signal_state}")
+            
+        self.logger.info(f"EnsembleSignalStrategy '{self.name}' parameters updated.")
+        return True 
+        
+    def enable_adaptive_mode(self, regime_parameters: Dict[str, Dict[str, Any]]):
+        """
+        Enable adaptive regime mode and load regime-specific parameters.
+        
+        Args:
+            regime_parameters: Dictionary mapping regime names to parameter dictionaries
+        """
+        self._adaptive_mode_enabled = True
+        self._regime_best_parameters = regime_parameters
+        self.logger.info(f"ADAPTIVE MODE ENABLED: Loaded parameters for {len(regime_parameters)} regimes")
+        self.logger.info(f"Available regimes: {list(regime_parameters.keys())}")
+        
+        # Apply parameters for current regime immediately if available
+        if self._current_regime in regime_parameters:
+            params = regime_parameters[self._current_regime]
+            # Use a very unique and distinct message that will stand out in the logs
+            self.logger.warning(f"!!! ADAPTIVE TEST !!! Applying parameters for current regime '{self._current_regime}': {params}")
+            self.set_parameters(params)
+            
+    def disable_adaptive_mode(self):
+        """
+        Disable adaptive regime mode.
+        """
+        self._adaptive_mode_enabled = False
+        self.logger.info("ADAPTIVE MODE DISABLED")
+        
+    def get_adaptive_mode_status(self):
+        """
+        Returns the current adaptive mode status and available regimes.
+        This is useful for debugging to verify adaptive mode is working.
+        """
+        status = {
+            "adaptive_mode_enabled": self._adaptive_mode_enabled,
+            "current_regime": self._current_regime,
+            "available_regimes": list(self._regime_best_parameters.keys()) if self._regime_best_parameters else [],
+            "parameter_count": len(self._regime_best_parameters) if self._regime_best_parameters else 0
+        }
+        
+        # Print the status for maximum visibility
+        print(f"\n>>> ADAPTIVE MODE STATUS: {status['adaptive_mode_enabled']} <<<")
+        print(f">>> CURRENT REGIME: {status['current_regime']} <<<")
+        print(f">>> AVAILABLE REGIMES: {status['available_regimes']} <<<")
+        
+        return status
             
         self.logger.info(f"EnsembleSignalStrategy '{self.name}' parameters updated, components re-setup, and signal states reset.")
         return True 

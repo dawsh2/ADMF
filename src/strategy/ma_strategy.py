@@ -62,16 +62,22 @@ class MAStrategy(BaseComponent):
             # Keep existing prices but adjust deque size for new long_window
             existing_prices = list(self._prices)
             self._prices = deque(existing_prices, maxlen=self._long_window)
-            self.logger.warning(f"STATE_RESET_DEBUG: '{self.name}' preserving {len(existing_prices)} prices, adjusted maxlen to {self._long_window}")
+            self.logger.debug(f"Preserving {len(existing_prices)} prices, adjusted maxlen to {self._long_window}")
         else:
             # Fresh start (normal case for training)
             self._prices = deque(maxlen=self._long_window)
-            self.logger.warning(f"STATE_RESET_DEBUG: '{self.name}' fresh start with empty prices, maxlen={self._long_window}")
+            self.logger.debug(f"Fresh start with empty prices, maxlen={self._long_window}")
         
-        # Always reset signal calculation state
-        self._prev_short_ma = None
-        self._prev_long_ma = None
-        self._current_signal_state = 0
+        # Preserve signal calculation state during parameter changes for adaptive trading
+        # Only reset if we don't have existing state (fresh start)
+        if not hasattr(self, '_prev_short_ma'):
+            self._prev_short_ma = None
+        if not hasattr(self, '_prev_long_ma'):
+            self._prev_long_ma = None
+        if not hasattr(self, '_current_signal_state'):
+            self._current_signal_state = 0
+        
+        self.logger.debug(f"Preserved signal state - prev_short_ma: {self._prev_short_ma}, prev_long_ma: {self._prev_long_ma}, signal_state: {self._current_signal_state}")
 
     def set_parameters(self, params: Dict[str, Any]):
         """
@@ -155,16 +161,16 @@ class MAStrategy(BaseComponent):
     # _on_bar_event remains the same as your last working version (using integer signals)
     def _on_bar_event(self, event: Event):
         try:
-            self.logger.warning(f"STRATEGY_DEBUG: {self.name} received BAR event (state: {self.state})")
+            self.logger.debug(f"STRATEGY_DEBUG: {self.name} received BAR event (state: {self.state})")
             if event.event_type != EventType.BAR:
-                self.logger.warning(f"STRATEGY_DEBUG: {self.name} ignoring non-BAR event: {event.event_type}")
+                self.logger.debug(f"STRATEGY_DEBUG: {self.name} ignoring non-BAR event: {event.event_type}")
                 return 
             
             bar_data: Dict[str, Any] = event.payload 
             event_symbol = bar_data.get("symbol")
-            self.logger.warning(f"STRATEGY_DEBUG: {self.name} checking symbol: event={event_symbol}, expected={self._symbol}")
+            self.logger.debug(f"STRATEGY_DEBUG: {self.name} checking symbol: event={event_symbol}, expected={self._symbol}")
             if event_symbol != self._symbol:
-                self.logger.warning(f"STRATEGY_DEBUG: {self.name} ignoring event for wrong symbol: {event_symbol}")
+                self.logger.debug(f"STRATEGY_DEBUG: {self.name} ignoring event for wrong symbol: {event_symbol}")
                 return
         except Exception as e:
             self.logger.error(f"STRATEGY_DEBUG: Exception in {self.name} _on_bar_event: {e}", exc_info=True)
@@ -269,9 +275,18 @@ class MAStrategy(BaseComponent):
                 signal_event = Event(EventType.SIGNAL, signal_payload)
                 self.logger.warning(f"STRATEGY_DEBUG: Publishing SIGNAL event: {generated_signal_type_int}")
                 self._event_bus.publish(signal_event)
+                # Get current regime for enhanced logging
+                current_regime = "unknown"
+                try:
+                    if hasattr(self, '_container') and self._container:
+                        regime_detector = self._container.resolve("MyPrimaryRegimeDetector")
+                        current_regime = regime_detector.get_current_classification()
+                except:
+                    pass
+                    
                 self.logger.info(
-                    f"Published SIGNAL Event: Type={generated_signal_type_int}, Symbol={self._symbol}, "
-                    f"Price={close_price:.2f}, Timestamp={bar_timestamp}, Params={all_params}"
+                    f"SIGNAL_GENERATED: Type={generated_signal_type_int}, Symbol={self._symbol}, "
+                    f"Price={close_price:.2f}, Regime={current_regime}, Timestamp={bar_timestamp}"
                 )
 
         if current_short_ma is not None:
@@ -288,7 +303,7 @@ class MAStrategy(BaseComponent):
         # Ensure we're subscribed to BAR events (needed for restarts)
         if self._event_bus:
             self._event_bus.subscribe(EventType.BAR, self._on_bar_event)
-            self.logger.warning(f"STRATEGY_SUBSCRIPTION_DEBUG: '{self.name}' re-subscribed to BAR events on start/restart with handler {self._on_bar_event}")
+            self.logger.debug(f"Re-subscribed to BAR events on start/restart")
         
         self.logger.info(f"MAStrategy '{self.name}' started with SW={self._short_window}, LW={self._long_window}. Listening for BAR events...")
         self.state = BaseComponent.STATE_STARTED

@@ -45,7 +45,7 @@ class Classifier(BaseComponent):
         self.logger.info(f"Classifier '{self.name}' setup complete. State: {self.state}. Subscribed to BAR events.")
     
     def on_bar(self, event: Event): 
-        self.logger.warning(f"CLASSIFIER_DEBUG: {self.name} received BAR event (state: {self.state})")
+        self.logger.debug(f"{self.name} received BAR event (state: {self.state})")
         data: Dict[str, Any] = event.payload 
         
         if not isinstance(data, dict):

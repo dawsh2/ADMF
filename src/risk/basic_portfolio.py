@@ -52,12 +52,12 @@ class BasicPortfolio(BaseComponent):
     def reset(self):
         """Reset the portfolio to its initial state for a fresh backtest run."""
         trade_count_before = len(self._trade_log) if hasattr(self, '_trade_log') else 0
-        self.logger.warning(f"PORTFOLIO_RESET_DEBUG: Resetting portfolio '{self.name}' - had {trade_count_before} trades")
+        self.logger.debug(f"Resetting portfolio '{self.name}' - had {trade_count_before} trades")
         
         # DEBUG: Add stack trace to identify what's calling reset
         import traceback
         stack_trace = ''.join(traceback.format_stack()[-5:])  # Last 5 stack frames
-        self.logger.warning(f"PORTFOLIO_RESET_DEBUG: Reset called from:\n{stack_trace}")
+        self.logger.debug(f"Portfolio reset called from: {stack_trace.split()[-1] if stack_trace else 'unknown'}")
         
         self.logger.info(f"Resetting portfolio '{self.name}' to initial state")
         
@@ -185,10 +185,10 @@ class BasicPortfolio(BaseComponent):
         return self._current_market_regime or "default"
 
     def on_fill(self, event: Event):
-        self.logger.warning(f"PORTFOLIO_DEBUG: {self.name} received FILL event")
+        self.logger.debug(f"{self.name} received FILL event")
         fill_data = event.payload
         fill_id = fill_data.get('fill_id', 'NO_ID')
-        self.logger.warning(f"PORTFOLIO_FILL_DEBUG: Processing FILL {fill_id} - current trades: {len(self._trade_log)}")
+        self.logger.debug(f"Processing FILL {fill_id} - current trades: {len(self._trade_log)}")
         if not (isinstance(fill_data, dict) and all(k in fill_data for k in ['symbol', 'timestamp', 'quantity_filled', 'fill_price', 'direction'])):
             self.logger.error(f"'{self.name}' received incomplete or invalid FILL data: {fill_data}"); return
 
@@ -269,7 +269,8 @@ class BasicPortfolio(BaseComponent):
             }
             
             self._trade_log.append(trade_entry)
-            self.logger.warning(f"PORTFOLIO_FILL_DEBUG: Trade added to log! Now have {len(self._trade_log)} trades")
+            if len(self._trade_log) % 10 == 0:  # Log every 10 trades
+                self.logger.info(f"Trade #{len(self._trade_log)} completed")
             
             # Log boundary trades specifically for analysis
             if entry_regime != exit_regime:

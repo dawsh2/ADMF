@@ -147,37 +147,37 @@ class CSVDataHandler(BaseComponent):
         """
         Sets the active dataset for iteration from the pre-processed and pre-split DataFrames.
         """
-        self.logger.warning(f"CRITICAL_DEBUG: Setting active dataset to: '{dataset_type}' for {self.name}")
+        self.logger.debug(f"Setting active dataset to: '{dataset_type}'")
         
         # DEBUG: Log all available dataset sizes
-        self.logger.warning(f"CRITICAL_DEBUG: Available datasets - train_df: {len(self._train_df) if self._train_df is not None else 'None'}, test_df: {len(self._test_df) if self._test_df is not None else 'None'}, data_for_run: {len(self._data_for_run) if self._data_for_run is not None else 'None'}")
+        self.logger.debug(f"Available datasets - train: {len(self._train_df) if self._train_df is not None else 'None'}, test: {len(self._test_df) if self._test_df is not None else 'None'}")
         
         selected_df: Optional[pd.DataFrame] = None
         if dataset_type.lower() == "train":
             selected_df = self._train_df
-            self.logger.warning(f"CRITICAL_DEBUG: Selected train_df with {len(selected_df) if selected_df is not None else 'None'} rows")
+            self.logger.debug(f"Selected train_df with {len(selected_df)} rows")
         elif dataset_type.lower() == "test":
             selected_df = self._test_df
-            self.logger.warning(f"CRITICAL_DEBUG: Selected test_df with {len(selected_df) if selected_df is not None else 'None'} rows")
+            self.logger.debug(f"Selected test_df with {len(selected_df)} rows")
         elif dataset_type.lower() == "full": # "full" now refers to the --bars limited, regime-filtered data
             selected_df = self._data_for_run 
-            self.logger.warning(f"CRITICAL_DEBUG: Selected data_for_run with {len(selected_df) if selected_df is not None else 'None'} rows")
+            self.logger.debug(f"Selected data_for_run with {len(selected_df)} rows")
         else:
             self.logger.warning(f"Unknown dataset_type '{dataset_type}'. Defaulting to 'full' effective dataset.")
             selected_df = self._data_for_run
 
         if selected_df is None or selected_df.empty:
-            self.logger.warning(f"CRITICAL_DEBUG: Selected dataset '{dataset_type}' is empty or not available. No bars will be processed.")
+            self.logger.warning(f"Dataset '{dataset_type}' is empty or not available. No bars will be processed.")
             self._active_df = pd.DataFrame(columns=self._data_for_run.columns if self._data_for_run is not None and not self._data_for_run.empty else [])
             self._data_iterator = iter([])
         else:
             self._active_df = selected_df.copy() # Use a copy so iterator changes don't affect _train_df etc.
             self._data_iterator = self._active_df.iterrows()
-            self.logger.warning(f"CRITICAL_DEBUG: Set _active_df with {len(self._active_df)} rows")
+            self.logger.debug(f"Set active_df with {len(self._active_df)} rows")
 
         self._bars_processed_current_run = 0
         self._last_bar_timestamp = None
-        self.logger.warning(f"CRITICAL_DEBUG: Active dataset '{dataset_type}' ready with {len(self._active_df)} bars.")
+        self.logger.debug(f"Active dataset '{dataset_type}' ready with {len(self._active_df)} bars.")
 
     # start(), stop(), get_last_timestamp() methods remain the same.
     # The bar payload construction in start() also remains the same.
@@ -194,33 +194,33 @@ class CSVDataHandler(BaseComponent):
         
         if self._active_df.empty:
             # DEBUG: Add detailed logging to understand why dataset is empty
-            self.logger.warning(f"CRITICAL_DEBUG: CSVDataHandler '{self.name}' active dataset is empty!")
-            self.logger.warning(f"CRITICAL_DEBUG: train_df size: {len(self._train_df) if self._train_df is not None else 'None'}")
-            self.logger.warning(f"CRITICAL_DEBUG: test_df size: {len(self._test_df) if self._test_df is not None else 'None'}")
-            self.logger.warning(f"CRITICAL_DEBUG: data_for_run size: {len(self._data_for_run) if self._data_for_run is not None else 'None'}")
+            self.logger.warning(f"Active dataset is empty!")
+            self.logger.debug(f"train_df size: {len(self._train_df) if self._train_df is not None else 'None'}")
+            self.logger.debug(f"test_df size: {len(self._test_df) if self._test_df is not None else 'None'}")
+            self.logger.debug(f"data_for_run size: {len(self._data_for_run) if self._data_for_run is not None else 'None'}")
             self.logger.info(f"CSVDataHandler '{self.name}' active dataset is empty. No BAR events will be published.")
             self.state = BaseComponent.STATE_STOPPED
             self.logger.info(f"CSVDataHandler '{self.name}' completed data streaming (0 bars). State: {self.state}")
             return
 
         # IMPORTANT: Reset the data iterator each time we start to ensure fresh iteration
-        self.logger.warning(f"CRITICAL_DEBUG: Resetting data iterator for fresh data streaming in {self.name}")
-        self.logger.warning(f"CRITICAL_DEBUG: About to create fresh iterator from _active_df with {len(self._active_df)} rows")
+        self.logger.debug(f"Resetting data iterator for fresh streaming")
+        self.logger.debug(f"Creating fresh iterator from {len(self._active_df)} rows")
         self._data_iterator = self._active_df.iterrows()
         self._bars_processed_current_run = 0
         self._last_bar_timestamp = None
-        self.logger.warning(f"CRITICAL_DEBUG: Reset complete - bars_processed_current_run: {self._bars_processed_current_run}")
+        self.logger.debug(f"Reset complete - bars_processed: {self._bars_processed_current_run}")
 
-        self.logger.warning(f"CRITICAL_DEBUG: CSVDataHandler '{self.name}' starting to publish BAR events from active dataset ({len(self._active_df)} bars)...")
+        self.logger.debug(f"Starting to publish {len(self._active_df)} BAR events...")
         self.state = BaseComponent.STATE_STARTED
         
         try:
-            self.logger.warning(f"CRITICAL_DEBUG: About to iterate through {len(self._active_df)} rows")
+            self.logger.debug(f"About to iterate through {len(self._active_df)} rows")
             row_count = 0
             for index, row in self._data_iterator:
                 row_count += 1
                 if row_count <= 3 or row_count % 50 == 0:  # Log first few and every 50th
-                    self.logger.warning(f"CRITICAL_DEBUG: Processing row {row_count}/{len(self._active_df)}")
+                    pass  # Remove verbose row processing logs
                 bar_timestamp = row[self._timestamp_column]
                 if not isinstance(bar_timestamp, datetime.datetime):
                     if hasattr(bar_timestamp, 'to_pydatetime'): bar_timestamp = bar_timestamp.to_pydatetime()
@@ -256,7 +256,8 @@ class CSVDataHandler(BaseComponent):
                         bar_payload[lower_col_name] = value
                 
                 bar_event = Event(EventType.BAR, bar_payload)
-                self.logger.warning(f"CSV_DEBUG: Publishing BAR event {self._bars_processed_current_run + 1}/{len(self._active_df)}")
+                if (self._bars_processed_current_run + 1) % 50 == 0:  # Log every 50 bars
+                    self.logger.debug(f"Published BAR event {self._bars_processed_current_run + 1}/{len(self._active_df)}")
                 self._event_bus.publish(bar_event)
                 self._bars_processed_current_run += 1
                 self._last_bar_timestamp = bar_timestamp

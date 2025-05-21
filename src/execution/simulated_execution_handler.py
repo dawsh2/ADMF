@@ -56,7 +56,7 @@ class SimulatedExecutionHandler(BaseComponent):
         return f"{prefix}{uuid.uuid4().hex[:8]}"
 
     def _on_order_event(self, order_event: Event): # Renamed from _on_signal_event
-        self.logger.warning(f"EXECUTION_DEBUG: {self.name} received ORDER event")
+        self.logger.debug(f"{self.name} received ORDER event")
         if order_event.event_type != EventType.ORDER:
             return
 
@@ -129,7 +129,7 @@ class SimulatedExecutionHandler(BaseComponent):
             "exchange": "SIMULATED_EXCHANGE"
         }
         fill_event = Event(EventType.FILL, fill_payload)
-        self.logger.warning(f"EXECUTION_DEBUG: {self.name} publishing FILL event: {quantity} {symbol} at {fill_price}")
+        self.logger.debug(f"{self.name} publishing FILL: {quantity} {symbol} at {fill_price}")
         self._event_bus.publish(fill_event)
         self.logger.info(
             f"{self.name} published FILL Event: ID={fill_id} for OrderID={order_id}, "

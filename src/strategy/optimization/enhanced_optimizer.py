@@ -52,6 +52,11 @@ class EnhancedOptimizer(BasicOptimizer):
         First resets the portfolio AND regime detector to ensure each run starts from a clean state.
         Directly processes regimes like test_regime_detection.py does.
         """
+        # Check if adaptive test is running - if so, block grid search calls
+        if hasattr(self, '_adaptive_test_running') and self._adaptive_test_running:
+            self.logger.debug("ADAPTIVE_DEBUG: Blocking _perform_single_backtest_run call during adaptive test")
+            return None, {}
+            
         # Portfolio reset will be handled by parent class - no need to duplicate
         
         # Ensure RegimeDetector is available and reset it properly
@@ -177,16 +182,29 @@ class EnhancedOptimizer(BasicOptimizer):
                 # Optionally, we could apply a penalty to the metric value based on boundary trade ratio
                 # metric_value = metric_value * (1 - (boundary_trade_ratio * 0.2))  # Example: 20% max penalty
             
+            # Get portfolio value for reporting
+            portfolio_value = metrics.get('final_portfolio_value', metrics.get('portfolio_value'))
+                
             # Check if this is the best metric value for this regime so far
             if (regime not in self._best_metric_per_regime or 
                 (self._higher_metric_is_better and metric_value > self._best_metric_per_regime[regime]) or
                 (not self._higher_metric_is_better and metric_value < self._best_metric_per_regime[regime])):
                 
                 self._best_metric_per_regime[regime] = metric_value
-                self._best_params_per_regime[regime] = copy.deepcopy(params)
                 
+                # Store parameters and portfolio value for reporting
+                self._best_params_per_regime[regime] = {
+                    'parameters': copy.deepcopy(params),
+                    'metric': {
+                        'name': self._regime_metric,
+                        'value': metric_value
+                    },
+                    'portfolio_value': portfolio_value
+                }
+                
+                portfolio_str = f", Portfolio: {portfolio_value:.2f}" if isinstance(portfolio_value, (int, float)) else ""
                 self.logger.info(f"New best parameters for regime '{regime}': {params}{boundary_trade_warning}")
-                self.logger.info(f"Metric '{self._regime_metric}' value: {metric_value}")
+                self.logger.info(f"Metric '{self._regime_metric}' value: {metric_value}{portfolio_str}")
                 if pure_regime_count > 0:
                     self.logger.info(f"Based on {pure_regime_count} pure regime trades and {boundary_trade_count} boundary trades")
     
@@ -260,37 +278,18 @@ class EnhancedOptimizer(BasicOptimizer):
                 # Create a compact parameter string for concise logging
                 param_str = ", ".join([f"{k.split('.')[-1]}: {v}" for k, v in params.items()])
                 
-                # Log using specialized optimizer logger (minimal format)
-                self.opt_logger.info(f"Running backtest for parameter combination {i+1}/{total_combinations}: {param_str}")
+                # Start single-line output for this parameter combination
+                print(f"Running backtest for parameter combination {i+1}/{total_combinations}: {param_str}", end="", flush=True)
                 
                 # Run backtest and get both overall and regime-specific metrics
                 training_metric_value, regime_performance = self._perform_single_backtest_run(params, dataset_type="train")
                 
-                # Log a concise summary of the results
+                # Prepare results summary
                 metric_name = self._metric_to_optimize.split('_')[-1] if '_' in self._metric_to_optimize else self._metric_to_optimize
                 metric_value_str = f"{training_metric_value:.4f}" if isinstance(training_metric_value, float) else str(training_metric_value)
                 
-                # Get regimes detected in this run
-                regimes_detected = []
-                if regime_performance:
-                    # Include regimes where trades occurred
-                    trade_regimes = [r for r in regime_performance.keys() if not r.startswith('_')]
-                    regimes_detected.extend(trade_regimes)
-                    
-                    # Also get regimes detected by detector but with no trades
-                    try:
-                        regime_detector = self._container.resolve("MyPrimaryRegimeDetector")
-                        if regime_detector and hasattr(regime_detector, 'get_statistics'):
-                            detector_regimes = list(regime_detector.get_statistics().get('regime_counts', {}).keys())
-                            for r in detector_regimes:
-                                if r not in regimes_detected and r != 'default':
-                                    regimes_detected.append(r)
-                    except Exception as e:
-                        self.logger.debug(f"Could not get all detected regimes: {e}")
-                regimes_str = ', '.join(regimes_detected) if regimes_detected else "none"
-                
-                # Use optimizer logger for concise results
-                self.opt_logger.info(f"Results for combination {i+1}/{total_combinations}: {metric_name}={metric_value_str}, regimes={regimes_str}")
+                # Complete the line with results
+                print(f"..Results: {metric_name}={metric_value_str}")
                 results_summary["all_training_results"].append({
                     "parameters": params, 
                     "metric_value": training_metric_value,
@@ -398,17 +397,26 @@ class EnhancedOptimizer(BasicOptimizer):
                         result["regime_performance"] = "<cleared to free memory>"
             
             # Check if regime_adaptive_test_results exists before passing to log function
-            self.logger.warning(f"DEBUG - Before logging results, regime_adaptive_test_results exists: {'regime_adaptive_test_results' in results_summary}")
+            self.logger.debug(f"DEBUG - Before logging results, regime_adaptive_test_results exists: {'regime_adaptive_test_results' in results_summary}")
             if 'regime_adaptive_test_results' in results_summary:
-                self.logger.warning(f"DEBUG - Keys in regime_adaptive_test_results: {list(results_summary['regime_adaptive_test_results'].keys())}")
+                self.logger.debug(f"DEBUG - Keys in regime_adaptive_test_results: {list(results_summary['regime_adaptive_test_results'].keys())}")
             
             # Run regime-adaptive strategy on test set if test data is available - MOVED THIS BEFORE LOGGING
             if data_handler_instance.test_df_exists_and_is_not_empty:
-                self.logger.warning("DEBUG - About to run regime-adaptive test")
-                self._run_regime_adaptive_test(results_summary)
-                self.logger.warning(f"DEBUG - After adaptive test, keys in results: {list(results_summary.keys())}")
-                if "regime_adaptive_test_results" in results_summary:
-                    self.logger.warning(f"DEBUG - Adaptive results keys: {list(results_summary['regime_adaptive_test_results'].keys())}")
+                self.logger.debug("DEBUG - About to run regime-adaptive test")
+                try:
+                    self._run_regime_adaptive_test(results_summary)
+                    self.logger.debug(f"DEBUG - After adaptive test, keys in results: {list(results_summary.keys())}")
+                    if "regime_adaptive_test_results" in results_summary:
+                        self.logger.debug(f"DEBUG - Adaptive results keys: {list(results_summary['regime_adaptive_test_results'].keys())}")
+                except Exception as e:
+                    self.logger.error(f"Failed to run regime-adaptive strategy test: {e}", exc_info=True)
+                    results_summary["regime_adaptive_test_results"] = {"error": str(e)}
+                finally:
+                    # Always clear the adaptive test flag
+                    if hasattr(self, '_adaptive_test_running'):
+                        self._adaptive_test_running = False
+                        self.logger.info("Cleared adaptive test flag - grid search calls re-enabled")
             else:
                 self.logger.warning("No test data available. Skipping regime-adaptive strategy test.")
                 
@@ -417,9 +425,9 @@ class EnhancedOptimizer(BasicOptimizer):
             
             # Save results to file
             if 'regime_adaptive_test_results' in results_summary:
-                self.logger.warning(f"DEBUG - Saving results with regime adaptive test: {list(results_summary['regime_adaptive_test_results'].keys())}")
+                self.logger.debug(f"DEBUG - Saving results with regime adaptive test: {list(results_summary['regime_adaptive_test_results'].keys())}")
             else:
-                self.logger.warning("DEBUG - No regime adaptive test results to save")
+                self.logger.debug("DEBUG - No regime adaptive test results to save")
             
             self._save_results_to_file(results_summary)
             
@@ -530,11 +538,17 @@ class EnhancedOptimizer(BasicOptimizer):
                     else:
                         metric_name = self._regime_metric
                         metric_val = results['best_metric_per_regime'].get(regime, "N/A")
+                        
+                    # Try to get portfolio value for this regime's best parameters
+                    portfolio_value = None
+                    if 'portfolio_value' in results['best_parameters_per_regime'][regime]:
+                        portfolio_value = results['best_parameters_per_regime'][regime]['portfolio_value']
                 else:
                     # Fallback to just the parameters themselves
                     regime_params = results['best_parameters_per_regime'][regime]
                     metric_name = self._regime_metric
                     metric_val = results['best_metric_per_regime'].get(regime, "N/A")
+                    portfolio_value = None
                 
                 # Format parameters for display
                 if isinstance(regime_params, dict):
@@ -545,7 +559,10 @@ class EnhancedOptimizer(BasicOptimizer):
                 # Format metric value
                 metric_val_str = f"{metric_val:.4f}" if isinstance(metric_val, float) else str(metric_val)
                 
-                summary_logger.info(f"  {regime}: {metric_name}={metric_val_str} | Params: {params_str}")
+                # Add portfolio value if available
+                portfolio_str = f", Portfolio: {portfolio_value:.2f}" if isinstance(portfolio_value, (int, float)) else ""
+                
+                summary_logger.info(f"  {regime}: {metric_name}={metric_val_str}{portfolio_str} | Params: {params_str}")
         
         # Log information about regimes encountered
         if 'regimes_encountered' in results and results['regimes_encountered']:
@@ -553,10 +570,9 @@ class EnhancedOptimizer(BasicOptimizer):
             
         # Log regime-adaptive strategy test results if available
         # First log whether the key exists in the results dictionary
-        # Check if adapter results are available - use warning level to make sure it shows
-        self.logger.warning(f"FINAL CHECK - Adaptive test results exist: {'regime_adaptive_test_results' in results}")
-        if 'regime_adaptive_test_results' in results:
-            self.logger.warning(f"FINAL CHECK - Adaptive test results keys: {list(results['regime_adaptive_test_results'].keys())}")
+        # Check if adaptive results are available
+        if 'regime_adaptive_test_results' not in results:
+            return
             
         # Use direct print to ensure our formatted output is visible
         print("\n================ REGIME-ADAPTIVE STRATEGY TEST RESULTS ================")
@@ -564,22 +580,12 @@ class EnhancedOptimizer(BasicOptimizer):
         if 'regime_adaptive_test_results' in results and results['regime_adaptive_test_results']:
             adaptive_results = results['regime_adaptive_test_results']
             
-            # Print the directly accessed metrics
-            self.logger.warning(f"SUMMARY_DEBUG: Available keys in adaptive_results: {list(adaptive_results.keys())}")
-            best_metric = adaptive_results.get('best_overall_metric')
+            # Get adaptive metric
             adaptive_metric = adaptive_results.get('adaptive_metric')
-            self.logger.warning(f"SUMMARY_DEBUG: best_metric = {best_metric}, adaptive_metric = {adaptive_metric}")
             
-            # Format the values
-            best_str = f"{best_metric:.2f}" if isinstance(best_metric, (int, float)) else "N/A"
+            # Format the adaptive metric
             adaptive_str = f"{adaptive_metric:.2f}" if isinstance(adaptive_metric, (int, float)) else "N/A"
             
-            # Calculate improvement
-            improvement = ""
-            if isinstance(best_metric, (int, float)) and isinstance(adaptive_metric, (int, float)) and best_metric != 0:
-                pct = ((adaptive_metric - best_metric) / abs(best_metric)) * 100
-                improvement = f" ({'+' if pct >= 0 else ''}{pct:.2f}%)"
-                
             # Display metric name
             display_metric = self._metric_to_optimize
             if display_metric.startswith("get_"):
@@ -587,8 +593,7 @@ class EnhancedOptimizer(BasicOptimizer):
                 
             # Print the formatted metrics
             print("-" * 50)
-            print(f"Best Overall Static Params Test {display_metric}: {best_str}")
-            print(f"Dynamic Regime-Adaptive Strategy Test {display_metric}: {adaptive_str}{improvement}")
+            print(f"Regime-Adaptive Strategy Test {display_metric}: {adaptive_str}")
             print("-" * 50)
             
             # Print regime info
@@ -607,7 +612,7 @@ class EnhancedOptimizer(BasicOptimizer):
                 if optimized:
                     print(f"- Regimes with optimized parameters: {', '.join(optimized)}")
                 if fallback:
-                    print(f"- Regimes using fallback parameters: {', '.join(fallback)}")
+                    print(f"- Regimes using default parameters (insufficient training data): {', '.join(fallback)}")
                     
             # Print methodology
             if adaptive_results.get('method') == 'true_adaptive':
@@ -616,166 +621,89 @@ class EnhancedOptimizer(BasicOptimizer):
                 
             print("=" * 80)
             
-            # Also include a short summary in the logger
-            self.logger.warning(f"ADAPTIVE RESULTS SUMMARY: best={best_str}, adaptive={adaptive_str}{improvement}")
-            
-            # Check if there was an error
-            if 'error' in adaptive_results:
-                summary_logger.info(f"  Error: {adaptive_results['error']}")
-            elif adaptive_results.get('simulated', False):
-                summary_logger.info("  [SIMULATED REGIME-ADAPTIVE RESULTS]")
-                
-            # Log trade count info, an important sign of success
+            # Show performance by regime
             if 'adaptive_regime_performance' in adaptive_results:
-                # Count total trades across all regimes
-                total_trades = 0
-                for regime, data in adaptive_results['adaptive_regime_performance'].items():
-                    if regime != '_boundary_trades_summary' and isinstance(data, dict) and 'count' in data:
-                        total_trades += data['count']
+                regime_performance = adaptive_results['adaptive_regime_performance']
+                if regime_performance:
+                    trade_regimes = [r for r in regime_performance.keys() if not r.startswith('_')]
+                    if trade_regimes:
+                        print(f"\nPERFORMANCE BY REGIME:")
+                        for regime in sorted(trade_regimes):
+                            regime_data = regime_performance[regime]
+                            metric_val = regime_data.get(self._regime_metric)
+                            metric_str = f"{metric_val:.4f}" if isinstance(metric_val, float) else "N/A"
+                            trade_count = regime_data.get('count', 0)
+                            
+                            # Get additional performance metrics if available
+                            total_pnl = regime_data.get('total_net_profit')
+                            pnl_str = f", PnL: {total_pnl:.2f}" if isinstance(total_pnl, (int, float)) else ""
+                            
+                            # Show parameters used for this regime
+                            regime_params = ""
+                            if 'regimes_info' in adaptive_results:
+                                regimes_info = adaptive_results['regimes_info']
+                                if 'regimes_with_optimized_params' in regimes_info and regime in regimes_info['regimes_with_optimized_params']:
+                                    regime_params = " [optimized]"
+                                elif 'would_use_default_for' in regimes_info and regime in regimes_info['would_use_default_for']:
+                                    regime_params = " [default]"
+                            
+                            print(f"  {regime}: {self._regime_metric}={metric_str} ({trade_count} trades{pnl_str}){regime_params}")
+                    
+                    # Check for boundary trades with full performance metrics
+                    boundary_summary = regime_performance.get('_boundary_trades_summary', {})
+                    if boundary_summary:
+                        print(f"\nBOUNDARY TRADE PERFORMANCE:")
+                        for transition, boundary_data in boundary_summary.items():
+                            if boundary_data.get('count', 0) > 0:
+                                boundary_count = boundary_data.get('count', 0)
+                                boundary_pnl = boundary_data.get('pnl', 0)
+                                boundary_sharpe = boundary_data.get('sharpe_ratio', 'N/A')
+                                boundary_winrate = boundary_data.get('win_rate', 0) * 100
+                                boundary_avg_pnl = boundary_data.get('avg_pnl', 0)
+                                
+                                sharpe_str = f"{boundary_sharpe:.4f}" if isinstance(boundary_sharpe, (int, float)) else "N/A"
+                                print(f"  {transition}: {boundary_count} trades, PnL: {boundary_pnl:.2f}, Sharpe: {sharpe_str}, Win Rate: {boundary_winrate:.1f}%, Avg PnL: {boundary_avg_pnl:.2f}")
+                    else:
+                        print(f"\nBOUNDARY TRADE PERFORMANCE: No boundary trades detected")
                         
-                summary_logger.info(f"\nTOTAL TRADES IN ADAPTIVE TEST: {total_trades}")
-                if total_trades == 0:
-                    summary_logger.info("WARNING: No trades were generated in the adaptive test!")
-                    summary_logger.info("This suggests an issue with event flow or parameter application during regime changes.")
-                
-                summary_logger.info("\nREGIME-ADAPTIVE STRATEGY TEST RESULTS:")
-                
-                # Format the best overall metric value
-                best_overall = adaptive_results.get('best_overall_metric')
-                best_overall_str = f"{best_overall:.4f}" if isinstance(best_overall, float) else "N/A"
-                
-                # Get the true adaptive strategy performance 
-                adaptive_metric = adaptive_results.get('adaptive_metric')
-                adaptive_str = f"{adaptive_metric:.4f}" if isinstance(adaptive_metric, float) else "N/A"
-                
-                # Calculate improvement percentage from explicit field or compute it
-                improvement = ""
-                if 'improvement_pct' in adaptive_results:
-                    pct_change = adaptive_results['improvement_pct']
-                    improvement = f" ({'+' if pct_change >= 0 else ''}{pct_change:.2f}%)"
-                elif isinstance(adaptive_metric, float) and isinstance(best_overall, float) and best_overall != 0:
-                    pct_change = ((adaptive_metric - best_overall) / abs(best_overall)) * 100
-                    improvement = f" ({'+' if pct_change >= 0 else ''}{pct_change:.2f}%)"
-                
-                # Display test results with a more prominent header
-                summary_logger.info("\nTRUE REGIME-ADAPTIVE STRATEGY TEST RESULTS:")
-                summary_logger.info("=" * 80)
-                
-                # Get the metric name we should display - use final_portfolio_value if metric_to_optimize is a method name
-                display_metric_name = self._metric_to_optimize
-                if display_metric_name.startswith("get_"):
-                    display_metric_name = display_metric_name[4:]  # Remove 'get_'
-                
-                self.logger.warning(f"DEBUG - Final metrics for summary - Best Overall: {best_overall_str}, Adaptive: {adaptive_str}")
-                self.logger.warning(f"DEBUG - Using display metric name: {display_metric_name}")
-                
-                # Get values directly from results dictionary
-                best_metric_direct = adaptive_results.get('best_overall_metric')
-                adaptive_metric_direct = adaptive_results.get('adaptive_metric')
-                
-                best_direct_str = f"{best_metric_direct:.2f}" if isinstance(best_metric_direct, (int, float)) else "N/A"
-                adaptive_direct_str = f"{adaptive_metric_direct:.2f}" if isinstance(adaptive_metric_direct, (int, float)) else "N/A"
-                
-                # Calculate improvement
-                direct_improvement = ""
-                if isinstance(best_metric_direct, (int, float)) and isinstance(adaptive_metric_direct, (int, float)) and best_metric_direct != 0:
-                    pct = ((adaptive_metric_direct - best_metric_direct) / abs(best_metric_direct)) * 100
-                    direct_improvement = f" ({'+' if pct >= 0 else ''}{pct:.2f}%)"
-                
-                summary_logger.info("-" * 50)
-                summary_logger.info(f"Best Overall Static Params Test {display_metric_name}: {best_direct_str}")
-                summary_logger.info(f"Dynamic Regime-Adaptive Strategy Test {display_metric_name}: {adaptive_direct_str}{direct_improvement}")
-                summary_logger.info("-" * 50)
-                
-                # Show regimes in the test set
-                if 'regimes_detected' in adaptive_results:
-                    test_regimes = adaptive_results['regimes_detected']
-                    summary_logger.info(f"\nTEST SET REGIME ANALYSIS:")
-                    summary_logger.info(f"Regimes detected in test set: {', '.join(test_regimes)}")
-                
-                # Show which regimes have optimized parameters
-                optimized_regimes = []
-                default_regimes = []
-                
-                if 'regimes_info' in adaptive_results:
-                    if 'regimes_with_optimized_params' in adaptive_results['regimes_info']:
-                        optimized_regimes = adaptive_results['regimes_info']['regimes_with_optimized_params']
-                    if 'would_use_default_for' in adaptive_results['regimes_info']:
-                        default_regimes = adaptive_results['regimes_info']['would_use_default_for']
-                
-                summary_logger.info("\nREGIME PARAMETER COVERAGE:")    
-                if optimized_regimes:
-                    summary_logger.info(f"- Regimes with optimized parameters: {', '.join(optimized_regimes)}")
-                if default_regimes:
-                    summary_logger.info(f"- Regimes using fallback parameters: {', '.join(default_regimes)}")
-                    
-                # Show regime-specific performance if available
-                if 'adaptive_regime_performance' in adaptive_results:
-                    regime_performance = adaptive_results['adaptive_regime_performance']
-                    if regime_performance:
-                        # Filter out special keys
-                        trade_regimes = [r for r in regime_performance.keys() if not r.startswith('_')]
-                        if trade_regimes:
-                            summary_logger.info("\nPERFORMANCE BY REGIME IN ADAPTIVE TEST:")
-                            for regime in trade_regimes:
-                                regime_data = regime_performance[regime]
-                                # Try to get the metric value
-                                metric_val = regime_data.get(self._regime_metric)
-                                metric_str = f"{metric_val:.4f}" if isinstance(metric_val, float) else "N/A"
-                                
-                                # Get trade count
-                                trade_count = regime_data.get('count', 0)
-                                
-                                # Get profit info if available
-                                total_net_profit = regime_data.get('total_net_profit', None) 
-                                profit_str = f", profit: {total_net_profit:.2f}" if isinstance(total_net_profit, (float, int)) else ""
-                                
-                                summary_logger.info(f"{regime}: {self._regime_metric}={metric_str}{profit_str} ({trade_count} trades)")
-                                
-                # Add method information at the end
-                method = adaptive_results.get('method', 'simulated')
-                if method == 'true_adaptive':
-                    summary_logger.info("\nMETHODOLOGY:")
-                    summary_logger.info("True regime-adaptive strategy with dynamic parameter switching")
-                    
-                # Add a final separator
-                summary_logger.info("=" * 80)
-                
-                # Add detailed regime information if available
-                if 'regimes_info' in adaptive_results:
-                    regimes_info = adaptive_results['regimes_info']
-                    if 'regimes_with_optimized_params' in regimes_info and regimes_info['regimes_with_optimized_params']:
-                        summary_logger.info(f"\n  Regimes with optimized parameters: {', '.join(regimes_info['regimes_with_optimized_params'])}")
-                    
-                    if 'would_use_default_for' in regimes_info and regimes_info['would_use_default_for']:
-                        summary_logger.info(f"  Regimes that would use default parameters: {', '.join(regimes_info['would_use_default_for'])}")
-                
-                # Add any message
-                if 'message' in adaptive_results:
-                    summary_logger.info(f"\n  Note: {adaptive_results['message']}")
-                
+                    # Check if any regimes were detected but didn't generate trades
+                    if 'regimes_detected' in adaptive_results:
+                        detected_regimes = set(adaptive_results['regimes_detected'])
+                        trading_regimes = set(trade_regimes)
+                        non_trading_regimes = detected_regimes - trading_regimes
+                        if non_trading_regimes:
+                            print(f"\nREGIMES WITHOUT TRADES: {', '.join(sorted(non_trading_regimes))}")
+                            print("  (These regimes were detected but no trades were generated)")
+                            
+                            # Try to get regime duration statistics
+                            try:
+                                regime_detector = self._container.resolve("MyPrimaryRegimeDetector")
+                                if hasattr(regime_detector, 'get_statistics'):
+                                    regime_stats = regime_detector.get_statistics()
+                                    regime_counts = regime_stats.get('regime_counts', {})
+                                    total_bars = sum(regime_counts.values()) if regime_counts else 0
+                                    
+                                    print(f"\nREGIME DURATION ANALYSIS:")
+                                    for regime in sorted(detected_regimes):
+                                        count = regime_counts.get(regime, 0)
+                                        percentage = (count / total_bars * 100) if total_bars > 0 else 0
+                                        trade_status = "✓ generated trades" if regime in trading_regimes else "✗ no trades"
+                                        print(f"  {regime}: {count} bars ({percentage:.1f}% of test set) - {trade_status}")
+                                    
+                                    print(f"\nTotal test set bars: {total_bars}")
+                                    
+                                    # Check for signal generation statistics in non-trading regimes
+                                    print(f"\nSIGNAL GENERATION ANALYSIS:")
+                                    print("To verify signal generation in non-trading regimes, check the log file for SIGNAL events during these periods:")
+                                    for regime in sorted(non_trading_regimes):
+                                        print(f"  {regime}: Look for 'Publishing SIGNAL event' messages during {regime} periods")
+                                    print("  Run: grep -E 'SIGNAL|{regime_name}' <log_file> to trace signal generation")
+                                    
+                            except Exception as e:
+                                print(f"  Could not retrieve regime duration statistics: {e}")
+                        
             else:
-                # Format the metric value
-                metric_val = adaptive_results.get('metric_value')
-                metric_val_str = f"{metric_val:.4f}" if isinstance(metric_val, float) else str(metric_val)
-                
-                # Compare with best static parameters
-                best_static_metric = results.get('top_n_test_results', [{}])[0].get('test_metric')
-                best_static_str = f"{best_static_metric:.4f}" if isinstance(best_static_metric, float) else "N/A"
-                
-                # Calculate improvement percentage if both metrics are valid numbers
-                improvement = ""
-                if isinstance(metric_val, float) and isinstance(best_static_metric, float) and best_static_metric != 0:
-                    pct_change = ((metric_val - best_static_metric) / abs(best_static_metric)) * 100
-                    improvement = f" ({'+' if pct_change >= 0 else ''}{pct_change:.2f}%)"
-                
-                summary_logger.info(f"  Adaptive Strategy {metric_name}: {metric_val_str} vs Best Static: {best_static_str}{improvement}")
-            
-            # Log regimes detected during test
-            if 'regimes_detected' in adaptive_results:
-                summary_logger.info(f"  Regimes detected in test: {', '.join(adaptive_results['regimes_detected'])}")
-        
-        summary_logger.info("=" * 80 + "\n")
+                print(f"\nNo regime performance data available")
         
         # No verbose regime-specific results to avoid clutter
         if not results['best_parameters_per_regime']:
@@ -875,44 +803,10 @@ class EnhancedOptimizer(BasicOptimizer):
                 self._save_results_to_file(results)
             
             # ==========================================
-            # Reset components before adaptive test to clear state from previous test runs
+            # Set flag to block any concurrent grid search calls during adaptive test
             # ==========================================
-            self.logger.info("Resetting components before adaptive test to clear previous test state...")
-            
-            # Get component dependencies for proper reset order
-            component_dependencies = [
-                "MyPrimaryRegimeDetector", 
-                "execution_handler",
-                self._risk_manager_service_name, 
-                self._strategy_service_name, 
-                self._portfolio_service_name,
-                self._data_handler_service_name
-            ]
-            
-            # Stop all components in reverse dependency order to clear state
-            self.logger.debug("Stopping all components to clear state from previous test runs")
-            for component_name in component_dependencies:
-                try:
-                    component = self._container.resolve(component_name)
-                    if hasattr(component, "stop") and callable(getattr(component, "stop")):
-                        self.logger.debug(f"Stopping component: {component.name if hasattr(component, 'name') else 'unknown'}")
-                        component.stop()
-                        self.logger.debug(f"Successfully stopped component: {component.name if hasattr(component, 'name') else 'unknown'}")
-                except Exception as e:
-                    self.logger.debug(f"Could not stop component {component_name}: {e}")
-            
-            # Reset portfolio for clean state
-            portfolio_manager = self._container.resolve(self._portfolio_service_name)
-            self.logger.debug("Resetting portfolio to clean state before adaptive test")
-            portfolio_manager.reset()
-            self.logger.debug("Portfolio reset complete")
-            
-            # Reset regime detector
-            regime_detector = self._container.resolve("MyPrimaryRegimeDetector")
-            if hasattr(regime_detector, "reset") and callable(getattr(regime_detector, "reset")):
-                self.logger.debug("Resetting regime detector")
-                regime_detector.reset()
-                self.logger.debug("Regime detector reset complete")
+            self._adaptive_test_running = True
+            self.logger.info("Setting adaptive test flag to block concurrent grid search calls...")
             
             # ==========================================
             # Step 1: Run the best overall strategy on test set for comparison baseline
@@ -1013,9 +907,9 @@ class EnhancedOptimizer(BasicOptimizer):
                     # Calling setup() would reset the CSVDataHandler's _active_df = None
                     
                     if hasattr(component, "start") and callable(getattr(component, "start")):
-                        self.logger.warning(f"OPTIMIZER_DEBUG: Starting component: {component.name if hasattr(component, 'name') else component_name} (State: {component.state if hasattr(component, 'state') else 'N/A'})")
+                        self.logger.debug(f"OPTIMIZER_DEBUG: Starting component: {component.name if hasattr(component, 'name') else component_name} (State: {component.state if hasattr(component, 'state') else 'N/A'})")
                         component.start()
-                        self.logger.warning(f"OPTIMIZER_DEBUG: Successfully started component: {component.name if hasattr(component, 'name') else component_name} (New State: {component.state if hasattr(component, 'state') else 'N/A'})")
+                        self.logger.debug(f"OPTIMIZER_DEBUG: Successfully started component: {component.name if hasattr(component, 'name') else component_name} (New State: {component.state if hasattr(component, 'state') else 'N/A'})")
                     else:
                         self.logger.debug(f"Component {component_name} does not have a callable start method.")
                 except Exception as e:
@@ -1038,17 +932,17 @@ class EnhancedOptimizer(BasicOptimizer):
             # DEBUG: Check if data handler actually has test data and will stream it
             if hasattr(data_handler, '_active_df'):
                 df_size = len(data_handler._active_df) if data_handler._active_df is not None else 0
-                self.logger.warning(f"ADAPTIVE_DEBUG: Data handler active dataset size: {df_size}")
+                self.logger.debug(f"ADAPTIVE_DEBUG: Data handler active dataset size: {df_size}")
                 if df_size == 0:
                     self.logger.error("ADAPTIVE_DEBUG: Active dataset is empty! No data will stream!")
             
             # DEBUG: Verify data handler actually started and will publish data
             if hasattr(data_handler, 'state'):
-                self.logger.warning(f"ADAPTIVE_DEBUG: Data handler state: {data_handler.state}")
+                self.logger.debug(f"ADAPTIVE_DEBUG: Data handler state: {data_handler.state}")
                 
             # DEBUG: Force data streaming if needed
             if hasattr(data_handler, 'start') and callable(getattr(data_handler, 'start')):
-                self.logger.warning("ADAPTIVE_DEBUG: Explicitly calling data_handler.start() to ensure streaming")
+                self.logger.debug("ADAPTIVE_DEBUG: Explicitly calling data_handler.start() to ensure streaming")
                 data_handler.start()
             
             # IMPORTANT: Allow time for data to stream and trades to be generated
@@ -1185,7 +1079,7 @@ class EnhancedOptimizer(BasicOptimizer):
             
             def on_classification_change(event):
                 """Handle regime classification change events and update strategy parameters"""
-                self.logger.warning("REGIME_DEBUG: Classification event received in optimizer")
+                self.logger.debug("REGIME_DEBUG: Classification event received in optimizer")
                 if not hasattr(event, 'payload') or not event.payload:
                     self.logger.warning("No payload in classification event")
                     return
@@ -1200,22 +1094,15 @@ class EnhancedOptimizer(BasicOptimizer):
                     self.logger.warning("No classification in payload")
                     return
                     
-                self.logger.warning(f"REGIME_DEBUG: Regime changed to: {new_regime}")
-                
-                # Log timestamp if available
-                if 'timestamp' in payload:
-                    self.logger.debug(f"Classification timestamp: {payload['timestamp']}")
+                self.logger.info(f"Regime changed to: {new_regime}")
                 
                 # Apply regime-specific parameters
-                self.logger.warning(f"REGIME_DEBUG: Available optimized regimes in results: {list(results['best_parameters_per_regime'].keys())}")
                 if new_regime in results["best_parameters_per_regime"]:
                     params = results["best_parameters_per_regime"][new_regime]
-                    self.logger.warning(f"REGIME_DEBUG: Applying optimized parameters for regime {new_regime}: {params}")
+                    self.logger.info(f"Applying optimized parameters for regime {new_regime}")
                     try:
                         strategy_to_optimize.set_parameters(params)
-                        # Verify the parameters were actually applied
-                        current_params = strategy_to_optimize.get_parameters()
-                        self.logger.warning(f"REGIME_DEBUG: Successfully applied parameters for regime {new_regime}. Current strategy params: {current_params}")
+                        self.logger.debug(f"Successfully applied parameters for regime {new_regime}")
                     except Exception as e:
                         self.logger.error(f"Failed to apply parameters for regime {new_regime}: {e}", exc_info=True)
                 elif "default" in results["best_parameters_per_regime"]:
@@ -1240,6 +1127,11 @@ class EnhancedOptimizer(BasicOptimizer):
             self._event_bus.subscribe(EventType.CLASSIFICATION, on_classification_change)
             self.logger.debug("Successfully subscribed to CLASSIFICATION events")
             
+            # ==========================================
+            # Reset components before starting adaptive test to clear state from previous test runs
+            # ==========================================
+            self.logger.info("Resetting components before adaptive test to clear previous test state...")
+            
             # Define component start order for adaptive test
             component_start_order = [
                 "MyPrimaryRegimeDetector", 
@@ -1250,6 +1142,30 @@ class EnhancedOptimizer(BasicOptimizer):
                 self._data_handler_service_name  # LAST - publishes events after all consumers ready
             ]
             
+            # Stop all components in reverse dependency order to clear state
+            self.logger.debug("Stopping all components to clear state from previous test runs")
+            for component_name in component_start_order:
+                try:
+                    component = self._container.resolve(component_name)
+                    if hasattr(component, "stop") and callable(getattr(component, "stop")):
+                        self.logger.debug(f"Stopping component: {component.name if hasattr(component, 'name') else 'unknown'}")
+                        component.stop()
+                        self.logger.debug(f"Successfully stopped component: {component.name if hasattr(component, 'name') else 'unknown'}")
+                except Exception as e:
+                    self.logger.debug(f"Could not stop component {component_name}: {e}")
+            
+            # NOTE: Do NOT reset portfolio here - we want to measure the portfolio that's receiving trades
+            # The portfolio should have been reset at the start of the grid search process
+            portfolio_manager = self._container.resolve(self._portfolio_service_name)
+            self.logger.debug(f"Using existing portfolio for adaptive test - Portfolio ID: {id(portfolio_manager)}")
+            
+            # Reset regime detector
+            regime_detector = self._container.resolve("MyPrimaryRegimeDetector")
+            if hasattr(regime_detector, "reset") and callable(getattr(regime_detector, "reset")):
+                self.logger.debug("Resetting regime detector")
+                regime_detector.reset()
+                self.logger.debug("Regime detector reset complete")
+            
             # Start components in dependency order
             self.logger.debug("Starting all components for adaptive test in dependency order")
             for component_name in component_start_order:
@@ -1259,9 +1175,9 @@ class EnhancedOptimizer(BasicOptimizer):
                     # Calling setup() would reset the CSVDataHandler's _active_df = None
                     
                     if hasattr(component, "start") and callable(getattr(component, "start")):
-                        self.logger.warning(f"OPTIMIZER_DEBUG: Starting component: {component.name if hasattr(component, 'name') else component_name} (State: {component.state if hasattr(component, 'state') else 'N/A'})")
+                        self.logger.debug(f"OPTIMIZER_DEBUG: Starting component: {component.name if hasattr(component, 'name') else component_name} (State: {component.state if hasattr(component, 'state') else 'N/A'})")
                         component.start()
-                        self.logger.warning(f"OPTIMIZER_DEBUG: Successfully started component: {component.name if hasattr(component, 'name') else component_name} (New State: {component.state if hasattr(component, 'state') else 'N/A'})")
+                        self.logger.debug(f"OPTIMIZER_DEBUG: Successfully started component: {component.name if hasattr(component, 'name') else component_name} (New State: {component.state if hasattr(component, 'state') else 'N/A'})")
                     else:
                         self.logger.debug(f"Component {component_name} does not have a callable start method.")
                 except Exception as e:
@@ -1276,19 +1192,71 @@ class EnhancedOptimizer(BasicOptimizer):
                 except Exception:
                     pass
             
-            # Apply initial parameters - use default or best overall
-            initial_params = results["best_parameters_per_regime"].get("default", results["best_parameters_on_train"])
-            if hasattr(strategy_to_optimize, "set_parameters") and callable(getattr(strategy_to_optimize, "set_parameters")):
-                self.logger.info(f"Setting initial parameters for adaptive strategy: {initial_params}")
-                strategy_to_optimize.set_parameters(initial_params)
-                self.logger.debug("Successfully set initial parameters")
+            # Check if the strategy supports adaptive mode
+            has_adaptive_mode = (hasattr(strategy_to_optimize, "enable_adaptive_mode") and 
+                                 callable(getattr(strategy_to_optimize, "enable_adaptive_mode")))
+            
+            # Set up regime-specific parameters for adaptive testing
+            regime_parameters = {}
+            
+            # Extract parameters for each regime
+            for regime, regime_data in results['best_parameters_per_regime'].items():
+                if 'parameters' in regime_data:
+                    regime_parameters[regime] = regime_data['parameters']
+                    self.logger.info(f"Extracted optimized parameters for regime '{regime}': {regime_parameters[regime]}")
+                else:
+                    # Legacy format compatibility
+                    regime_parameters[regime] = regime_data
+                    self.logger.info(f"Using legacy parameter format for regime '{regime}': {regime_parameters[regime]}")
+            
+            # Use best overall parameters as fallback for any unoptimized regimes
+            fallback_params = results["best_parameters_on_train"]
+            self.logger.info(f"Using best overall parameters as fallback: {fallback_params}")
+            
+            # CRITICAL FIX: Enable adaptive mode if supported - use STDOUT print for visibility
+            if has_adaptive_mode:
+                # Use multiple levels of logging for maximum visibility
+                print("\n")
+                print("=" * 80) 
+                print("!!! ENABLING ADAPTIVE MODE - REGIME-SPECIFIC PARAMETERS WILL BE APPLIED !!!")
+                print(f"Available regimes: {list(regime_parameters.keys())}")
+                print("This will allow the strategy to switch parameters during regime changes")
+                print("=" * 80)
+                
+                self.logger.warning("!!! ENABLING ADAPTIVE MODE - REGIME-SPECIFIC PARAMETERS WILL BE APPLIED !!!")
+                self.logger.warning(f"Available regimes: {list(regime_parameters.keys())}")
+                
+                # Enable adaptive mode with the regime parameters
+                strategy_to_optimize.enable_adaptive_mode(regime_parameters)
+                
+                # Verify adaptive mode is enabled by calling the status check
+                if hasattr(strategy_to_optimize, "get_adaptive_mode_status") and callable(getattr(strategy_to_optimize, "get_adaptive_mode_status")):
+                    print("\n=== VERIFYING ADAPTIVE MODE STATUS ===")
+                    status = strategy_to_optimize.get_adaptive_mode_status()
+                    print(f"Adaptive mode enabled: {status['adaptive_mode_enabled']}")
+                    print(f"Parameters loaded for regimes: {status['available_regimes']}")
+                    print(f"Starting regime: {status['current_regime']}")
+                    print("=" * 80)
+            else:
+                # Fallback to basic parameters if adaptive mode not supported
+                print("\n")
+                print("=" * 80)
+                print("!!! WARNING: STRATEGY DOES NOT SUPPORT ADAPTIVE MODE !!!")
+                print("Using static parameters only - no regime-specific parameter switching")
+                print("=" * 80)
+                
+                self.logger.warning("Strategy does not support adaptive mode - will use initial parameters only")
+                initial_params = results["best_parameters_per_regime"].get("default", results["best_parameters_on_train"])
+                if hasattr(strategy_to_optimize, "set_parameters") and callable(getattr(strategy_to_optimize, "set_parameters")):
+                    self.logger.info(f"Setting initial parameters for adaptive strategy: {initial_params}")
+                    strategy_to_optimize.set_parameters(initial_params)
             
             # Immediately force a classification to ensure parameter switching works
             current_regime = None
             try:
-                self.logger.warning("REGIME_DEBUG: Requesting current classification from regime detector")
+                self.logger.debug("REGIME_DEBUG: Requesting current classification from regime detector")
                 current_regime = regime_detector.get_current_classification()
-                self.logger.warning(f"REGIME_DEBUG: Initial regime detected: {current_regime}")
+                self.logger.debug(f"REGIME_DEBUG: Initial regime detected: {current_regime}")
             except Exception as e:
                 self.logger.error(f"REGIME_DEBUG: Error getting current classification: {e}", exc_info=True)
             
@@ -1296,7 +1264,7 @@ class EnhancedOptimizer(BasicOptimizer):
             if current_regime:
                 try:
                     from src.core.event import Event
-                    self.logger.warning(f"REGIME_DEBUG: Creating manual classification event for regime: {current_regime}")
+                    self.logger.debug(f"REGIME_DEBUG: Creating manual classification event for regime: {current_regime}")
                     classification_payload = {
                         'classification': current_regime,
                         'timestamp': datetime.datetime.now(datetime.timezone.utc),
@@ -1304,9 +1272,9 @@ class EnhancedOptimizer(BasicOptimizer):
                         'source': 'manual_trigger_from_optimizer'
                     }
                     classification_event = Event(EventType.CLASSIFICATION, classification_payload)
-                    self.logger.warning("REGIME_DEBUG: Publishing manual classification event to event bus")
+                    self.logger.debug("REGIME_DEBUG: Publishing manual classification event to event bus")
                     self._event_bus.publish(classification_event)
-                    self.logger.warning(f"REGIME_DEBUG: Manually published initial CLASSIFICATION event for regime '{current_regime}'")
+                    self.logger.debug(f"REGIME_DEBUG: Manually published initial CLASSIFICATION event for regime '{current_regime}'")
                 except Exception as e:
                     self.logger.error(f"Error publishing manual classification event: {e}", exc_info=True)
             else:
@@ -1321,21 +1289,21 @@ class EnhancedOptimizer(BasicOptimizer):
             import time
             time.sleep(0.1)  # Brief pause to ensure all events are processed
             
-            self.logger.warning("=== CRITICAL_TIMING_DEBUG: Data streaming should be complete ===")
+            self.logger.debug("=== CRITICAL_TIMING_DEBUG: Data streaming should be complete ===")
             if hasattr(portfolio_manager, "_trade_log"):
                 immediate_count = len(portfolio_manager._trade_log)
-                self.logger.warning(f"CRITICAL_TIMING_DEBUG: Immediate post-streaming trade count: {immediate_count}")
+                self.logger.debug(f"CRITICAL_TIMING_DEBUG: Immediate post-streaming trade count: {immediate_count}")
                 
             # Check if any trades were generated
-            self.logger.warning("=== CRITICAL_MEASUREMENT_DEBUG: About to check adaptive trade count ===")
+            self.logger.debug("=== CRITICAL_MEASUREMENT_DEBUG: About to check adaptive trade count ===")
             if hasattr(portfolio_manager, "_trade_log"):
                 actual_count = len(portfolio_manager._trade_log)
-                self.logger.warning(f"CRITICAL_MEASUREMENT_DEBUG: Portfolio _trade_log has {actual_count} trades")
+                self.logger.debug(f"CRITICAL_MEASUREMENT_DEBUG: Portfolio _trade_log has {actual_count} trades")
                 
             trade_count_adaptive = 0
             if hasattr(portfolio_manager, "_trade_log"):
                 trade_count_adaptive = len(portfolio_manager._trade_log)
-                self.logger.warning(f"CRITICAL_MEASUREMENT_DEBUG: Measured adaptive strategy trades: {trade_count_adaptive}")
+                self.logger.debug(f"CRITICAL_MEASUREMENT_DEBUG: Measured adaptive strategy trades: {trade_count_adaptive}")
                 self.logger.info(f"Adaptive strategy generated {trade_count_adaptive} trades in total")
                 
                 # Log trade details if available
@@ -1359,23 +1327,23 @@ class EnhancedOptimizer(BasicOptimizer):
                         self.logger.debug(f"Data handler current index: {data_handler.current_index}")
             
             # CRITICAL DEBUG: Check portfolio state IMMEDIATELY after data streaming is complete
-            self.logger.warning("=== ADAPTIVE_FINAL_DEBUG: Checking portfolio state immediately after data streaming ===")
+            self.logger.debug("=== ADAPTIVE_FINAL_DEBUG: Checking portfolio state immediately after data streaming ===")
             if hasattr(portfolio_manager, "_trade_log"):
                 trade_count = len(portfolio_manager._trade_log)
-                self.logger.warning(f"ADAPTIVE_FINAL_DEBUG: Portfolio has {trade_count} trades in _trade_log")
+                self.logger.debug(f"ADAPTIVE_FINAL_DEBUG: Portfolio has {trade_count} trades in _trade_log")
                 if trade_count > 0:
-                    self.logger.warning(f"ADAPTIVE_FINAL_DEBUG: First trade: {portfolio_manager._trade_log[0]}")
-                    self.logger.warning(f"ADAPTIVE_FINAL_DEBUG: Last trade: {portfolio_manager._trade_log[-1]}")
+                    self.logger.debug(f"ADAPTIVE_FINAL_DEBUG: First trade: {portfolio_manager._trade_log[0]}")
+                    self.logger.debug(f"ADAPTIVE_FINAL_DEBUG: Last trade: {portfolio_manager._trade_log[-1]}")
             if hasattr(portfolio_manager, "current_cash"):
-                self.logger.warning(f"ADAPTIVE_FINAL_DEBUG: Portfolio current_cash: {portfolio_manager.current_cash}")
+                self.logger.debug(f"ADAPTIVE_FINAL_DEBUG: Portfolio current_cash: {portfolio_manager.current_cash}")
             if hasattr(portfolio_manager, "current_total_value"):
-                self.logger.warning(f"ADAPTIVE_FINAL_DEBUG: Portfolio current_total_value: {portfolio_manager.current_total_value}")
+                self.logger.debug(f"ADAPTIVE_FINAL_DEBUG: Portfolio current_total_value: {portfolio_manager.current_total_value}")
             
             # Get adaptive strategy performance
             adaptive_metric = None
             try:
-                self.logger.warning(f"ADAPTIVE_FINAL_DEBUG: Portfolio object ID: {id(portfolio_manager)}, trade count: {len(portfolio_manager._trade_log) if hasattr(portfolio_manager, '_trade_log') else 'N/A'}")
-                self.logger.warning(f"ADAPTIVE_FINAL_DEBUG: Attempting to get performance metric for adaptive strategy: {self._metric_to_optimize}")
+                self.logger.debug(f"ADAPTIVE_FINAL_DEBUG: Portfolio object ID: {id(portfolio_manager)}, trade count: {len(portfolio_manager._trade_log) if hasattr(portfolio_manager, '_trade_log') else 'N/A'}")
+                self.logger.debug(f"ADAPTIVE_FINAL_DEBUG: Attempting to get performance metric for adaptive strategy: {self._metric_to_optimize}")
                 
                 # Try multiple approaches to get the metric value
                 # IMPORTANT: Don't call methods that might reset the portfolio!
@@ -1383,7 +1351,7 @@ class EnhancedOptimizer(BasicOptimizer):
                     # Direct method call
                     method = getattr(portfolio_manager, self._metric_to_optimize)
                     adaptive_metric = method()
-                    self.logger.warning(f"ADAPTIVE_FINAL_DEBUG: Got adaptive metric via direct method call: {self._metric_to_optimize}() = {adaptive_metric}")
+                    self.logger.debug(f"ADAPTIVE_FINAL_DEBUG: Got adaptive metric via direct method call: {self._metric_to_optimize}() = {adaptive_metric}")
                 elif hasattr(portfolio_manager, "get_performance") and callable(getattr(portfolio_manager, "get_performance")):
                     # Via performance dictionary
                     performance = portfolio_manager.get_performance()
@@ -1539,12 +1507,12 @@ class EnhancedOptimizer(BasicOptimizer):
                 save_data["test_results"] = results["top_n_test_results"]
                 
             # Add regime-adaptive test results if available
-            self.logger.warning(f"DEBUG - In save_results_to_file, regime_adaptive_test_results exists: {'regime_adaptive_test_results' in results}")
+            self.logger.debug(f"DEBUG - In save_results_to_file, regime_adaptive_test_results exists: {'regime_adaptive_test_results' in results}")
             if "regime_adaptive_test_results" in results and results["regime_adaptive_test_results"]:
                 save_data["regime_adaptive_test_results"] = results["regime_adaptive_test_results"]
-                self.logger.warning(f"DEBUG - Saving adaptive test results: {list(results['regime_adaptive_test_results'].keys())}")
+                self.logger.debug(f"DEBUG - Saving adaptive test results: {list(results['regime_adaptive_test_results'].keys())}")
             else:
-                self.logger.warning("DEBUG - No regime_adaptive_test_results available to save")
+                self.logger.debug("DEBUG - No regime_adaptive_test_results available to save")
             
             # Ensure the directory exists
             os.makedirs(os.path.dirname(os.path.abspath(self._output_file_path)) or '.', exist_ok=True)

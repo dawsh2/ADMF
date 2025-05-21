@@ -83,7 +83,7 @@ class EventBus:
             return
         
         if event.event_type.name == 'BAR':
-            logger.warning(f"EVENTBUS_DEBUG: Publishing BAR event to {len(handlers_to_call)} handlers")
+            pass  # Removed verbose event bus logging
 
         for handler in handlers_to_call:
             try:

@@ -73,7 +73,7 @@ class BasicRiskManager(BaseComponent):
         return f"{prefix}{uuid.uuid4().hex[:10]}"
 
     def _on_signal_event(self, signal_event: Event):
-        self.logger.warning(f"RISK_DEBUG: {self.name} received SIGNAL event")
+        self.logger.debug(f"{self.name} received SIGNAL event")
         if signal_event.event_type != EventType.SIGNAL:
             return
 
@@ -141,7 +141,7 @@ class BasicRiskManager(BaseComponent):
         }
         
         order_event = Event(EventType.ORDER, order_payload)
-        self.logger.warning(f"RISK_DEBUG: {self.name} publishing ORDER event: {order_direction} {order_quantity_abs} {symbol}")
+        self.logger.debug(f"{self.name} publishing ORDER: {order_direction} {order_quantity_abs} {symbol}")
         self._event_bus.publish(order_event)
         self.logger.info(
             f"'{self.name}' published ORDER: ID={order_id}, {order_direction} {order_quantity_abs} {symbol} "
