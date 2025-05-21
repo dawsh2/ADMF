@@ -169,7 +169,14 @@ class EnsembleSignalStrategy(MAStrategy): # Inheriting MAStrategy for quick demo
                     # Translate parameters to format expected by the strategy
                     translated_params = self._translate_parameters(regime_specific_params)
                     self.logger.info(f"Applying translated parameters for '{regime}': {translated_params}")
-                    self.set_parameters(regime_specific_params)
+                    # Make sure we're applying the parameters correctly
+                    self.logger.info(f"Before parameter update - strategy params: {self.get_parameters()}")
+                    success = self.set_parameters(regime_specific_params)
+                    self.logger.info(f"Parameter update success: {success}, after update - strategy params: {self.get_parameters()}")
+                    
+                    # Force re-setup of child components to ensure parameters take effect
+                    self.rsi_indicator.setup()
+                    self.rsi_rule.setup()
             else:
                 self.logger.warning("No regime-specific parameters found in parameters file")
                 
