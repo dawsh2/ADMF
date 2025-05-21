@@ -108,7 +108,13 @@ class SimulatedBroker(Component):
     """
     
     def __init__(self, name, parameters=None):
-        """Initialize with name and parameters."""
+        """
+        Initialize with name and parameters.
+        
+        Args:
+            name (str): Component name
+            parameters (dict, optional): Broker configuration parameters
+        """
         super().__init__(name, parameters or {})
         
         # Initialize pending orders
@@ -122,6 +128,119 @@ class SimulatedBroker(Component):
         
         # Create commission model
         self.commission_model = self._create_commission_model()
+        
+    def _create_slippage_model(self):
+        """
+        Create slippage model from configuration.
+        
+        Returns:
+            SlippageModel: Configured slippage model instance
+        """
+        slippage_config = self.parameters.get('slippage', {})
+        model_type = slippage_config.get('model', 'fixed')
+        
+        if model_type == 'fixed':
+            return FixedSlippageModel(slippage_config)
+        elif model_type == 'percentage':
+            return PercentageSlippageModel(slippage_config)
+        elif model_type == 'volume':
+            return VolumeBasedSlippageModel(slippage_config)
+        else:
+            # Default to fixed slippage
+            return FixedSlippageModel({'price_impact': 0.0})
+            
+    def _create_commission_model(self):
+        """
+        Create commission model from configuration.
+        
+        Returns:
+            CommissionModel: Configured commission model instance
+        """
+        commission_config = self.parameters.get('commission', {})
+        model_type = commission_config.get('model', 'fixed')
+        
+        if model_type == 'fixed':
+            return FixedCommissionModel(commission_config)
+        elif model_type == 'percentage':
+            return PercentageCommissionModel(commission_config)
+        elif model_type == 'tiered':
+            return TieredCommissionModel(commission_config)
+        else:
+            # Default to fixed commission
+            return FixedCommissionModel({'cost_per_trade': 0.0})
+            
+    def on_order(self, event):
+        """
+        Process order event.
+        
+        Args:
+            event (Event): Order event to process
+            
+        Returns:
+            bool: Success or failure
+        """
+        # Extract order data
+        order_data = event.get_data()
+        
+        # Process order
+        return self.process_order(order_data)
+        
+    def process_order(self, order_data):
+        """
+        Process an order.
+        
+        Args:
+            order_data (dict): Order data dictionary
+            
+        Returns:
+            bool: Success or failure
+        """
+        # Validate order
+        if not OrderValidator.validate_order(order_data):
+            return False
+            
+        # Get order details
+        order_id = order_data['order_id']
+        symbol = order_data['symbol']
+        order_type = order_data['order_type']
+        
+        # Check if we have price data for this symbol
+        if symbol not in self.latest_prices and order_type != 'MARKET':
+            # Store as pending order
+            self.pending_orders[order_id] = order_data
+            return True
+            
+        # Process different order types
+        if order_type == 'MARKET':
+            # Market orders execute immediately if we have a price
+            if symbol in self.latest_prices:
+                price = self.latest_prices[symbol]
+                self._execute_order(order_data, price)
+            else:
+                # Store as pending order until we get a price
+                self.pending_orders[order_id] = order_data
+        elif order_type == 'LIMIT':
+            # Check if limit price is reached
+            limit_price = order_data['limit_price']
+            
+            if symbol in self.latest_prices:
+                price = self.latest_prices[symbol]
+                
+                if (order_data['direction'] == 'BUY' and price <= limit_price) or \
+                   (order_data['direction'] == 'SELL' and price >= limit_price):
+                    # Limit price reached, execute order
+                    self._execute_order(order_data, price)
+                else:
+                    # Store as pending order
+                    self.pending_orders[order_id] = order_data
+            else:
+                # Store as pending order
+                self.pending_orders[order_id] = order_data
+        else:
+            # Store as pending order
+            self.pending_orders[order_id] = order_data
+            
+        return True
 ```
 
 Key features:

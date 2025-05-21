@@ -122,6 +122,11 @@ class EnsembleSignalStrategy(MAStrategy): # Inheriting MAStrategy for quick demo
             return
             
         self.logger.info(f"'{self.name}' market regime changed from '{self._current_regime}' to '{new_regime}' at {timestamp}.")
+        
+        # Let's force a signal state reset when regime changes to ensure we get new signals
+        self._current_signal_state = 0
+        self.logger.info(f"Reset signal state due to regime change to ensure new signals can be generated")
+        
         self._current_regime = new_regime
         
         # Apply regime-specific parameters if available
@@ -250,12 +255,14 @@ class EnsembleSignalStrategy(MAStrategy): # Inheriting MAStrategy for quick demo
         combined_strength = (ma_signal_type_int * self.ma_weight) + \
                               (rsi_signal_type_int * self.rsi_rule.weight)
         
-        # self.logger.debug(f"MA Signal: {ma_signal_type_int}, RSI Signal: {rsi_signal_type_int}, Combined: {combined_strength:.2f}")
+        self.logger.info(f"MA Signal: {ma_signal_type_int}, RSI Signal: {rsi_signal_type_int}, Combined: {combined_strength:.2f}, Weights: MA={self.ma_weight}, RSI={self.rsi_rule.weight}")
+        self.logger.info(f"Current parameters - short_window: {self._short_window}, long_window: {self._long_window}, RSI period: {self.rsi_indicator._period}, RSI thresholds: oversold={self.rsi_rule._oversold_threshold}, overbought={self.rsi_rule._overbought_threshold}")
 
+        # Relax the thresholds to generate more signals during optimization
         current_signal_to_publish = 0
-        if combined_strength > 0.5: # Threshold for combined signal (e.g. > 0.5 means BUY)
+        if combined_strength > 0.2: # Lower threshold to generate more BUY signals
             current_signal_to_publish = 1
-        elif combined_strength < -0.5: # (e.g. < -0.5 means SELL)
+        elif combined_strength < -0.2: # Lower threshold to generate more SELL signals
             current_signal_to_publish = -1
 
         if current_signal_to_publish != 0 and self._current_signal_state != current_signal_to_publish:
