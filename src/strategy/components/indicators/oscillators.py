@@ -150,10 +150,13 @@ class RSIIndicator(BaseComponent):
             self.logger.warning(f"Invalid RSI period {new_period_val} for {self.name}. Must be an integer > 1. Period not changed from {old_period}.")
             return False
 
-        if old_period != new_period_val:
-            self.period = new_period_val
-            self.logger.info(f"RSIIndicator '{self.name}' parameters updated: period={self.period}. Resetting state.")
-            self.reset_state() # Important: reset internal deques and averages
+        # Update period
+        self.period = new_period_val
+        
+        # BUGFIX: Always reset state during parameter setting to ensure clean slate for optimization runs
+        # Previously only reset if period changed, which caused state persistence across optimization runs
+        self.logger.info(f"RSIIndicator '{self.name}' parameters updated: period={self.period}. Resetting state.")
+        self.reset_state() # Important: reset internal deques and averages for fresh calculation
         return True
 
     def reset_state(self):

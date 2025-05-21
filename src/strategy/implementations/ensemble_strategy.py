@@ -138,7 +138,18 @@ class EnsembleSignalStrategy(MAStrategy): # Inheriting MAStrategy for quick demo
         
         This method looks for optimized parameters in the standard location
         where EnhancedOptimizer saves them.
+        
+        IMPORTANT: During optimization, this is disabled to prevent interference
+        with the parameter testing process.
         """
+        # BUGFIX: Skip regime parameter loading during optimization
+        # During optimization, we're testing specific parameter combinations and don't want
+        # them overridden by previously saved regime-specific parameters
+        import sys
+        if '--optimize' in sys.argv:
+            self.logger.debug(f"Skipping regime parameter loading for '{regime}' during optimization (--optimize mode detected)")
+            return
+        
         # Default parameters file path
         params_file_path = "regime_optimized_parameters.json"
         
@@ -250,6 +261,15 @@ class EnsembleSignalStrategy(MAStrategy): # Inheriting MAStrategy for quick demo
         # This is a placeholder for more sophisticated signal combination
         final_signal_type_int: Optional[int] = None
         
+        # DEBUG: Uncomment below to log parameter values during signal generation
+        # self.logger.warning(
+        #     f"BAR_PARAMS_CHECK | TS: {bar_timestamp} | "
+        #     f"MA_SW: {self._short_window}, MA_LW: {self._long_window}, MA_W: {self.ma_weight:.2f} | "
+        #     f"RSI_P: {self.rsi_indicator.period}, RSI_OS: {self.rsi_rule.oversold_threshold:.1f}, "
+        #     f"RSI_OB: {self.rsi_rule.overbought_threshold:.1f}, RSI_W: {self.rsi_rule.weight:.2f} | "
+        #     f"MA_Sig: {ma_signal_type_int}, RSI_Sig: {rsi_signal_type_int}"
+        # )
+        
         # Example: If both agree, take signal. If they conflict, could be neutral or prioritize one.
         # Or weighted sum:
         combined_strength = (ma_signal_type_int * self.ma_weight) + \
@@ -308,12 +328,17 @@ class EnsembleSignalStrategy(MAStrategy): # Inheriting MAStrategy for quick demo
         # Parameters for RSI components might be prefixed, e.g., "rsi_indicator.period"
         rsi_indicator_params = {k.split('.', 1)[1]: v for k, v in params.items() if k.startswith("rsi_indicator.")}
         if rsi_indicator_params:
-            self.logger.info(f"'{self.name}' storing extended parameter: rsi_indicator.period={rsi_indicator_params.get('period', 'MISSING')}")
+            self.logger.info(f"'{self.name}' updating RSI indicator parameters: {rsi_indicator_params}")
             self.rsi_indicator.set_parameters(rsi_indicator_params)
+            # Re-setup indicator to ensure parameters take effect
+            self.rsi_indicator.setup()
 
         rsi_rule_params = {k.split('.', 1)[1]: v for k, v in params.items() if k.startswith("rsi_rule.")}
         if rsi_rule_params:
+            self.logger.info(f"'{self.name}' updating RSI rule parameters: {rsi_rule_params}")
             self.rsi_rule.set_parameters(rsi_rule_params)
+            # Re-setup rule to ensure parameters take effect
+            self.rsi_rule.setup()
             
         # BUGFIX: Properly handle ma_rule.weight parameter 
         # The parent class can't store "ma_rule.weight" as an attribute due to the dot,
@@ -322,7 +347,7 @@ class EnsembleSignalStrategy(MAStrategy): # Inheriting MAStrategy for quick demo
             self.ma_weight = params['ma_rule.weight']
             self.logger.info(f"'{self.name}' storing extended parameter: ma_rule.weight={self.ma_weight}")
             
-        self.logger.info(f"EnsembleSignalStrategy '{self.name}' parameters updated.")
+        self.logger.info(f"EnsembleSignalStrategy '{self.name}' parameters updated and components re-setup.")
         return True 
 
 # src/strategy/implementations/ensemble_strategy.py

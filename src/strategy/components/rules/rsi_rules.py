@@ -109,6 +109,10 @@ class RSIRule(BaseComponent):
         """Expose the weight as a property for easy access."""
         return self._weight
 
+    @weight.setter
+    def weight(self, value: float) -> None:
+        self._weight = value
+
     @property
     def parameter_space(self) -> Dict[str, List[Any]]:
          return {
@@ -116,11 +120,3 @@ class RSIRule(BaseComponent):
              'overbought_threshold': [60.0, 70.0],
             'weight': [0.4, 0.6]
         }
-
-    @property
-    def weight(self) -> float:
-        return self._weight
-
-    @weight.setter
-    def weight(self, value: float) -> None:
-        self._weight = value
