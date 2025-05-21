@@ -1,0 +1,12 @@
+# Main components.yaml file - includes all components
+optimizer: !include components/optimizer.yaml
+ensemble_strategy: !include components/ensemble_strategy.yaml 
+enhanced_optimizer: !include components/enhanced_optimizer.yaml
+regime_adaptive_strategy: !include components/regime_adaptive_strategy.yaml
+data_handler_csv: !include components/data_handler_csv.yaml
+basic_portfolio: !include components/basic_portfolio.yaml
+basic_risk_manager: !include components/basic_risk_manager.yaml
+simulated_execution_handler: !include components/simulated_execution_handler.yaml
+MyPrimaryRegimeDetector: !include components/regime_detector.yaml
+dummy_service: !include components/dummy_service.yaml
+genetic_optimizer: !include components/genetic_optimizer.yaml

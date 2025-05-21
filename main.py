@@ -24,6 +24,7 @@ from src.risk.basic_portfolio import BasicPortfolio # Ensure this is the updated
 from src.core.dummy_component import DummyComponent
 from src.strategy.optimization.basic_optimizer import BasicOptimizer
 from src.strategy.optimization.enhanced_optimizer import EnhancedOptimizer
+from src.strategy.optimization.genetic_optimizer import GeneticOptimizer
 from src.strategy.regime_adaptive_strategy import RegimeAdaptiveStrategy
 
 
@@ -38,7 +39,22 @@ def main():
         "--bars", type=int, default=None, help="Number of bars to process. Default is all."
     )
     parser.add_argument(
-        "--optimize", action="store_true", help="Run in optimization mode."
+        "--optimize", action="store_true", help="Run in grid search optimization mode for all parameters."
+    )
+    parser.add_argument(
+        "--optimize-ma", action="store_true", help="Run grid search optimization only for MA rule parameters."
+    )
+    parser.add_argument(
+        "--optimize-rsi", action="store_true", help="Run grid search optimization only for RSI rule parameters."
+    )
+    parser.add_argument(
+        "--optimize-seq", action="store_true", help="Run sequential grid search optimization (each rule in isolation, one after another)."
+    )
+    parser.add_argument(
+        "--optimize-joint", action="store_true", help="Run joint grid search optimization (full Cartesian product of all rule parameters)."
+    )
+    parser.add_argument(
+        "--genetic-optimize", action="store_true", help="Run genetic algorithm to optimize rule weights after grid search."
     )
     parser.add_argument(
         "--log-level", type=str, choices=['DEBUG', 'INFO', 'WARNING', 'ERROR', 'CRITICAL'],
@@ -51,7 +67,19 @@ def main():
     args = parser.parse_args()
     config_path = args.config
     max_bars_to_process = args.bars
+    
+    # Optimization modes
     run_optimization_mode = args.optimize
+    run_optimize_ma = args.optimize_ma
+    run_optimize_rsi = args.optimize_rsi
+    run_optimize_seq = args.optimize_seq
+    run_optimize_joint = args.optimize_joint
+    run_genetic_optimization = args.genetic_optimize
+    
+    # If any optimization is enabled, also set general optimization flag
+    if run_optimize_ma or run_optimize_rsi or run_optimize_seq or run_optimize_joint:
+        run_optimization_mode = True
+        
     cmd_log_level = args.log_level
     debug_log_file = args.debug_log
 
@@ -87,7 +115,6 @@ def main():
 
     # If we're optimizing, use the regular strategy
     if run_optimization_mode:
-        print(f"MAIN_DEBUG | Entering optimization mode, registering EnsembleSignalStrategy")
         ensemble_strat_args = {
             "instance_name": "SPY_Ensemble_Strategy",
             "config_loader": config_loader,
@@ -165,11 +192,20 @@ def main():
         else:
             logger.info("Optimizer will run each parameter set on the full dataset (as configured in CSVDataHandler, before train/test split).")
 
+        # Register the appropriate optimizer
         optimizer_args = {"instance_name": "EnhancedOptimizer", "config_loader": config_loader,
                           "event_bus": event_bus, "component_config_key": "components.optimizer",
                           "container": container}
         container.register_type("optimizer_service", EnhancedOptimizer, True, constructor_kwargs=optimizer_args)
         logger.info("EnhancedOptimizer registered as 'optimizer_service'.")
+        
+        # Register genetic optimizer if needed
+        if run_genetic_optimization:
+            genetic_optimizer_args = {"instance_name": "GeneticOptimizer", "config_loader": config_loader,
+                                     "event_bus": event_bus, "component_config_key": "components.genetic_optimizer",
+                                     "container": container}
+            container.register_type("genetic_optimizer_service", GeneticOptimizer, True, constructor_kwargs=genetic_optimizer_args)
+            logger.info("GeneticOptimizer registered as 'genetic_optimizer_service'.")
 
         try:
             # During optimization, specifically set up and start the RegimeDetector first
@@ -195,12 +231,50 @@ def main():
                     best_train_params = optimization_results.get("best_parameters_on_train")
                     best_train_metric_val = optimization_results.get("best_training_metric_value")
                     metric_name_optimized = getattr(optimizer, '_metric_to_optimize', 
-                                                    config_loader.get('components.optimizer.metric_to_optimize', 'get_final_portfolio_value'))
+                                                  config_loader.get('components.optimizer.metric_to_optimize', 'get_final_portfolio_value'))
                     
                     test_metric_for_best = optimization_results.get("test_set_metric_value_for_best_params")
 
                     # Detailed results already logged by optimizer._log_optimization_results, no need to duplicate here
                     logger.debug("Optimization complete. See summary for results.")
+                    
+                    # If genetic optimization is requested, run per-regime genetic optimization
+                    if run_genetic_optimization:
+                        logger.info("--- Starting Per-Regime Genetic Weight Optimization ---")
+                        print("\n=== PER-REGIME GENETIC OPTIMIZATION ===\n")
+                        try:
+                            # Run per-regime genetic optimization
+                            optimization_results = optimizer.run_per_regime_genetic_optimization(optimization_results)
+                            
+                            # Log results
+                            if "best_weights_per_regime" in optimization_results:
+                                regimes_with_weights = list(optimization_results["best_weights_per_regime"].keys())
+                                logger.info(f"Genetic optimization complete for {len(regimes_with_weights)} regimes: {regimes_with_weights}")
+                                
+                                # Print summary
+                                print(f"\nOptimized weights for {len(regimes_with_weights)} regimes:")
+                                for regime, weight_data in optimization_results["best_weights_per_regime"].items():
+                                    weights = weight_data.get("weights", {})
+                                    fitness = weight_data.get("fitness", "N/A")
+                                    ma_weight = weights.get("ma_rule.weight", 0.5)
+                                    rsi_weight = weights.get("rsi_rule.weight", 0.5)
+                                    print(f"  {regime}: MA={ma_weight:.3f}, RSI={rsi_weight:.3f} (fitness: {fitness:.2f})")
+                            else:
+                                logger.warning("No per-regime genetic optimization results found")
+                                
+                        except Exception as e:
+                            logger.error(f"Error during per-regime genetic optimization: {e}", exc_info=True)
+                            
+                        # Now run adaptive test AFTER genetic optimization
+                        logger.info("\n\n!!! RUNNING ADAPTIVE TEST AFTER GENETIC OPTIMIZATION !!!\n\n")
+                        try:
+                            if hasattr(optimizer, 'run_adaptive_test'):
+                                optimizer.run_adaptive_test(optimization_results)
+                                logger.info("Completed adaptive test after genetic optimization")
+                            else:
+                                logger.error("Optimizer does not have run_adaptive_test method")
+                        except Exception as e:
+                            logger.error(f"Error running adaptive test after genetic optimization: {e}", exc_info=True)
                 else:
                     logger.info("OPTIMIZATION FAILED: Optimizer run_grid_search() returned no results (None).")
                 

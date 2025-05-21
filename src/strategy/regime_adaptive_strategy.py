@@ -90,12 +90,28 @@ class RegimeAdaptiveStrategy(MAStrategy):
             with open(self._params_file_path, 'r') as f:
                 data = json.load(f)
                 
-            # Extract regime-specific parameters
+            # Extract regime-specific parameters and weights
             if 'regime_best_parameters' in data:
                 for regime, regime_data in data['regime_best_parameters'].items():
                     if 'parameters' in regime_data:
-                        self._regime_specific_params[regime] = regime_data['parameters']
-                        self.logger.info(f"Loaded parameters for regime '{regime}': {self._regime_specific_params[regime]}")
+                        # Handle nested parameter structure - extract actual parameters
+                        if 'parameters' in regime_data['parameters']:
+                            # New nested format: regime_data['parameters']['parameters']
+                            base_params = regime_data['parameters']['parameters'].copy()
+                        else:
+                            # Direct format: regime_data['parameters'] contains the params
+                            base_params = regime_data['parameters'].copy()
+                        
+                        # Add per-regime weights if they exist
+                        if 'weights' in regime_data and regime_data['weights']:
+                            weights = regime_data['weights']
+                            self.logger.info(f"Found optimized weights for regime '{regime}': {weights}")
+                            base_params.update(weights)
+                        else:
+                            self.logger.info(f"No optimized weights found for regime '{regime}', using default weights")
+                        
+                        self._regime_specific_params[regime] = base_params
+                        self.logger.info(f"Loaded complete parameters for regime '{regime}': {self._regime_specific_params[regime]}")
             
             # Extract overall best parameters as fallback
             if 'overall_best_parameters' in data:

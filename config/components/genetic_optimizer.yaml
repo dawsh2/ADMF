@@ -1,0 +1,20 @@
+# Genetic Algorithm Optimizer Configuration
+strategy_service_name: \strategy\
+portfolio_service_name: \portfolio_manager\
+data_handler_service_name: \data_handler\
+risk_manager_service_name: isk_manager\
+execution_handler_service_name: xecution_handler\
+metric_to_optimize: \get_final_portfolio_value\  # Changed from get_sharpe_ratio
+higher_metric_is_better: true
+
+# GA Parameters
+population_size: 15  # Reduced from 50 to 15 for faster execution
+generations: 8       # Reduced from 20 to 8 for faster execution
+mutation_rate: 0.2  
+crossover_rate: 0.7
+elitism_count: 2     # Keep top 2 individuals
+tournament_size: 3   # Select 3 individuals for tournament selection
+
+# Weight constraints
+min_weight: 0.3      # Minimum weight for any rule
+max_weight: 0.7      # Maximum weight for any rule

@@ -257,6 +257,17 @@ class EnhancedOptimizer(BasicOptimizer):
             strategy_to_optimize = self._container.resolve(self._strategy_service_name)
             data_handler_instance = self._container.resolve(self._data_handler_service_name)
             
+            # Check if we're in rule-wise mode and handle it specially
+            import sys
+            is_rulewise = (
+                ('--optimize' in sys.argv and all(flag not in sys.argv for flag in ['--optimize-ma', '--optimize-rsi', '--optimize-seq', '--optimize-joint'])) or
+                '--optimize-seq' in sys.argv  # Also handle explicit --optimize-seq as rule-wise for now
+            )
+            
+            if is_rulewise:
+                self.logger.info("Detected rule-wise optimization mode - running MA and RSI optimizations separately")
+                return self._run_rulewise_optimization(results_summary)
+            
             param_space = strategy_to_optimize.get_parameter_space()
             current_strategy_params = strategy_to_optimize.get_parameters()
             
@@ -278,8 +289,16 @@ class EnhancedOptimizer(BasicOptimizer):
                 # Create a compact parameter string for concise logging
                 param_str = ", ".join([f"{k.split('.')[-1]}: {v}" for k, v in params.items()])
                 
-                # Start single-line output for this parameter combination
-                print(f"Running backtest for parameter combination {i+1}/{total_combinations}: {param_str}", end="", flush=True)
+                # Get rule name from strategy if available
+                rule_name = ""
+                try:
+                    if hasattr(strategy_to_optimize, '_current_optimization_rule'):
+                        rule_name = f"{strategy_to_optimize._current_optimization_rule} "
+                except:
+                    pass
+                
+                # Debug parameter application
+                print(f"Testing {i+1}/{total_combinations} {param_str}...", end="", flush=True)
                 
                 # Run backtest and get both overall and regime-specific metrics
                 training_metric_value, regime_performance = self._perform_single_backtest_run(params, dataset_type="train")
@@ -288,8 +307,8 @@ class EnhancedOptimizer(BasicOptimizer):
                 metric_name = self._metric_to_optimize.split('_')[-1] if '_' in self._metric_to_optimize else self._metric_to_optimize
                 metric_value_str = f"{training_metric_value:.4f}" if isinstance(training_metric_value, float) else str(training_metric_value)
                 
-                # Complete the line with results
-                print(f"..Results: {metric_name}={metric_value_str}")
+                # Complete the line with concise results
+                print(f"Done ({metric_value_str})")
                 results_summary["all_training_results"].append({
                     "parameters": params, 
                     "metric_value": training_metric_value,
@@ -352,6 +371,14 @@ class EnhancedOptimizer(BasicOptimizer):
                     # Use optimizer logger for test phase
                     self.opt_logger.info(f"Testing rank #{rank+1} parameters: {param_str} (train score: {train_metric:.4f})")
                     
+                    # DEBUG: Verify data handler is using test data
+                    data_handler = self._container.resolve(self._data_handler_service_name)
+                    if hasattr(data_handler, '_active_df'):
+                        active_size = len(data_handler._active_df) if data_handler._active_df is not None else 0
+                        train_size = len(data_handler._train_df) if hasattr(data_handler, '_train_df') and data_handler._train_df is not None else 0
+                        test_size = len(data_handler._test_df) if hasattr(data_handler, '_test_df') and data_handler._test_df is not None else 0
+                        self.logger.warning(f"🔍 DATA DEBUG: Before test run - Active: {active_size}, Train: {train_size}, Test: {test_size}")
+                    
                     test_metric_value, _ = self._perform_single_backtest_run(params, dataset_type="test")
                     
                     if rank == 0:  # Store best performer result for backward compatibility
@@ -401,27 +428,11 @@ class EnhancedOptimizer(BasicOptimizer):
             if 'regime_adaptive_test_results' in results_summary:
                 self.logger.debug(f"DEBUG - Keys in regime_adaptive_test_results: {list(results_summary['regime_adaptive_test_results'].keys())}")
             
-            # Run regime-adaptive strategy on test set if test data is available - MOVED THIS BEFORE LOGGING
-            if data_handler_instance.test_df_exists_and_is_not_empty:
-                self.logger.debug("DEBUG - About to run regime-adaptive test")
-                try:
-                    self._run_regime_adaptive_test(results_summary)
-                    self.logger.debug(f"DEBUG - After adaptive test, keys in results: {list(results_summary.keys())}")
-                    if "regime_adaptive_test_results" in results_summary:
-                        self.logger.debug(f"DEBUG - Adaptive results keys: {list(results_summary['regime_adaptive_test_results'].keys())}")
-                except Exception as e:
-                    self.logger.error(f"Failed to run regime-adaptive strategy test: {e}", exc_info=True)
-                    results_summary["regime_adaptive_test_results"] = {"error": str(e)}
-                finally:
-                    # Always clear the adaptive test flag
-                    if hasattr(self, '_adaptive_test_running'):
-                        self._adaptive_test_running = False
-                        self.logger.info("Cleared adaptive test flag - grid search calls re-enabled")
-            else:
-                self.logger.warning("No test data available. Skipping regime-adaptive strategy test.")
+            # Removed adaptive test - will be run from main.py AFTER genetic optimization
+            # Add a method to allow calling the adaptive test separately
+            results_summary["ready_for_adaptive_test"] = True
                 
-            # Final logging - MOVED AFTER ADAPTIVE TEST
-            self._log_optimization_results(results_summary)
+            # Skip logging here - will be logged after adaptive test
             
             # Save results to file
             if 'regime_adaptive_test_results' in results_summary:
@@ -444,6 +455,137 @@ class EnhancedOptimizer(BasicOptimizer):
             if self.state not in [BasicOptimizer.STATE_STOPPED, BasicOptimizer.STATE_FAILED]:
                 self.state = BasicOptimizer.STATE_STOPPED
             self.logger.info(f"--- {self.name} Enhanced Grid Search with Train/Test Ended. State: {self.state} ---")
+            
+    def run_per_regime_genetic_optimization(self, results_summary: Dict[str, Any]) -> Dict[str, Any]:
+        """
+        Run genetic optimization for each regime that has sufficient data.
+        This should be called after grid search optimization but before adaptive testing.
+        
+        Args:
+            results_summary: Results from grid search containing best parameters per regime
+            
+        Returns:
+            Updated results_summary with per-regime weights added
+        """
+        self.logger.info("--- Starting Per-Regime Genetic Weight Optimization ---")
+        
+        if "best_parameters_per_regime" not in results_summary or not results_summary["best_parameters_per_regime"]:
+            self.logger.warning("No regime-specific parameters found. Skipping per-regime genetic optimization.")
+            return results_summary
+        
+        try:
+            # Get genetic optimizer if available
+            genetic_optimizer = self._container.resolve("genetic_optimizer_service")
+        except Exception as e:
+            self.logger.warning(f"Genetic optimizer not available: {e}. Skipping per-regime weight optimization.")
+            return results_summary
+        
+        # Initialize storage for per-regime weights
+        results_summary["best_weights_per_regime"] = {}
+        
+        # Process each regime that has optimized parameters
+        for regime, regime_data in results_summary["best_parameters_per_regime"].items():
+            self.logger.info(f"Running genetic optimization for regime: {regime}")
+            
+            # Extract parameters for this regime - handle nested structure
+            if 'parameters' in regime_data:
+                if 'parameters' in regime_data['parameters']:
+                    # New nested format: regime_data['parameters']['parameters']
+                    regime_params = regime_data['parameters']['parameters']
+                else:
+                    # Direct format: regime_data['parameters'] contains the params
+                    regime_params = regime_data['parameters']
+            else:
+                # Legacy format
+                regime_params = regime_data
+                
+            self.logger.info(f"Using parameters for regime '{regime}': {regime_params}")
+            
+            # Get strategy and set regime-specific parameters
+            strategy = self._container.resolve(self._strategy_service_name)
+            if not strategy.set_parameters(regime_params):
+                self.logger.error(f"Failed to set parameters for regime {regime}. Skipping genetic optimization.")
+                continue
+            
+            # Run genetic optimization for this regime
+            self.logger.info(f"Starting genetic optimization for regime '{regime}' with parameters: {regime_params}")
+            
+            try:
+                # Set up genetic optimizer
+                genetic_optimizer.setup()
+                if genetic_optimizer.get_state() == genetic_optimizer.STATE_INITIALIZED:
+                    genetic_optimizer.start()
+                    
+                    # Run genetic optimization
+                    genetic_results = genetic_optimizer.run_genetic_optimization()
+                    
+                    if genetic_results and genetic_results.get("best_individual"):
+                        best_weights = genetic_results["best_individual"]
+                        best_fitness = genetic_results["best_fitness"]
+                        test_fitness = genetic_results.get("test_fitness")
+                        
+                        # Store results for this regime
+                        results_summary["best_weights_per_regime"][regime] = {
+                            "weights": best_weights,
+                            "fitness": best_fitness,
+                            "test_fitness": test_fitness,
+                            "parameters": regime_params
+                        }
+                        
+                        self.logger.info(f"Genetic optimization complete for regime '{regime}': weights={best_weights}, fitness={best_fitness}")
+                        print(f"Regime '{regime}': Optimal weights MA={best_weights.get('ma_rule.weight', 0.5):.3f}, RSI={best_weights.get('rsi_rule.weight', 0.5):.3f}, Fitness={best_fitness:.2f}")
+                        
+                    else:
+                        self.logger.warning(f"Genetic optimization failed for regime '{regime}' - no valid results")
+                        
+                    genetic_optimizer.stop()
+                    
+                else:
+                    self.logger.error(f"Failed to initialize genetic optimizer for regime '{regime}'")
+                    
+            except Exception as e:
+                self.logger.error(f"Error during genetic optimization for regime '{regime}': {e}", exc_info=True)
+        
+        self.logger.info(f"Per-regime genetic optimization complete. Optimized weights for {len(results_summary['best_weights_per_regime'])} regimes.")
+        return results_summary
+
+    def run_adaptive_test(self, results_summary: Dict[str, Any]) -> Dict[str, Any]:
+        """
+        Run the adaptive test portion separately, allowing for genetic optimization in between.
+        
+        Args:
+            results_summary: The results from run_grid_search
+            
+        Returns:
+            Updated results_summary with adaptive test results
+        """
+        self.logger.info("Running regime-adaptive test explicitly after grid search")
+        
+        # Make sure we have a valid data handler
+        data_handler_instance = self._container.resolve(self._data_handler_service_name)
+        
+        if data_handler_instance.test_df_exists_and_is_not_empty:
+            self.logger.debug("DEBUG - About to run regime-adaptive test")
+            try:
+                self._run_regime_adaptive_test(results_summary)
+                self.logger.debug(f"DEBUG - After adaptive test, keys in results: {list(results_summary.keys())}")
+                if "regime_adaptive_test_results" in results_summary:
+                    self.logger.debug(f"DEBUG - Adaptive results keys: {list(results_summary['regime_adaptive_test_results'].keys())}")
+            except Exception as e:
+                self.logger.error(f"Failed to run regime-adaptive strategy test: {e}", exc_info=True)
+                results_summary["regime_adaptive_test_results"] = {"error": str(e)}
+            finally:
+                # Always clear the adaptive test flag
+                if hasattr(self, '_adaptive_test_running'):
+                    self._adaptive_test_running = False
+                    self.logger.info("Cleared adaptive test flag - grid search calls re-enabled")
+        else:
+            self.logger.warning("No test data available. Skipping regime-adaptive strategy test.")
+            
+        # Log final results including adaptive test
+        self._log_optimization_results(results_summary)
+        
+        return results_summary
     
     def _get_top_n_performers(self, training_results: List[Dict[str, Any]], n: int, higher_is_better: bool) -> List[Tuple[Dict[str, Any], float]]:
         """
@@ -575,7 +717,7 @@ class EnhancedOptimizer(BasicOptimizer):
             return
             
         # Use direct print to ensure our formatted output is visible
-        print("\n================ REGIME-ADAPTIVE STRATEGY TEST RESULTS ================")
+        print("\n================ ADAPTIVE GA ENSEMBLE STRATEGY TEST RESULTS ================")
             
         if 'regime_adaptive_test_results' in results and results['regime_adaptive_test_results']:
             adaptive_results = results['regime_adaptive_test_results']
@@ -593,7 +735,7 @@ class EnhancedOptimizer(BasicOptimizer):
                 
             # Print the formatted metrics
             print("-" * 50)
-            print(f"Regime-Adaptive Strategy Test {display_metric}: {adaptive_str}")
+            print(f"Adaptive GA Ensemble Strategy Test final_portfolio_value: {adaptive_str}")
             print("-" * 50)
             
             # Print regime info
@@ -1494,7 +1636,10 @@ class EnhancedOptimizer(BasicOptimizer):
                             "name": self._regime_metric,
                             "value": results["best_metric_per_regime"][regime],
                             "higher_is_better": self._higher_metric_is_better
-                        }
+                        },
+                        # Add per-regime weights if available
+                        "weights": results.get("best_weights_per_regime", {}).get(regime, {}).get("weights", {}),
+                        "weight_fitness": results.get("best_weights_per_regime", {}).get(regime, {}).get("fitness", None)
                     }
                     for regime in results["best_parameters_per_regime"]
                 },
@@ -1525,3 +1670,161 @@ class EnhancedOptimizer(BasicOptimizer):
             
         except Exception as e:
             self.logger.error(f"Error saving optimization results to file: {e}", exc_info=True)
+    
+    def _run_rulewise_optimization(self, results_summary: Dict[str, Any]) -> Dict[str, Any]:
+        """
+        Run rule-wise optimization: MA rule + RSI rule separately, then combine results.
+        
+        This runs 2 MA combinations + 12 RSI combinations = 14 total combinations
+        instead of 2 × 12 = 24 combinations in joint optimization.
+        
+        Args:
+            results_summary: The results summary dict to populate
+            
+        Returns:
+            Updated results_summary with combined MA + RSI optimization results
+        """
+        self.logger.info("=== Starting Rule-wise Optimization (MA + RSI separately) ===")
+        
+        # Store original argv to restore later
+        import sys
+        original_argv = sys.argv.copy()
+        
+        try:
+            # Phase 1: Optimize MA rule parameters (2 combinations)
+            self.logger.info("Phase 1: Optimizing MA rule parameters with default RSI parameters")
+            sys.argv = [arg for arg in original_argv if arg not in ['--optimize', '--optimize-seq', '--optimize-joint']]
+            sys.argv.append('--optimize-ma')
+            
+            # Get MA parameter space
+            strategy_to_optimize = self._container.resolve(self._strategy_service_name)
+            ma_param_space = strategy_to_optimize.get_parameter_space()
+            ma_combinations = self._generate_parameter_combinations(ma_param_space)
+            
+            self.logger.info(f"MA optimization: {len(ma_combinations)} parameter combinations")
+            
+            # Run MA optimization
+            ma_results = []
+            for i, params in enumerate(ma_combinations):
+                param_str = ", ".join([f"{k.split('.')[-1]}: {v}" for k, v in params.items()])
+                print(f"Running backtest for MA parameter combination {i+1}/{len(ma_combinations)}: {param_str}", end="", flush=True)
+                
+                training_metric_value, regime_performance = self._perform_single_backtest_run(params, dataset_type="train")
+                
+                metric_name = self._metric_to_optimize.split('_')[-1] if '_' in self._metric_to_optimize else self._metric_to_optimize
+                metric_value_str = f"{training_metric_value:.4f}" if isinstance(training_metric_value, float) else str(training_metric_value)
+                print(f"..Results: {metric_name}={metric_value_str}")
+                
+                ma_results.append({
+                    "parameters": params,
+                    "metric_value": training_metric_value,
+                    "regime_performance": regime_performance
+                })
+                
+                # Process regime performance
+                if regime_performance:
+                    self._process_regime_performance(params, regime_performance)
+            
+            # Phase 2: Optimize RSI rule parameters (12 combinations)  
+            self.logger.info("Phase 2: Optimizing RSI rule parameters with default MA parameters")
+            sys.argv = [arg for arg in original_argv if arg not in ['--optimize', '--optimize-seq', '--optimize-joint', '--optimize-ma']]
+            sys.argv.append('--optimize-rsi')
+            
+            # Get RSI parameter space
+            rsi_param_space = strategy_to_optimize.get_parameter_space()
+            rsi_combinations = self._generate_parameter_combinations(rsi_param_space)
+            
+            self.logger.info(f"RSI optimization: {len(rsi_combinations)} parameter combinations")
+            
+            # Run RSI optimization
+            rsi_results = []
+            for i, params in enumerate(rsi_combinations):
+                param_str = ", ".join([f"{k.split('.')[-1]}: {v}" for k, v in params.items()])
+                print(f"Running backtest for RSI parameter combination {i+1}/{len(rsi_combinations)}: {param_str}", end="", flush=True)
+                
+                training_metric_value, regime_performance = self._perform_single_backtest_run(params, dataset_type="train")
+                
+                metric_name = self._metric_to_optimize.split('_')[-1] if '_' in self._metric_to_optimize else self._metric_to_optimize
+                metric_value_str = f"{training_metric_value:.4f}" if isinstance(training_metric_value, float) else str(training_metric_value)
+                print(f"..Results: {metric_name}={metric_value_str}")
+                
+                rsi_results.append({
+                    "parameters": params,
+                    "metric_value": training_metric_value,
+                    "regime_performance": regime_performance
+                })
+                
+                # Process regime performance
+                if regime_performance:
+                    self._process_regime_performance(params, regime_performance)
+            
+            # Combine results
+            all_results = ma_results + rsi_results
+            self.logger.info(f"Rule-wise optimization complete: {len(ma_results)} MA + {len(rsi_results)} RSI = {len(all_results)} total combinations")
+            
+            # Find best overall parameters
+            valid_results = [(r["parameters"], r["metric_value"]) for r in all_results if r["metric_value"] is not None]
+            if valid_results:
+                best_params, best_metric = max(valid_results, key=lambda x: x[1]) if self._higher_metric_is_better else min(valid_results, key=lambda x: x[1])
+                self._best_params_from_train = best_params
+                self._best_training_metric_value = best_metric
+                
+            # Update results summary
+            results_summary["all_training_results"] = all_results
+            results_summary["best_parameters_on_train"] = self._best_params_from_train
+            results_summary["best_training_metric_value"] = self._best_training_metric_value
+            results_summary["best_parameters_per_regime"] = self._best_params_per_regime
+            results_summary["best_metric_per_regime"] = self._best_metric_per_regime
+            results_summary["regimes_encountered"] = list(self._regimes_encountered)
+            
+            # Run test phase if test data exists
+            data_handler_instance = self._container.resolve(self._data_handler_service_name)
+            if data_handler_instance.test_df_exists_and_is_not_empty:
+                # Get top N performers and test them
+                top_performers = self._get_top_n_performers(all_results, n=self._top_n_to_test, higher_is_better=self._higher_metric_is_better)
+                
+                results_summary["top_n_test_results"] = []
+                self.logger.info(f"--- Testing Phase: Evaluating top {len(top_performers)} parameter sets on test data ---")
+                
+                for rank, (params, train_metric) in enumerate(top_performers):
+                    param_str = ", ".join([f"{k.split('.')[-1]}: {v}" for k, v in params.items()])
+                    self.logger.info(f"Testing rank #{rank+1} parameters: {param_str} (train score: {train_metric:.4f})")
+                    
+                    test_metric_value, _ = self._perform_single_backtest_run(params, dataset_type="test")
+                    
+                    if rank == 0:  # Store best performer result for backward compatibility
+                        self._test_metric_for_best_params = test_metric_value
+                        results_summary["test_set_metric_value_for_best_params"] = test_metric_value
+                    
+                    results_summary["top_n_test_results"].append({
+                        "rank": rank + 1,
+                        "parameters": params,
+                        "train_metric": train_metric,
+                        "test_metric": test_metric_value
+                    })
+                    
+                    metric_name = self._metric_to_optimize.split('_')[-1] if '_' in self._metric_to_optimize else self._metric_to_optimize
+                    self.logger.info(f"Test results for rank #{rank+1}: {metric_name}={test_metric_value:.4f} (train: {train_metric:.4f})")
+                
+                # Sort by test performance
+                if results_summary["top_n_test_results"]:
+                    results_summary["top_n_test_results"].sort(
+                        key=lambda x: x["test_metric"] if x["test_metric"] is not None else (-float('inf') if self._higher_metric_is_better else float('inf')),
+                        reverse=self._higher_metric_is_better
+                    )
+                    
+                    # Update ranks after sorting
+                    for i, result in enumerate(results_summary["top_n_test_results"]):
+                        result["rank"] = i + 1
+                        metric_name = self._metric_to_optimize.split('_')[-1] if '_' in self._metric_to_optimize else self._metric_to_optimize
+                        self.logger.info(f"Updated rank #{i+1} (sorted by test metric): {metric_name}={result['test_metric']:.4f} (train: {result['train_metric']:.4f})")
+            
+            # Mark as ready for adaptive test
+            results_summary["ready_for_adaptive_test"] = True
+            
+            self.logger.info("=== Rule-wise Optimization Complete ===")
+            return results_summary
+            
+        finally:
+            # Restore original argv
+            sys.argv = original_argv

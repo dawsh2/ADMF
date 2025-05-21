@@ -49,10 +49,21 @@ class EnsembleSignalStrategy(MAStrategy): # Inheriting MAStrategy for quick demo
             parameters=rsi_indicator_params
         )
 
+        # Set default weights (will be optimized by genetic algorithm later)
+        # During grid search, we use balanced weights since weights are optimized separately
+        self._ma_weight = 0.5  # Equal default weights for grid search
+        self._rsi_weight = 0.5
+        
+        # Track current optimization rule for weight adjustment
+        self._current_optimization_rule = None
+        
+        # Log the default weights - genetic optimizer will override these later
+        self.logger.info(f"Using default equal weights for grid search: MA={self._ma_weight}, RSI={self._rsi_weight}")
+        
         rsi_rule_params = {
             'oversold_threshold': self.get_specific_config('rsi_rule.oversold_threshold', 30.0),
             'overbought_threshold': self.get_specific_config('rsi_rule.overbought_threshold', 70.0),
-            'weight': self.get_specific_config('rsi_rule.weight', 0.5) # Example weight
+            'weight': self._rsi_weight  # Use the default weight
         }
         self.rsi_rule = RSIRule(
             instance_name=f"{self.name}_RSIRule",
@@ -63,8 +74,7 @@ class EnsembleSignalStrategy(MAStrategy): # Inheriting MAStrategy for quick demo
             parameters=rsi_rule_params
         )
         
-        self.ma_weight = self.get_specific_config('ma_rule.weight', 0.5)
-        self.logger.info(f"EnsembleSignalStrategy '{self.name}' initialized with MA and RSI components.")
+        self.logger.info(f"EnsembleSignalStrategy '{self.name}' initialized with MA weight: {self._ma_weight}, RSI weight: {self._rsi_weight}")
 
     def setup(self):
         super().setup() # Setup MAStrategy part
@@ -169,7 +179,18 @@ class EnsembleSignalStrategy(MAStrategy): # Inheriting MAStrategy for quick demo
                 # Use stdout print for maximum visibility
                 print(f"\n>>> APPLYING REGIME PARAMETERS: Using optimized parameters for '{regime}': {params} <<<")
                 self.logger.warning(f">>> ADAPTIVE TEST: Applying regime-specific parameters for '{regime}': {params} <<<")
+                
+                # Check if params contains weight information
+                weights_info = ""
+                if 'ma_rule.weight' in params or 'rsi_rule.weight' in params:
+                    weights_info = f"Weights in params - MA: {params.get('ma_rule.weight', 'not set')}, RSI: {params.get('rsi_rule.weight', 'not set')}"
+                    self.logger.warning(f">>> REGIME WEIGHTS BEFORE APPLICATION: {weights_info} <<<")
+                    
+                # Apply the parameters
                 self.set_parameters(params)
+                
+                # Log the actual weights after parameters are applied for verification
+                self.logger.warning(f">>> REGIME WEIGHTS AFTER APPLICATION: MA={self._ma_weight:.4f}, RSI={self._rsi_weight:.4f} <<<")
                 return
             else:
                 print(f"\n>>> NO PARAMETERS FOR REGIME: '{regime}' not found, using current parameters <<<")
@@ -276,16 +297,24 @@ class EnsembleSignalStrategy(MAStrategy): # Inheriting MAStrategy for quick demo
         ma_signal_type_int = 0 # Default no signal
         if current_short_ma is not None and current_long_ma is not None and \
            self._prev_short_ma is not None and self._prev_long_ma is not None:
+            # Log the MA values for debugging
+            self.logger.debug(f"MA values - short: {current_short_ma:.4f}, long: {current_long_ma:.4f}, " +
+                             f"prev_short: {self._prev_short_ma:.4f}, prev_long: {self._prev_long_ma:.4f}")
+                             
             if self._prev_short_ma <= self._prev_long_ma and current_short_ma > current_long_ma:
                 if self._current_signal_state != 1: 
                     ma_signal_type_int = 1
                     rsi_overbought = getattr(self.rsi_rule, '_overbought_threshold', 'N/A')
-                    self.logger.debug(f"MA BUY signal: short_window={self._short_window}, regime={self._current_regime}")
+                    self.logger.info(f"MA BUY signal: short_window={self._short_window}, regime={self._current_regime}, " +
+                                   f"price={close_price:.4f}")
             elif self._prev_short_ma >= self._prev_long_ma and current_short_ma < current_long_ma:
                 if self._current_signal_state != -1: 
                     ma_signal_type_int = -1
                     rsi_overbought = getattr(self.rsi_rule, '_overbought_threshold', 'N/A')
-                    self.logger.debug(f"MA SELL signal: short_window={self._short_window}, regime={self._current_regime}")
+                    self.logger.info(f"MA SELL signal: short_window={self._short_window}, regime={self._current_regime}, " +
+                                   f"price={close_price:.4f}")
+            else:
+                self.logger.debug(f"No MA signal: Current crossover conditions not met")
         
         # Update MA prev values
         if current_short_ma is not None: self._prev_short_ma = current_short_ma
@@ -293,50 +322,60 @@ class EnsembleSignalStrategy(MAStrategy): # Inheriting MAStrategy for quick demo
 
         # 2. Update RSI Indicator and Evaluate RSI Rule
         self.rsi_indicator.update(close_price)
+        
+        # Get current RSI value for logging
+        current_rsi = getattr(self.rsi_indicator, '_current_value', None)
+        self.logger.debug(f"Current RSI value: {current_rsi}")
+        
+        # Get RSI thresholds for logging
+        oversold = getattr(self.rsi_rule, '_oversold_threshold', 'N/A')
+        overbought = getattr(self.rsi_rule, '_overbought_threshold', 'N/A')
+        self.logger.debug(f"RSI thresholds - oversold: {oversold}, overbought: {overbought}")
+        
         rsi_triggered, rsi_strength, rsi_signal_type_str = self.rsi_rule.evaluate(bar_data)
         
         rsi_signal_type_int = 0
         if rsi_triggered:
             rsi_signal_type_int = int(rsi_strength) # 1 for BUY, -1 for SELL
-            # Log the parameters being used when signals are generated
-            self.logger.debug(f"RSI {rsi_signal_type_str} signal: regime={self._current_regime}")
 
         # 3. Combine Signals Using Voting Weights System
         final_signal_type_int: Optional[int] = None
         
-        # Calculate normalized voting influences
-        total_weight = self.ma_weight + self.rsi_rule.weight
-        if total_weight == 0:
-            ma_influence = 0.5
-            rsi_influence = 0.5
-        else:
-            ma_influence = self.ma_weight / total_weight
-            rsi_influence = self.rsi_rule.weight / total_weight
+        # Ensure we have valid weights for voting
+        ma_influence = self._ma_weight
+        rsi_influence = self._rsi_weight
+        
+        # Make sure weights are not modified by further normalization here
+        total = ma_influence + rsi_influence
+        if abs(total - 1.0) > 0.01:  # Only renormalize if we're significantly off
+            ma_influence = ma_influence / total
+            rsi_influence = rsi_influence / total
+        
+        # Debug log the weights being used for voting
+        self.logger.debug(f"Current weights for voting: MA={ma_influence:.4f}, RSI={rsi_influence:.4f} (original weights: MA={self._ma_weight:.4f}, RSI={self._rsi_weight:.4f})")
         
         # Voting-based signal selection
         current_signal_to_publish = 0
+        
+        # Debug log all the signal inputs
+        self.logger.debug(f"Signal inputs - MA: {ma_signal_type_int}, RSI: {rsi_signal_type_int}, " +
+                         f"MA_influence: {ma_influence:.4f}, RSI_influence: {rsi_influence:.4f}")
         
         # Both signals agree - always publish
         if ma_signal_type_int != 0 and rsi_signal_type_int != 0 and ma_signal_type_int == rsi_signal_type_int:
             current_signal_to_publish = ma_signal_type_int
             signal_reason = f"Agreement(MA={ma_signal_type_int}, RSI={rsi_signal_type_int})"
         
-        # Only one signal active - use weighted probability
+        # Only one signal active - use the signal based on optimized weights
         elif ma_signal_type_int != 0 and rsi_signal_type_int == 0:
-            # MA signal only - publish if MA has sufficient influence
-            if ma_influence >= 0.5:  # Require majority influence for single component
-                current_signal_to_publish = ma_signal_type_int
-                signal_reason = f"MA_only(sig={ma_signal_type_int}, influence={ma_influence:.2f})"
-            else:
-                signal_reason = f"MA_blocked(sig={ma_signal_type_int}, influence={ma_influence:.2f})"
+            # MA signal only - always publish (weight optimization handles importance)
+            current_signal_to_publish = ma_signal_type_int
+            signal_reason = f"MA_only(sig={ma_signal_type_int}, influence={ma_influence:.2f})"
         
         elif rsi_signal_type_int != 0 and ma_signal_type_int == 0:
-            # RSI signal only - publish if RSI has sufficient influence  
-            if rsi_influence >= 0.5:  # Require majority influence for single component
-                current_signal_to_publish = rsi_signal_type_int
-                signal_reason = f"RSI_only(sig={rsi_signal_type_int}, influence={rsi_influence:.2f})"
-            else:
-                signal_reason = f"RSI_blocked(sig={rsi_signal_type_int}, influence={rsi_influence:.2f})"
+            # RSI signal only - always publish (weight optimization handles importance)  
+            current_signal_to_publish = rsi_signal_type_int
+            signal_reason = f"RSI_only(sig={rsi_signal_type_int}, influence={rsi_influence:.2f})"
         
         # Conflicting signals - use weighted priority
         elif ma_signal_type_int != 0 and rsi_signal_type_int != 0 and ma_signal_type_int != rsi_signal_type_int:
@@ -349,10 +388,14 @@ class EnsembleSignalStrategy(MAStrategy): # Inheriting MAStrategy for quick demo
         else:
             signal_reason = "No_signals"
             
+        # Log the signal selection result
+        self.logger.debug(f"Signal selection result: {current_signal_to_publish} - Reason: {signal_reason}")
+            
 
         if current_signal_to_publish != 0 and self._current_signal_state != current_signal_to_publish:
             final_signal_type_int = current_signal_to_publish
             self._current_signal_state = final_signal_type_int # Update strategy's overall state
+            
             
             signal_payload: Dict[str, Any] = {
                 "symbol": self._symbol,
@@ -387,15 +430,109 @@ class EnsembleSignalStrategy(MAStrategy): # Inheriting MAStrategy for quick demo
         self.logger.info(f"EnsembleSignalStrategy '{self.name}' stopped.")
 
 
+    def _normalize_weights(self):
+        """Normalize the MA and RSI weights to ensure they sum to 1.0"""
+        total = self._ma_weight + self._rsi_weight
+        if total > 0:  # Avoid division by zero
+            # Don't fully normalize - maintain original ratio but scale slightly
+            # This preserves the optimization intent better
+            if abs(total - 1.0) > 0.1:  # Only normalize if significantly different from 1.0
+                self._ma_weight = self._ma_weight / total
+                self._rsi_weight = self._rsi_weight / total
+                self.logger.debug(f"Normalized weights: MA={self._ma_weight:.4f}, RSI={self._rsi_weight:.4f}")
+            else:
+                self.logger.debug(f"Weights already near 1.0, keeping current: MA={self._ma_weight:.4f}, RSI={self._rsi_weight:.4f}")
+        else:
+            # If both weights are zero, set to equal weights
+            self._ma_weight = 0.5
+            self._rsi_weight = 0.5
+            self.logger.warning(f"Both weights were zero, reset to equal weights: MA={self._ma_weight}, RSI={self._rsi_weight}")
+
+    @property
+    def ma_weight(self):
+        return self._ma_weight
+        
+    @property
+    def rsi_rule_weight(self):
+        return self._rsi_weight
+        
     def set_parameters(self, params: Dict[str, Any]):
         self.logger.debug(f"EnsembleSignalStrategy.set_parameters called with: {params}")
         super().set_parameters(params) # For MAStrategy part (this stores extended params with underscores)
+        
+        # Detect which rule is being optimized based on parameter presence
+        ma_params = any(k.startswith(('short_window', 'long_window')) for k in params.keys())
+        rsi_params = any(k.startswith(('rsi_indicator.', 'rsi_rule.')) for k in params.keys())
+        
+        # Only adjust weights if we're optimizing individual rules (not during genetic optimization)
+        weight_params = any(k.endswith('.weight') for k in params.keys())
+        
+        if not weight_params:  # Only adjust when NOT doing weight optimization (i.e., during grid search)
+            if ma_params and not rsi_params:
+                self._current_optimization_rule = "MA"
+                self._ma_weight = 0.8  # Give more weight to the rule being optimized
+                self._rsi_weight = 0.2
+                self.logger.info(f"Detected MA rule optimization, adjusting weights: MA={self._ma_weight}, RSI={self._rsi_weight}")
+            elif rsi_params and not ma_params:
+                self._current_optimization_rule = "RSI"
+                self._ma_weight = 0.2  # Give more weight to the rule being optimized  
+                self._rsi_weight = 0.8
+                self.logger.info(f"Detected RSI rule optimization, adjusting weights: MA={self._ma_weight}, RSI={self._rsi_weight}")
+            elif ma_params and rsi_params:
+                self._current_optimization_rule = "JOINT"
+                self._ma_weight = 0.5  # Use balanced weights for joint optimization
+                self._rsi_weight = 0.5
+                self.logger.info(f"Detected joint rule optimization, using balanced weights: MA={self._ma_weight}, RSI={self._rsi_weight}")
+            else:
+                self._current_optimization_rule = None
         
         # CRITICAL FIX: Update ensemble strategy's own parameter copies
         if "short_window" in params:
             self._short_window = params["short_window"]
         if "long_window" in params:
             self._long_window = params["long_window"]
+        
+        # Track if weights have changed
+        weights_changed = False
+        
+        # BUGFIX: Properly handle ma_rule.weight parameter 
+        if 'ma_rule.weight' in params:
+            old_ma_weight = self._ma_weight
+            new_ma_weight = float(params['ma_rule.weight'])
+            # Ensure weight is within reasonable range
+            if new_ma_weight <= 0:
+                new_ma_weight = 0.1  # Minimum sensible value
+                self.logger.warning(f"MA weight was ≤ 0, setting to minimum value: {new_ma_weight}")
+            self._ma_weight = new_ma_weight
+            self.logger.debug(f"'{self.name}' MA weight changed: {old_ma_weight} -> {self._ma_weight}")
+            weights_changed = True
+            
+        # Handle rsi_rule.weight directly at the strategy level
+        if 'rsi_rule.weight' in params:
+            old_rsi_weight = self._rsi_weight
+            new_rsi_weight = float(params['rsi_rule.weight'])
+            # Ensure weight is within reasonable range
+            if new_rsi_weight <= 0:
+                new_rsi_weight = 0.1  # Minimum sensible value
+                self.logger.warning(f"RSI weight was ≤ 0, setting to minimum value: {new_rsi_weight}")
+            self._rsi_weight = new_rsi_weight
+            self.logger.debug(f"'{self.name}' RSI weight changed: {old_rsi_weight} -> {self._rsi_weight}")
+            weights_changed = True
+            
+        # Force weights to be non-zero to ensure signal generation
+        if self._ma_weight <= 0 and self._rsi_weight <= 0:
+            self.logger.warning(f"Both weights are zero or negative, resetting to defaults")
+            self._ma_weight = 0.5
+            self._rsi_weight = 0.5
+            weights_changed = True
+            
+        # If weights changed, normalize them and update the RSI rule
+        if weights_changed:
+            self._normalize_weights()
+            # Update the RSI rule's weight
+            if hasattr(self.rsi_rule, 'set_parameters'):
+                self.rsi_rule.set_parameters({'weight': self._rsi_weight})
+                self.logger.debug(f"Updated RSI rule weight to {self._rsi_weight}")
         
         # Log the current regime and adaptive mode status for debugging
         current_regime = getattr(self, '_current_regime', 'unknown')
@@ -409,23 +546,18 @@ class EnsembleSignalStrategy(MAStrategy): # Inheriting MAStrategy for quick demo
             self.rsi_indicator.set_parameters(rsi_indicator_params)
             # Note: Not calling setup() to preserve indicator state during regime changes
 
-        rsi_rule_params = {k.split('.', 1)[1]: v for k, v in params.items() if k.startswith("rsi_rule.")}
+        # Extract RSI rule parameters except for weight (handled directly above)
+        rsi_rule_params = {k.split('.', 1)[1]: v for k, v in params.items() 
+                           if k.startswith("rsi_rule.") and k != "rsi_rule.weight"}
         if rsi_rule_params:
             self.logger.debug(f"'{self.name}' updating RSI rule parameters: {rsi_rule_params}")
             self.rsi_rule.set_parameters(rsi_rule_params)
             # Note: Not calling setup() to preserve rule state during regime changes
             
-        # BUGFIX: Properly handle ma_rule.weight parameter 
-        # The parent class can't store "ma_rule.weight" as an attribute due to the dot,
-        # so we need to handle it manually here
-        if 'ma_rule.weight' in params:
-            self.ma_weight = params['ma_rule.weight']
-            self.logger.debug(f"'{self.name}' storing extended parameter: ma_rule.weight={self.ma_weight}")
-            
         # Preserve signal states during all parameter changes, regardless of adaptive mode
         self.logger.info(f"Preserving signal states during parameter changes - current signal: {self._current_signal_state}")
             
-        self.logger.info(f"EnsembleSignalStrategy '{self.name}' parameters updated.")
+        self.logger.info(f"EnsembleSignalStrategy '{self.name}' parameters updated with MA weight: {self._ma_weight}, RSI weight: {self._rsi_weight}")
         return True 
         
     def enable_adaptive_mode(self, regime_parameters: Dict[str, Dict[str, Any]]):
@@ -446,6 +578,9 @@ class EnsembleSignalStrategy(MAStrategy): # Inheriting MAStrategy for quick demo
             # Use a very unique and distinct message that will stand out in the logs
             self.logger.warning(f"!!! ADAPTIVE TEST !!! Applying parameters for current regime '{self._current_regime}': {params}")
             self.set_parameters(params)
+            
+            # Log the actual weights after parameters are applied
+            self.logger.warning(f"!!! WEIGHTS AFTER APPLICATION: MA={self._ma_weight:.4f}, RSI={self._rsi_weight:.4f} !!!")
             
     def disable_adaptive_mode(self):
         """
@@ -480,40 +615,152 @@ class EnsembleSignalStrategy(MAStrategy): # Inheriting MAStrategy for quick demo
 # Ensure this method is updated in your EnsembleSignalStrategy class:
 
     def get_parameter_space(self) -> Dict[str, List[Any]]:
-        space = super().get_parameter_space() # MAStrategy parameters (this is a method call, which is correct for MAStrategy)
+        """
+        Return the parameter space for grid search optimization.
         
-        # Access parameter_space as a property (no parentheses)
-        if hasattr(self.rsi_indicator, 'parameter_space'):
-            # Ensure rsi_indicator is initialized and has the property
-            if self.rsi_indicator: # Add a check if it could be None
-                rsi_ind_space = self.rsi_indicator.parameter_space # Corrected: access as property
+        This is designed to evaluate each rule in isolation:
+        1. When optimizing MA parameters, use default RSI parameters
+        2. When optimizing RSI parameters, use default MA parameters
+        3. When optimize_mode='all', it defaults to MA-only (since MA is the primary strategy)
+        
+        To optimize both rules in isolation, run separate commands with --optimize-ma and --optimize-rsi
+        Weights are always handled by genetic optimization after grid search.
+        """
+        # Get optimization mode from environment variable or command line args
+        import sys
+        optimize_mode = self.get_specific_config('optimize_mode', 'rulewise')  # Default to rule-wise optimization
+        
+        # Check for command line arguments that might indicate optimization strategy
+        if '--optimize-ma' in sys.argv:
+            optimize_mode = 'ma'
+        elif '--optimize-rsi' in sys.argv:
+            optimize_mode = 'rsi'
+        elif '--optimize-seq' in sys.argv:
+            optimize_mode = 'seq'
+        elif '--optimize-joint' in sys.argv:
+            optimize_mode = 'joint'
+        elif '--optimize' in sys.argv and all(flag not in sys.argv for flag in ['--optimize-ma', '--optimize-rsi', '--optimize-seq', '--optimize-joint']):
+            # When --optimize is used without specific strategy flags, default to rule-wise
+            optimize_mode = 'rulewise'
+            self.logger.info("No specific optimization strategy detected. Defaulting to rule-wise optimization (all rules in isolation).")
+            self.logger.info("This will run RSI optimization (12 combinations) + MA optimization (2 combinations) = 14 total.")
+            self.logger.info("Use --optimize-seq, --optimize-joint, --optimize-ma, or --optimize-rsi for explicit control.")
+        
+        # Start with an empty parameter space
+        space = {}
+        rule_name = ""
+        
+        # Handle different optimization modes
+        if optimize_mode == 'ma':
+            # MA-only optimization (isolation)
+            ma_space = super().get_parameter_space()  # MAStrategy parameters
+            rule_name = "MA"
+            self.logger.info(f"Optimizing MA rule parameters only: {list(ma_space.keys())}")
+            space.update(ma_space)
+            
+        elif optimize_mode == 'rsi':
+            # RSI-only optimization (isolation)
+            rule_name = "RSI"
+            # RSI Indicator parameters
+            if hasattr(self.rsi_indicator, 'parameter_space') and self.rsi_indicator:
+                rsi_ind_space = self.rsi_indicator.parameter_space
                 for key, value in rsi_ind_space.items():
                     space[f"rsi_indicator.{key}"] = value
+                self.logger.info(f"Including RSI indicator parameters in optimization: {list(rsi_ind_space.keys())}")
             else:
-                self.logger.error("RSIIndicator object is not initialized in EnsembleSignalStrategy.")
-        else:
-            self.logger.warning(f"RSIIndicator instance does not have 'parameter_space' property.") # Or log self.rsi_indicator.name if it's initialized
-            
-        if hasattr(self.rsi_rule, 'parameter_space'):
-            # Ensure rsi_rule is initialized and has the property
-            if self.rsi_rule: # Add a check
-                rsi_rule_space = self.rsi_rule.parameter_space # Corrected: access as property
+                self.logger.warning("RSI indicator parameter space not available")
+                
+            # RSI Rule parameters
+            if hasattr(self.rsi_rule, 'parameter_space') and self.rsi_rule:
+                rsi_rule_space = self.rsi_rule.parameter_space
                 for key, value in rsi_rule_space.items():
-                    space[f"rsi_rule.{key}"] = value
+                    if key != 'weight':  # Skip the weight parameter
+                        space[f"rsi_rule.{key}"] = value
+                self.logger.info(f"Including RSI rule parameters in optimization: {[k for k in rsi_rule_space.keys() if k != 'weight']}")
             else:
-                self.logger.error("RSIRule object is not initialized in EnsembleSignalStrategy.")
-        else:
-            self.logger.warning(f"RSIRule instance does not have 'parameter_space' property.") # Or log self.rsi_rule.name
+                self.logger.warning("RSI rule parameter space not available")
+            self.logger.info(f"Optimizing RSI rule parameters only: {list(space.keys())}")
+            
+        elif optimize_mode == 'joint':
+            # Joint optimization (full Cartesian product)
+            rule_name = "JOINT"
+            self.logger.info("Using JOINT optimization - full Cartesian product of all rule parameters")
+            
+            # Include MA parameters
+            ma_space = super().get_parameter_space()
+            space.update(ma_space)
+            self.logger.info(f"Including MA parameters: {list(ma_space.keys())}")
+            
+            # Include RSI parameters  
+            if hasattr(self.rsi_indicator, 'parameter_space') and self.rsi_indicator:
+                rsi_ind_space = self.rsi_indicator.parameter_space
+                for key, value in rsi_ind_space.items():
+                    space[f"rsi_indicator.{key}"] = value
+                self.logger.info(f"Including RSI indicator parameters: {list(rsi_ind_space.keys())}")
+            else:
+                self.logger.warning("RSI indicator parameter space not available")
+                
+            if hasattr(self.rsi_rule, 'parameter_space') and self.rsi_rule:
+                rsi_rule_space = self.rsi_rule.parameter_space
+                for key, value in rsi_rule_space.items():
+                    if key != 'weight':  # Skip the weight parameter  
+                        space[f"rsi_rule.{key}"] = value
+                self.logger.info(f"Including RSI rule parameters: {[k for k in rsi_rule_space.keys() if k != 'weight']}")
+            else:
+                self.logger.warning("RSI rule parameter space not available")
+                
+            # Calculate and warn about total combinations
+            total_combinations = 1
+            for values in space.values():
+                total_combinations *= len(values)
+            self.logger.warning(f"JOINT optimization will test {total_combinations} parameter combinations!")
+            
+        elif optimize_mode == 'rulewise':
+            # Rule-wise optimization - handled by the optimizer, not here
+            # This code path should not be reached when optimizer detects rule-wise mode
+            rule_name = "RULEWISE"
+            self.logger.info("Rule-wise optimization mode detected - will be handled at optimizer level")
+            self.logger.info("This will run MA parameters (2) + RSI parameters (12) = 14 total combinations")
+            
+            # Return empty space - optimizer will handle the rule-wise logic
+            space = {}
+            self.logger.info("Returning empty parameter space - optimizer will run MA and RSI optimizations separately")
+            
+        elif optimize_mode == 'seq':
+            # Sequential optimization - for now, fall back to joint optimization  
+            # TODO: Implement true sequential optimization at optimizer level
+            rule_name = "SEQUENTIAL (fallback to joint)"
+            self.logger.warning("Sequential optimization not yet fully implemented - falling back to joint optimization")
+            self.logger.info("Using joint optimization (full Cartesian product) as temporary fallback")
+            
+            # Include MA parameters
+            ma_space = super().get_parameter_space()
+            space.update(ma_space)
+            
+            # Include RSI parameters  
+            if hasattr(self.rsi_indicator, 'parameter_space') and self.rsi_indicator:
+                rsi_ind_space = self.rsi_indicator.parameter_space
+                for key, value in rsi_ind_space.items():
+                    space[f"rsi_indicator.{key}"] = value
+                    
+            if hasattr(self.rsi_rule, 'parameter_space') and self.rsi_rule:
+                rsi_rule_space = self.rsi_rule.parameter_space
+                for key, value in rsi_rule_space.items():
+                    if key != 'weight':  # Skip the weight parameter  
+                        space[f"rsi_rule.{key}"] = value
+            
+            # Calculate total combinations
+            total_combinations = 1
+            for values in space.values():
+                total_combinations *= len(values)
+            self.logger.info(f"Fallback joint optimization will test {total_combinations} parameter combinations")
 
-        # Add any parameters specific to EnsembleSignalStrategy itself or its direct control
-        space["ma_rule.weight"] = [0.4, 0.6] # Example: Fixed or optimizable weight for MA part
-        # If rsi_rule_space itself contains 'weight', this might be where rsi_rule.weight is defined.
-        # If you also want to optimize the rsi_rule's weight from here (overriding its own definition),
-        # you could do: space["rsi_rule.weight"] = [0.3, 0.4, 0.5]
-        # However, it's cleaner if each component defines its full parameter space.
-        # The existing rsi_rule.parameter_space already includes 'weight'.
-
-        return space        
+        # Store rule name for use in output messages
+        self._current_optimization_rule = rule_name
+        
+        # Note: Weights are always optimized separately by the genetic optimizer
+        self.logger.info(f"Final parameter space for {rule_name} rule grid search: {list(space.keys())}")
+        return space
 
  
 

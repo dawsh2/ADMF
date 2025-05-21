@@ -89,6 +89,30 @@ components:
     # Performance and memory settings
     top_n_to_test: 3  # Test the top N performers from training on the test set
     clear_regime_performance: true  # Clear regime performance data after processing to save memory
+    
+  # Genetic Optimizer for Rule Weight Optimization
+  # This optimizer runs after grid search has found optimal rule parameters.
+  # It specifically focuses on finding the optimal balance between MA and RSI rules.
+  genetic_optimizer:
+    strategy_service_name: "strategy"
+    portfolio_service_name: "portfolio_manager"
+    data_handler_service_name: "data_handler"
+    risk_manager_service_name: "risk_manager"
+    execution_handler_service_name: "execution_handler"
+    metric_to_optimize: "get_final_portfolio_value"  # Use portfolio value for fitness evaluation
+    higher_metric_is_better: true
+
+    # Genetic algorithm specific settings - reduced for faster per-regime optimization
+    population_size: 10  # Smaller population for faster per-regime optimization
+    generations: 5       # Fewer generations since we're running multiple times
+    mutation_rate: 0.4   # Higher mutation rate for exploration
+    crossover_rate: 0.6  # Slightly lower crossover rate, balanced with mutation
+    elitism_count: 1     # Reduced elitism to allow more exploration
+    tournament_size: 2   # Smaller tournament size for less selection pressure
+
+    # Weight constraints (relaxed for more exploration space)
+    min_weight: 0.1      # Allow more extreme weight distributions
+    max_weight: 0.9      # Allow more extreme weight distributions
 
   # Configuration for the RegimeDetector instance registered as 'MyPrimaryRegimeDetector'
   MyPrimaryRegimeDetector: 
