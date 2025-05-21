@@ -976,6 +976,26 @@ class EnhancedOptimizer(BasicOptimizer):
             self.logger.debug("Data streaming will occur automatically via component lifecycle")
             # No explicit run_simulation call needed - data streams when components are started
             
+            # DEBUG: Check if data handler actually has test data and will stream it
+            if hasattr(data_handler, '_active_df'):
+                df_size = len(data_handler._active_df) if data_handler._active_df is not None else 0
+                self.logger.warning(f"ADAPTIVE_DEBUG: Data handler active dataset size: {df_size}")
+                if df_size == 0:
+                    self.logger.error("ADAPTIVE_DEBUG: Active dataset is empty! No data will stream!")
+            
+            # DEBUG: Verify data handler actually started and will publish data
+            if hasattr(data_handler, 'state'):
+                self.logger.warning(f"ADAPTIVE_DEBUG: Data handler state: {data_handler.state}")
+                
+            # DEBUG: Force data streaming if needed
+            if hasattr(data_handler, 'start') and callable(getattr(data_handler, 'start')):
+                self.logger.warning("ADAPTIVE_DEBUG: Explicitly calling data_handler.start() to ensure streaming")
+                data_handler.start()
+            
+            # IMPORTANT: Allow time for data to stream and trades to be generated
+            import time
+            time.sleep(0.1)  # Brief pause to allow event processing
+            
             # Check if any trades were generated
             trade_count_best = 0
             if hasattr(portfolio_manager, "_trade_log"):
