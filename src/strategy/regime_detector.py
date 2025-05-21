@@ -40,6 +40,16 @@ class RegimeDetector(Classifier):
         self._current_regime_duration: int = 0
         self._pending_regime: Optional[str] = None
         self._pending_duration: int = 0
+        
+        # Logging optimization parameters
+        self._verbose_logging = self.get_specific_config("verbose_logging", False)
+        self._summary_interval = self.get_specific_config("summary_interval", 100)
+        
+        # Statistics tracking
+        self._total_checks = 0
+        self._no_match_count = 0
+        self._regime_counts = {}
+        self._checks_since_last_log = 0
 
         self.logger.info(f"RegimeDetector '{self.name}' initialized. Min duration: {self._min_regime_duration}, Thresholds: {self._regime_thresholds}")
 
@@ -129,8 +139,11 @@ class RegimeDetector(Classifier):
                     all_necessary_indicators_ready = False
 
 
-            # **** ADDED DETAILED LOGGING OF INDICATOR VALUES ****
-            self.logger.info(f"RegimeDet '{self.name}' at {current_bar_timestamp} - Values for classification: {indicator_values}")
+            # Log indicator values based on verbose setting
+            if self._verbose_logging:
+                self.logger.info(f"RegimeDet '{self.name}' at {current_bar_timestamp} - Values for classification: {indicator_values}")
+            else:
+                self.logger.debug(f"RegimeDet '{self.name}' at {current_bar_timestamp} - Values for classification: {indicator_values}")
 
             if not all_necessary_indicators_ready and any(iv is None for iv_name, iv in indicator_values.items() if any(iv_name in rd_conditions for rd_conditions in self._regime_thresholds.values() if isinstance(rd_conditions, dict))):
                 # If any indicator that is actually part of a rule is None (not ready), default.
@@ -149,9 +162,14 @@ class RegimeDetector(Classifier):
              self.logger.debug(f"RegimeDet '{self.name}' at {current_bar_timestamp}: No regime thresholds defined. Defaulting.")
              return "default"
             
-        # Enhanced debugging - log all indicator values at INFO level during optimization
-        self.logger.info(f"OPTIMIZATION DEBUG - RegimeDet '{self.name}' at {current_bar_timestamp}: Current indicator values: {indicator_values}")
-        self.logger.info(f"OPTIMIZATION DEBUG - Checking against thresholds: {self._regime_thresholds}")
+        # Increment check counters for statistics
+        self._total_checks += 1
+        self._checks_since_last_log += 1
+        
+        # Enhanced debugging - log indicator values at DEBUG level
+        if self._verbose_logging:
+            self.logger.debug(f"RegimeDet '{self.name}' at {current_bar_timestamp}: Current indicator values: {indicator_values}")
+            self.logger.debug(f"Checking against thresholds: {self._regime_thresholds}")
         
         regime_check_results = {}
         for regime_name, conditions in self._regime_thresholds.items():
@@ -194,14 +212,20 @@ class RegimeDetector(Classifier):
                     threshold_check["min_check"] = value >= float(min_val)
                     if value < float(min_val):
                         matches_all_conditions = False
-                        self.logger.info(f"RegimeDet '{self.name}' at {current_bar_timestamp}: Regime '{regime_name}', Ind '{indicator_instance_name_in_config}' ({value:.4f}) < min ({min_val}). No match.")
+                        if self._verbose_logging:
+                            self.logger.debug(f"RegimeDet '{self.name}' at {current_bar_timestamp}: Regime '{regime_name}', Ind '{indicator_instance_name_in_config}' ({value:.4f}) < min ({min_val}). No match.")
+                        else:
+                            self.logger.debug(f"Regime '{regime_name}' no match: {indicator_instance_name_in_config} below min")
                         break
                 
                 if max_val is not None:
                     threshold_check["max_check"] = value <= float(max_val)
                     if value > float(max_val):
                         matches_all_conditions = False
-                        self.logger.info(f"RegimeDet '{self.name}' at {current_bar_timestamp}: Regime '{regime_name}', Ind '{indicator_instance_name_in_config}' ({value:.4f}) > max ({max_val}). No match.")
+                        if self._verbose_logging:
+                            self.logger.debug(f"RegimeDet '{self.name}' at {current_bar_timestamp}: Regime '{regime_name}', Ind '{indicator_instance_name_in_config}' ({value:.4f}) > max ({max_val}). No match.")
+                        else:
+                            self.logger.debug(f"Regime '{regime_name}' no match: {indicator_instance_name_in_config} above max")
                         break
                 
                 indicator_check_results[indicator_instance_name_in_config] = threshold_check
@@ -209,13 +233,31 @@ class RegimeDetector(Classifier):
             regime_check_results[regime_name] = {"result": "match" if matches_all_conditions else "no match", "details": indicator_check_results}
             
             if matches_all_conditions:
+                # Track regime counts for statistics
+                self._regime_counts[regime_name] = self._regime_counts.get(regime_name, 0) + 1
+                
                 self.logger.info(f"RegimeDet '{self.name}' at {current_bar_timestamp}: Regime '{regime_name}' MATCHED. Indicator values: {indicator_values}")
-                self.logger.info(f"OPTIMIZATION DEBUG - Full regime checks: {regime_check_results}")
+                if self._verbose_logging:
+                    self.logger.debug(f"Full regime checks: {regime_check_results}")
                 return regime_name
         
-        # Log all check results for debugging        
-        self.logger.info(f"OPTIMIZATION DEBUG - No specific regime matched. Full regime checks: {regime_check_results}")
-        self.logger.info(f"RegimeDet '{self.name}' at {current_bar_timestamp}: No specific regime matched. Defaulting. Indicator values: {indicator_values}")
+        # Increment no-match counter for statistics
+        self._no_match_count += 1
+        self._regime_counts["default"] = self._regime_counts.get("default", 0) + 1
+        
+        # Log detailed results only if verbose
+        if self._verbose_logging:
+            self.logger.debug(f"No specific regime matched. Full regime checks: {regime_check_results}")
+            
+        # Log summary periodically to reduce verbosity
+        if self._checks_since_last_log >= self._summary_interval:
+            match_rate = (self._total_checks - self._no_match_count) / max(1, self._total_checks)
+            self.logger.info(f"Regime detection summary: {self._no_match_count}/{self._checks_since_last_log} no matches ({(self._no_match_count/max(1, self._checks_since_last_log))*100:.1f}%), match rate: {match_rate*100:.1f}%")
+            # Reset counters for next period
+            self._no_match_count = 0
+            self._checks_since_last_log = 0
+            
+        self.logger.debug(f"RegimeDet '{self.name}' at {current_bar_timestamp}: No specific regime matched. Defaulting. Indicator values: {indicator_values}")
         return "default"
 
     def _apply_stabilization(self, detected_regime: str, current_bar_timestamp: Any) -> str:
@@ -277,9 +319,30 @@ class RegimeDetector(Classifier):
                 # Create an Event object with the classification payload
                 classification_event = Event(EventType.CLASSIFICATION, classification_payload)
                 self.logger.info(f"RegimeDet '{self.name}' publishing CLASSIFICATION event for regime '{regime}' at {timestamp}")
+                
+                # Check for any existing subscribers before publishing
+                if hasattr(self._event_bus, '_subscribers'):
+                    subscribers = getattr(self._event_bus, '_subscribers')
+                    classification_subscribers = subscribers.get(EventType.CLASSIFICATION, [])
+                    self.logger.info(f"Publishing CLASSIFICATION event with {len(classification_subscribers)} active subscribers")
+                
+                # Always publish the event
                 self._event_bus.publish(classification_event)
+                
+                # Log confirmation
+                self.logger.info(f"Successfully published CLASSIFICATION event for regime '{regime}'")
             except Exception as e:
                 self.logger.error(f"Error publishing classification event from '{self.name}': {e}", exc_info=True)
+                
+    def stop(self):
+        """Stop the detector and generate a summary report."""
+        self.logger.info(f"Stopping component '{self.name}'...")
+        
+        # Generate summary statistics
+        self.generate_summary()
+        
+        # Call parent stop method
+        super().stop()
     
     def get_regime_data(self) -> Dict[str, Any]:
         indicator_values = {}
@@ -299,3 +362,45 @@ class RegimeDetector(Classifier):
                 'min_duration_for_change': self._min_regime_duration
             } if self._pending_regime else None
         }
+        
+    def get_statistics(self) -> Dict[str, Any]:
+        """Get statistics about regime detection for reporting."""
+        match_rate = 0
+        if self._total_checks > 0:
+            match_rate = 1.0 - (self._no_match_count / self._total_checks)
+            
+        regime_percentages = {}
+        for regime, count in self._regime_counts.items():
+            if self._total_checks > 0:
+                regime_percentages[regime] = (count / self._total_checks) * 100
+                
+        return {
+            'total_checks': self._total_checks,
+            'no_match_count': self._no_match_count,
+            'match_rate': match_rate,
+            'regime_counts': self._regime_counts,
+            'regime_percentages': regime_percentages
+        }
+        
+    def generate_summary(self):
+        """Generate a summary report of regime detection statistics."""
+        # Make sure we have processed at least some bars
+        if self._total_checks == 0:
+            self.logger.info("=== Regime Detection Summary ===\nNo regime detection checks were performed\n=== End of Summary ===")
+            return
+            
+        stats = self.get_statistics()
+        
+        self.logger.info("=== Regime Detection Summary ===")
+        self.logger.info(f"Total bars checked: {stats['total_checks']}")
+        if 'match_rate' in stats:
+            self.logger.info(f"Match rate: {stats['match_rate'] * 100:.2f}%")
+        
+        self.logger.info("Regime distribution:")
+        if 'regime_percentages' in stats and stats['regime_percentages']:
+            for regime, percentage in stats['regime_percentages'].items():
+                self.logger.info(f"  {regime}: {percentage:.2f}%")
+        else:
+            self.logger.info("  No regime distribution data available")
+            
+        self.logger.info("=== End of Summary ===")

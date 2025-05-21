@@ -1,8 +1,7 @@
 # src/core/logging_setup.py
 import logging
 import sys
-# We'll need SimpleConfigLoader to get the config, so an import will be needed
-# from .config import SimpleConfigLoader # Assuming SimpleConfigLoader is accessible
+import os
 
 LOG_LEVEL_STRINGS = {
     'CRITICAL': logging.CRITICAL,
@@ -13,124 +12,141 @@ LOG_LEVEL_STRINGS = {
     'NOTSET': logging.NOTSET,
 }
 
-def setup_logging(config_loader): # We'll pass the config_loader instance
+# Define formatter types for different use cases
+FORMATTERS = {
+    # Standard formatter - concise but with enough context
+    'standard': logging.Formatter('%(asctime)s - %(levelname)s - %(message)s',
+                                  datefmt='%H:%M:%S'),
+    
+    # Verbose formatter - includes module name for debugging
+    'verbose': logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s',
+                                datefmt='%Y-%m-%d %H:%M:%S'),
+    
+    # Debug formatter - detailed with timestamp and call location
+    'debug': logging.Formatter('%(asctime)s.%(msecs)03d - %(levelname)s - %(name)s - %(message)s',
+                              datefmt='%Y-%m-%d %H:%M:%S'),
+    
+    # Minimal formatter - just the message for optimization progress
+    'minimal': logging.Formatter('%(message)s')
+}
+
+def create_optimization_logger(name="optimization"):
+    """
+    Creates a specialized logger for optimization runs that:
+    - Uses a minimal format without timestamps or level indicators
+    - Always shows at INFO level regardless of root logger
+    - Doesn't propagate to parent loggers (avoiding duplication)
+    
+    Args:
+        name: Name for the logger, defaults to "optimization"
+        
+    Returns:
+        A configured logger instance for optimization output
+    """
+    opt_logger = logging.getLogger(f"admf.{name}")
+    opt_logger.setLevel(logging.INFO)  # Always show optimization progress
+    opt_logger.propagate = False  # Don't propagate to root logger
+    
+    # Clear existing handlers
+    for handler in opt_logger.handlers[:]:  
+        opt_logger.removeHandler(handler)
+        
+    # Create a stdout handler with minimal formatter
+    handler = logging.StreamHandler(sys.stdout)
+    handler.setFormatter(FORMATTERS['minimal'])
+    opt_logger.addHandler(handler)
+    
+    return opt_logger
+
+def create_debug_file_logger(debug_file='adaptive_test_debug.log'):
+    """
+    Creates a debug file logger that:
+    - Logs at DEBUG level regardless of root logger setting
+    - Overwrites the file on each run
+    - Uses a more detailed formatter
+    
+    Args:
+        debug_file: Path to the debug log file, default is 'adaptive_test_debug.log'
+    """
+    # Make sure directory exists
+    debug_dir = os.path.dirname(debug_file)
+    if debug_dir and not os.path.exists(debug_dir):
+        os.makedirs(debug_dir, exist_ok=True)
+    
+    # Create a file handler that overwrites on each run
+    debug_handler = logging.FileHandler(debug_file, mode='w', encoding='utf-8')
+    debug_handler.setLevel(logging.DEBUG)  # Always log at DEBUG level
+    debug_handler.setFormatter(FORMATTERS['debug'])
+    
+    # Add handler to root logger
+    root_logger = logging.getLogger()
+    root_logger.addHandler(debug_handler)
+    
+    # Create a dedicated logger for enhanced optimizer
+    adaptive_logger = logging.getLogger('src.strategy.optimization.enhanced_optimizer')
+    adaptive_logger.setLevel(logging.DEBUG)
+    
+    # Also create loggers for related components
+    for module in ['src.strategy.regime_detector', 'src.strategy.regime_adaptive_strategy',
+                  'src.core.event_bus', 'src.core.container']:
+        component_logger = logging.getLogger(module)
+        component_logger.setLevel(logging.DEBUG)
+    
+    return debug_handler
+
+def setup_logging(config_loader, cmd_log_level=None, optimization_mode=False, debug_file=None):
     """
     Configures basic logging for the application.
 
     Reads the logging level from the configuration and sets up
-    a basic console logger.
-    """
-    log_level_str = config_loader.get('logging.level', 'INFO').upper()
-    log_level = LOG_LEVEL_STRINGS.get(log_level_str, logging.INFO)
-
-    # Basic configuration logs to stderr by default.
-    # We can specify stream=sys.stdout if preferred for INFO/DEBUG.
-    logging.basicConfig(
-        level=log_level,
-        format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
-        datefmt='%Y-%m-%d %H:%M:%S',
-        stream=sys.stdout # Log to standard output
-    )
-
-    # You can get a root logger instance and test it
-    # logging.info("Logging system initialized.")
-    # logging.debug("This is a debug message (will not show if level is INFO).")
-
-
-
-# Possibly an enhancement?
-
-# # src/core/logging_setup.py
-# import logging
-# import logging.config
-# import os
-# from typing import Any, Dict
-# import copy # Import copy
-
-# # Default logging configuration (used if config file doesn't specify or is problematic)
-# DEFAULT_LOGGING_CONFIG: Dict[str, Any] = {
-#     'version': 1,
-#     'disable_existing_loggers': False, 
-#     'formatters': {
-#         'standard': {
-#             'format': '%(asctime)s - %(name)s - %(levelname)s - %(message)s',
-#             'datefmt': '%Y-%m-%d %H:%M:%S'
-#         },
-#         'component_formatter': { 
-#             'format': '%(asctime)s - component.%(component_name)s - %(levelname)s - %(message)s',
-#             'datefmt': '%Y-%m-%d %H:%M:%S'
-#         }
-#     },
-#     'handlers': {
-#         'console': {
-#             'class': 'logging.StreamHandler',
-#             'formatter': 'standard',
-#             'level': 'INFO', 
-#             'stream': 'ext://sys.stdout'
-#         },
-#     },
-#     'root': { 
-#         'handlers': ['console'], 
-#         'level': 'INFO', 
-#     },
-# }
-
-# # Get a logger for this module itself
-# module_logger = logging.getLogger(__name__)
-
-# def setup_logging(config_loader: Any, default_level: int = logging.INFO):
-#     """
-#     Sets up logging configuration for the application.
-#     Uses configuration from the config_loader if available, otherwise uses DEFAULT_LOGGING_CONFIG.
-#     """
-#     logging_config_to_use: Optional[Dict[str, Any]] = None
+    a basic console logger. Command-line log level override takes precedence.
     
-#     if config_loader:
-#         loaded_logging_section = config_loader.get('logging')
+    Args:
+        config_loader: The config loader instance
+        cmd_log_level: Optional command-line log level override
+        optimization_mode: If True, configures for optimization (concise format)
+        debug_file: Optional path to debug log file, if provided enables detailed DEBUG logging to file
+    """
+    # Command-line log level override takes precedence if provided
+    if cmd_log_level is not None:
+        log_level_str = cmd_log_level.upper()
+        # Only print override message if we're not in optimization mode
+        if not optimization_mode:
+            print(f"Overriding log level from config with command-line value: {log_level_str}")
+    else:
+        # Default to WARNING instead of INFO for cleaner startup
+        log_level_str = config_loader.get('logging.level', 'WARNING').upper()
+        
+    log_level = LOG_LEVEL_STRINGS.get(log_level_str, logging.WARNING)  # Default to WARNING
 
-#         if isinstance(loaded_logging_section, dict) and loaded_logging_section:
-#             # --- MAKE AN EXPLICIT DEEP COPY HERE ---
-#             logging_config_to_use = copy.deepcopy(loaded_logging_section)
-#             module_logger.info(f"Using logging configuration from file (after deepcopy): {logging_config_to_use}")
-#             # -----------------------------------------
-
-#             if 'version' not in logging_config_to_use:
-#                 logging_config_to_use['version'] = 1
-#             if 'disable_existing_loggers' not in logging_config_to_use:
-#                 logging_config_to_use['disable_existing_loggers'] = False
-
-#             # Simplified default handler/formatter setup if basics are missing
-#             if 'formatters' not in logging_config_to_use or not logging_config_to_use['formatters']:
-#                 logging_config_to_use.setdefault('formatters', {}).update(DEFAULT_LOGGING_CONFIG['formatters'])
-            
-#             if 'handlers' not in logging_config_to_use or not logging_config_to_use['handlers']:
-#                  # Ensure console handler exists if no handlers are defined
-#                 logging_config_to_use.setdefault('handlers', {}).update({'console': DEFAULT_LOGGING_CONFIG['handlers']['console']})
-
-
-#             if 'root' not in logging_config_to_use and 'loggers' not in logging_config_to_use:
-#                 logging_config_to_use['root'] = DEFAULT_LOGGING_CONFIG['root']
-#             elif 'root' in logging_config_to_use:
-#                 logging_config_to_use.setdefault('root', {}).setdefault('level', 'INFO')
-#                 if not logging_config_to_use['root'].get('handlers'):
-#                     logging_config_to_use['root']['handlers'] = ['console'] # Ensure console is a default for root if no handlers specified
-            
-#         else:
-#             module_logger.info("Using DEFAULT_LOGGING_CONFIG because 'logging' section not found or invalid in config file.")
-#             logging_config_to_use = copy.deepcopy(DEFAULT_LOGGING_CONFIG) # Also copy default
-#     else:
-#         module_logger.info("Using DEFAULT_LOGGING_CONFIG because no config_loader provided.")
-#         logging_config_to_use = copy.deepcopy(DEFAULT_LOGGING_CONFIG) # Also copy default
-
-#     try:
-#         if logging_config_to_use:
-#             logging.config.dictConfig(logging_config_to_use)
-#             # Use a logger obtained *after* dictConfig might have reconfigured things
-#             logging.getLogger("src.core.logging_setup").info("Logging system configured successfully using dictConfig.")
-#         else: # Should not happen if logic above is correct
-#             raise ValueError("logging_config_to_use is None, cannot configure logging.")
-            
-#     except Exception as e:
-#         logging.basicConfig(level=default_level, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
-#         logging.getLogger("src.core.logging_setup").error(f"Failed to apply logging configuration from dictConfig: {e}. Falling back to basicConfig.", exc_info=True)
-
+    # Update root logger level
+    root_logger = logging.getLogger()
+    root_logger.setLevel(log_level)
+    
+    # Choose formatter based on mode
+    if optimization_mode:
+        formatter = FORMATTERS['standard']
+    else:
+        formatter = FORMATTERS['standard']
+    
+    # Clear existing handlers if any
+    if root_logger.hasHandlers():
+        for handler in root_logger.handlers:
+            handler.setLevel(log_level)
+            handler.setFormatter(formatter)
+    else:
+        # Basic configuration logs to stdout
+        handler = logging.StreamHandler(sys.stdout)
+        handler.setLevel(log_level)
+        handler.setFormatter(formatter)  
+        root_logger.addHandler(handler)
+    
+    # Setup debug file logging if requested
+    if debug_file:
+        debug_handler = create_debug_file_logger(debug_file)
+        print(f"Detailed DEBUG logging enabled to file: {debug_file}")
+    
+    # Only log the level change if not in optimization mode
+    if not optimization_mode:
+        setup_logger = logging.getLogger('src.core.logging_setup')
+        setup_logger.debug(f"Logging level set to: {log_level_str}")  # Debug not Info

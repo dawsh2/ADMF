@@ -3,7 +3,7 @@ system:
   version: "0.1.0"
 
 logging:
-  level: "INFO" # DEBUG, INFO, WARNING, ERROR, CRITICAL
+  level: "WARNING" # DEBUG, INFO, WARNING, ERROR, CRITICAL
 
 components:
   dummy_service: # For SignalLogger and OrderLogger
@@ -85,10 +85,19 @@ components:
     min_trades_per_regime: 5  # Minimum trades required for a valid regime optimization
     regime_metric: "sharpe_ratio"  # Metric to optimize for each regime 
     output_file_path: "regime_optimized_parameters.json"  # Output file for optimized parameters
+    
+    # Performance and memory settings
+    top_n_to_test: 3  # Test the top N performers from training on the test set
+    clear_regime_performance: true  # Clear regime performance data after processing to save memory
 
   # Configuration for the RegimeDetector instance registered as 'MyPrimaryRegimeDetector'
   MyPrimaryRegimeDetector: 
     min_regime_duration: 2 # Reduced from 3 to 2 for more responsive regime detection
+    
+    # Logging optimization parameters
+    verbose_logging: false  # Set to true for detailed debug output
+    summary_interval: 50    # Report summary statistics every 50 bars
+    
     indicators:
       # 'rsi_14', 'atr_20', 'trend_10_30' are arbitrary names you give to these indicator instances.
       # They will be used as keys in the regime_thresholds section.

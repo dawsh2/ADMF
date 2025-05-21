@@ -7,7 +7,7 @@ from typing import Optional, Dict, Any, List
 
 # Core imports
 from src.core.config import SimpleConfigLoader
-from src.core.logging_setup import setup_logging
+from src.core.logging_setup import setup_logging, LOG_LEVEL_STRINGS
 from src.core.exceptions import ConfigurationError, ADMFTraderError, ComponentError, DependencyNotFoundError
 from src.core.component import BaseComponent
 from src.core.event import Event, EventType 
@@ -40,13 +40,28 @@ def main():
     parser.add_argument(
         "--optimize", action="store_true", help="Run in optimization mode."
     )
+    parser.add_argument(
+        "--log-level", type=str, choices=['DEBUG', 'INFO', 'WARNING', 'ERROR', 'CRITICAL'],
+        help="Override the log level defined in the config file."
+    )
+    parser.add_argument(
+        "--debug-log", type=str, default=None, 
+        help="Enable detailed DEBUG logging to the specified file. Overwrites file each run."
+    )
     args = parser.parse_args()
     config_path = args.config
     max_bars_to_process = args.bars
     run_optimization_mode = args.optimize
+    cmd_log_level = args.log_level
+    debug_log_file = args.debug_log
 
+    # Set up minimal logging until we load the config
     if not logging.getLogger().hasHandlers():
-        logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s', stream=sys.stdout)
+        # Use WARNING as default to minimize output until proper config is loaded
+        minimal_level = logging.WARNING
+        if cmd_log_level:
+            minimal_level = LOG_LEVEL_STRINGS.get(cmd_log_level.upper(), logging.WARNING)
+        logging.basicConfig(level=minimal_level, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s', stream=sys.stdout)
 
     logger.info(f"Attempting to load configuration from: {config_path}")
     try:
@@ -55,8 +70,9 @@ def main():
         logger.critical(f"CRITICAL: Config error - {e}. Path: {config_path}", exc_info=True)
         sys.exit(1)
 
-    setup_logging(config_loader)
-    logger.info("Initial configuration loaded and logging system configured.")
+    # Pass optimization_mode flag based on command line args
+    setup_logging(config_loader, cmd_log_level, optimization_mode=run_optimization_mode, debug_file=debug_log_file)
+    logger.debug("Initial configuration loaded and logging system configured.")
 
     container = Container()
     container.register_instance("config_loader", config_loader)
@@ -182,18 +198,8 @@ def main():
                     
                     test_metric_for_best = optimization_results.get("test_set_metric_value_for_best_params")
 
-                    result_log_message = "OPTIMIZATION COMPLETE:\n"
-                    if best_train_params is not None and best_train_metric_val is not None:
-                        result_log_message += f"  Best Parameters (from Training): {best_train_params}\n"
-                        result_log_message += f"  Best Training Metric ('{metric_name_optimized}'): {best_train_metric_val:.4f}\n"
-                    else:
-                        result_log_message += "  No best parameters found during training phase or training failed to produce a metric.\n"
-                    
-                    if test_metric_for_best is not None:
-                         result_log_message += f"  Test Set Metric for Best Params ('{metric_name_optimized}'): {test_metric_for_best:.4f}"
-                    else:
-                         result_log_message += f"  Test Set Metric for Best Params ('{metric_name_optimized}'): N/A (No test data or test failed)"
-                    logger.info(result_log_message)
+                    # Detailed results already logged by optimizer._log_optimization_results, no need to duplicate here
+                    logger.debug("Optimization complete. See summary for results.")
                 else:
                     logger.info("OPTIMIZATION FAILED: Optimizer run_grid_search() returned no results (None).")
                 
@@ -323,6 +329,11 @@ def run_application_logic(app_container: Container):
                 if hasattr(comp, 'get_state') and comp.get_state() not in [BaseComponent.STATE_CREATED, BaseComponent.STATE_STOPPED, BaseComponent.STATE_FAILED]: 
                     logger.info(f"--- Stopping {comp.name} (Current State: {comp.get_state()}) ---")
                     try:
+                        # Generate summary for RegimeDetector before stopping
+                        if comp == regime_detector and hasattr(comp, 'generate_summary'):
+                            logger.info(f"Generating summary for RegimeDetector '{comp.name}'...")
+                            comp.generate_summary()
+                        
                         comp.stop()
                         logger.info(f"State of '{comp.name}' after stop: {comp.get_state()}")
                     except Exception as e:

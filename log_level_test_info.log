@@ -1,0 +1,252 @@
+2025-05-20 14:59:50,033 - __main__ - INFO - Attempting to load configuration from: config/config.yaml
+2025-05-20 14:59:50,033 - src.core.config - INFO - SimpleConfigLoader instance 4444151424 creating for config/config.yaml.
+2025-05-20 14:59:50,036 - src.core.config - INFO - ConfigLoader 4444151424: Raw configuration data loaded (id: 4444957312): {'system': {'name': 'ADMF-Trader-MVP', 'version': '0.1.0'}, 'logging': {'level': 'INFO'}, 'components': {'dummy_service': {'some_setting': 'Dummy setting'}, 'ensemble_strategy': {'symbol': 'SPY', 'short_window_default': 10, 'long_window_default': 20, 'ma_rule.weight': 0.6, 'rsi_indicator': {'period': 14}, 'rsi_rule': {'oversold_threshold': 30.0, 'overbought_threshold': 70.0, 'weight': 0.4}}, 'regime_adaptive_strategy': {'symbol': 'SPY', 'short_window_default': 10, 'long_window_default': 20, 'ma_rule.weight': 0.6, 'regime_detector_service_name': 'MyPrimaryRegimeDetector', 'regime_params_file_path': 'regime_optimized_parameters.json', 'fallback_to_overall_best': True}, 'data_handler_csv': {'csv_file_path': 'data/SPY_1min.csv', 'symbol': 'SPY', 'timestamp_column': 'timestamp', 'train_test_split_ratio': 0.8, 'open_column': 'Open', 'high_column': 'High', 'low_column': 'Low', 'close_column': 'Close', 'volume_column': 'Volume'}, 'basic_portfolio': {'initial_cash': 100000.0}, 'basic_risk_manager': {'target_trade_quantity': 100}, 'simulated_execution_handler': {'default_quantity': 100, 'commission_per_trade': 0.005, 'commission_type': 'per_share', 'passthrough': False, 'fill_price_logic': 'signal_price'}, 'optimizer': {'strategy_service_name': 'strategy', 'portfolio_service_name': 'portfolio_manager', 'data_handler_service_name': 'data_handler', 'risk_manager_service_name': 'risk_manager', 'execution_handler_service_name': 'execution_handler', 'metric_to_optimize': 'get_final_portfolio_value', 'higher_metric_is_better': True, 'min_trades_per_regime': 5, 'regime_metric': 'sharpe_ratio', 'output_file_path': 'regime_optimized_parameters.json', 'top_n_to_test': 3, 'clear_regime_performance': True}, 'MyPrimaryRegimeDetector': {'min_regime_duration': 2, 'verbose_logging': False, 'summary_interval': 50, 'indicators': {'rsi_14': {'type': 'rsi', 'parameters': {'period': 14}}, 'atr_20': {'type': 'atr', 'parameters': {'period': 10}}, 'trend_10_30': {'type': 'simple_ma_trend', 'parameters': {'short_period': 5, 'long_period': 20}}}, 'regime_thresholds': {'trending_up_volatile': {'trend_10_30': {'min': 0.02}, 'atr_20': {'min': 0.15}}, 'trending_up_low_vol': {'trend_10_30': {'min': 0.02}, 'atr_20': {'max': 0.15}}, 'ranging_low_vol': {'trend_10_30': {'min': -0.01, 'max': 0.01}, 'atr_20': {'max': 0.12}}, 'trending_down': {'trend_10_30': {'max': -0.01}}, 'oversold_in_uptrend': {'rsi_14': {'max': 40}, 'trend_10_30': {'min': 0.01}}}}}}
+2025-05-20 14:59:50,036 - src.core.config - INFO - ConfigLoader 4444151424: Shielded _config_data created (id: 4444875328). Content: {'system': {'name': 'ADMF-Trader-MVP', 'version': '0.1.0'}, 'logging': {'level': 'INFO'}, 'components': {'dummy_service': {'some_setting': 'Dummy setting'}, 'ensemble_strategy': {'symbol': 'SPY', 'short_window_default': 10, 'long_window_default': 20, 'ma_rule.weight': 0.6, 'rsi_indicator': {'period': 14}, 'rsi_rule': {'oversold_threshold': 30.0, 'overbought_threshold': 70.0, 'weight': 0.4}}, 'regime_adaptive_strategy': {'symbol': 'SPY', 'short_window_default': 10, 'long_window_default': 20, 'ma_rule.weight': 0.6, 'regime_detector_service_name': 'MyPrimaryRegimeDetector', 'regime_params_file_path': 'regime_optimized_parameters.json', 'fallback_to_overall_best': True}, 'data_handler_csv': {'csv_file_path': 'data/SPY_1min.csv', 'symbol': 'SPY', 'timestamp_column': 'timestamp', 'train_test_split_ratio': 0.8, 'open_column': 'Open', 'high_column': 'High', 'low_column': 'Low', 'close_column': 'Close', 'volume_column': 'Volume'}, 'basic_portfolio': {'initial_cash': 100000.0}, 'basic_risk_manager': {'target_trade_quantity': 100}, 'simulated_execution_handler': {'default_quantity': 100, 'commission_per_trade': 0.005, 'commission_type': 'per_share', 'passthrough': False, 'fill_price_logic': 'signal_price'}, 'optimizer': {'strategy_service_name': 'strategy', 'portfolio_service_name': 'portfolio_manager', 'data_handler_service_name': 'data_handler', 'risk_manager_service_name': 'risk_manager', 'execution_handler_service_name': 'execution_handler', 'metric_to_optimize': 'get_final_portfolio_value', 'higher_metric_is_better': True, 'min_trades_per_regime': 5, 'regime_metric': 'sharpe_ratio', 'output_file_path': 'regime_optimized_parameters.json', 'top_n_to_test': 3, 'clear_regime_performance': True}, 'MyPrimaryRegimeDetector': {'min_regime_duration': 2, 'verbose_logging': False, 'summary_interval': 50, 'indicators': {'rsi_14': {'type': 'rsi', 'parameters': {'period': 14}}, 'atr_20': {'type': 'atr', 'parameters': {'period': 10}}, 'trend_10_30': {'type': 'simple_ma_trend', 'parameters': {'short_period': 5, 'long_period': 20}}}, 'regime_thresholds': {'trending_up_volatile': {'trend_10_30': {'min': 0.02}, 'atr_20': {'min': 0.15}}, 'trending_up_low_vol': {'trend_10_30': {'min': 0.02}, 'atr_20': {'max': 0.15}}, 'ranging_low_vol': {'trend_10_30': {'min': -0.01, 'max': 0.01}, 'atr_20': {'max': 0.12}}, 'trending_down': {'trend_10_30': {'max': -0.01}}, 'oversold_in_uptrend': {'rsi_14': {'max': 40}, 'trend_10_30': {'min': 0.01}}}}}}
+2025-05-20 14:59:50,036 - src.core.config - INFO - ConfigLoader 4444151424 initialized. Shielded config ready. Loaded from 'config/config.yaml'.
+Overriding log level from config with command-line value: INFO
+2025-05-20 14:59:50,036 - src.core.logging_setup - INFO - Logging level set to: INFO
+2025-05-20 14:59:50,036 - __main__ - INFO - Initial configuration loaded and logging system configured.
+2025-05-20 14:59:50,036 - src.core.container - INFO - DI Container initialized.
+2025-05-20 14:59:50,036 - src.core.event_bus - INFO - EventBus initialized.
+2025-05-20 14:59:50,036 - __main__ - INFO - RegimeAdaptiveStrategy registered as 'strategy' for regular mode.
+2025-05-20 14:59:50,036 - __main__ - INFO - RegimeDetector registered as 'MyPrimaryRegimeDetector'.
+2025-05-20 14:59:50,036 - __main__ - INFO - BasicPortfolio registered as 'portfolio_manager'.
+2025-05-20 14:59:50,036 - __main__ - INFO - BasicRiskManager registered as 'risk_manager'.
+2025-05-20 14:59:50,036 - __main__ - INFO - Standard backtest: Using first 5 bars from the dataset.
+2025-05-20 14:59:50,036 - src.core.config - INFO - ConfigLoader 4444151424: [[[[[ SimpleConfigLoader.get() CALLED for key: 'system.name' (type: <class 'str'>) ]]]]]
+2025-05-20 14:59:50,036 - src.core.config - INFO - ConfigLoader 4444151424: Accessing _config_data (shielded copy, id: 4444875328). Available top-level keys: ['system', 'logging', 'components']
+2025-05-20 14:59:50,036 - src.core.config - INFO - ConfigLoader 4444151424: Processing as NESTED key: 'system.name'
+2025-05-20 14:59:50,036 - src.core.config - INFO - ConfigLoader 4444151424: Successfully retrieved nested key 'system.name'. Value type: <class 'str'>
+2025-05-20 14:59:50,036 - __main__ - INFO - App Name: ADMF-Trader-MVP - Running Standard Backtest
+2025-05-20 14:59:50,036 - __main__ - INFO - Bootstrap complete. Starting application logic...
+2025-05-20 14:59:50,036 - __main__ - INFO - Running main application logic (standard backtest)...
+2025-05-20 14:59:50,036 - component.SPY_CSV_Loader - INFO - Attempting to load specific config for 'SPY_CSV_Loader' using key: 'components.data_handler_csv'
+2025-05-20 14:59:50,036 - src.core.config - INFO - ConfigLoader 4444151424: [[[[[ SimpleConfigLoader.get() CALLED for key: 'components.data_handler_csv' (type: <class 'str'>) ]]]]]
+2025-05-20 14:59:50,036 - src.core.config - INFO - ConfigLoader 4444151424: Accessing _config_data (shielded copy, id: 4444875328). Available top-level keys: ['system', 'logging', 'components']
+2025-05-20 14:59:50,036 - src.core.config - INFO - ConfigLoader 4444151424: Processing as NESTED key: 'components.data_handler_csv'
+2025-05-20 14:59:50,036 - src.core.config - INFO - ConfigLoader 4444151424: Successfully retrieved nested key 'components.data_handler_csv'. Value type: <class 'dict'>
+2025-05-20 14:59:50,036 - component.SPY_CSV_Loader - INFO - Specific configuration loaded for 'SPY_CSV_Loader' using key 'components.data_handler_csv'. Content: {'csv_file_path': 'data/SPY_1min.csv', 'symbol': 'SPY', 'timestamp_column': 'timestamp', 'train_test_split_ratio': 0.8, 'open_column': 'Open', 'high_column': 'High', 'low_column': 'Low', 'close_column': 'Close', 'volume_column': 'Volume'}
+2025-05-20 14:59:50,036 - component.SPY_CSV_Loader - INFO - Component 'SPY_CSV_Loader' created. State: CREATED
+2025-05-20 14:59:50,037 - component.SPY_CSV_Loader - INFO - CSVDataHandler 'SPY_CSV_Loader' configured for symbol 'SPY' using file 'data/SPY_1min.csv'. Timestamp column: 'timestamp'. CLI --bars: Total data for this run initially limited to first 5 bars. Train/test split ratio: 80% train (applied to the --bars limited and/or regime-filtered data).
+2025-05-20 14:59:50,037 - component.RegimeAdaptiveStrategy - INFO - Attempting to load specific config for 'RegimeAdaptiveStrategy' using key: 'components.regime_adaptive_strategy'
+2025-05-20 14:59:50,037 - src.core.config - INFO - ConfigLoader 4444151424: [[[[[ SimpleConfigLoader.get() CALLED for key: 'components.regime_adaptive_strategy' (type: <class 'str'>) ]]]]]
+2025-05-20 14:59:50,037 - src.core.config - INFO - ConfigLoader 4444151424: Accessing _config_data (shielded copy, id: 4444875328). Available top-level keys: ['system', 'logging', 'components']
+2025-05-20 14:59:50,037 - src.core.config - INFO - ConfigLoader 4444151424: Processing as NESTED key: 'components.regime_adaptive_strategy'
+2025-05-20 14:59:50,037 - src.core.config - INFO - ConfigLoader 4444151424: Successfully retrieved nested key 'components.regime_adaptive_strategy'. Value type: <class 'dict'>
+2025-05-20 14:59:50,037 - component.RegimeAdaptiveStrategy - INFO - Specific configuration loaded for 'RegimeAdaptiveStrategy' using key 'components.regime_adaptive_strategy'. Content: {'symbol': 'SPY', 'short_window_default': 10, 'long_window_default': 20, 'ma_rule.weight': 0.6, 'regime_detector_service_name': 'MyPrimaryRegimeDetector', 'regime_params_file_path': 'regime_optimized_parameters.json', 'fallback_to_overall_best': True}
+2025-05-20 14:59:50,037 - component.RegimeAdaptiveStrategy - INFO - Component 'RegimeAdaptiveStrategy' created. State: CREATED
+2025-05-20 14:59:50,037 - component.RegimeAdaptiveStrategy - INFO - MAStrategy 'RegimeAdaptiveStrategy' configured for symbol 'SPY' with initial short_window=10, long_window=20.
+2025-05-20 14:59:50,037 - component.RegimeAdaptiveStrategy - INFO - Loaded overall best parameters as fallback: {'short_window': 10, 'long_window': 20, 'rsi_indicator.period': 9, 'rsi_rule.oversold_threshold': 20.0, 'rsi_rule.overbought_threshold': 60.0, 'rsi_rule.weight': 0.4, 'ma_rule.weight': 0.6}
+2025-05-20 14:59:50,037 - component.RegimeAdaptiveStrategy - INFO - Successfully loaded parameters from regime_optimized_parameters.json
+2025-05-20 14:59:50,037 - component.MyPrimaryRegimeDetector_Instance - INFO - Attempting to load specific config for 'MyPrimaryRegimeDetector_Instance' using key: 'components.MyPrimaryRegimeDetector'
+2025-05-20 14:59:50,037 - src.core.config - INFO - ConfigLoader 4444151424: [[[[[ SimpleConfigLoader.get() CALLED for key: 'components.MyPrimaryRegimeDetector' (type: <class 'str'>) ]]]]]
+2025-05-20 14:59:50,037 - src.core.config - INFO - ConfigLoader 4444151424: Accessing _config_data (shielded copy, id: 4444875328). Available top-level keys: ['system', 'logging', 'components']
+2025-05-20 14:59:50,037 - src.core.config - INFO - ConfigLoader 4444151424: Processing as NESTED key: 'components.MyPrimaryRegimeDetector'
+2025-05-20 14:59:50,037 - src.core.config - INFO - ConfigLoader 4444151424: Successfully retrieved nested key 'components.MyPrimaryRegimeDetector'. Value type: <class 'dict'>
+2025-05-20 14:59:50,037 - component.MyPrimaryRegimeDetector_Instance - INFO - Specific configuration loaded for 'MyPrimaryRegimeDetector_Instance' using key 'components.MyPrimaryRegimeDetector'. Content: {'min_regime_duration': 2, 'verbose_logging': False, 'summary_interval': 50, 'indicators': {'rsi_14': {'type': 'rsi', 'parameters': {'period': 14}}, 'atr_20': {'type': 'atr', 'parameters': {'period': 10}}, 'trend_10_30': {'type': 'simple_ma_trend', 'parameters': {'short_period': 5, 'long_period': 20}}}, 'regime_thresholds': {'trending_up_volatile': {'trend_10_30': {'min': 0.02}, 'atr_20': {'min': 0.15}}, 'trending_up_low_vol': {'trend_10_30': {'min': 0.02}, 'atr_20': {'max': 0.15}}, 'ranging_low_vol': {'trend_10_30': {'min': -0.01, 'max': 0.01}, 'atr_20': {'max': 0.12}}, 'trending_down': {'trend_10_30': {'max': -0.01}}, 'oversold_in_uptrend': {'rsi_14': {'max': 40}, 'trend_10_30': {'min': 0.01}}}}
+2025-05-20 14:59:50,037 - component.MyPrimaryRegimeDetector_Instance - INFO - Component 'MyPrimaryRegimeDetector_Instance' created. State: CREATED
+2025-05-20 14:59:50,037 - component.MyPrimaryRegimeDetector_Instance - INFO - RegimeDetector 'MyPrimaryRegimeDetector_Instance' initialized. Min duration: 2, Thresholds: {'trending_up_volatile': {'trend_10_30': {'min': 0.02}, 'atr_20': {'min': 0.15}}, 'trending_up_low_vol': {'trend_10_30': {'min': 0.02}, 'atr_20': {'max': 0.15}}, 'ranging_low_vol': {'trend_10_30': {'min': -0.01, 'max': 0.01}, 'atr_20': {'max': 0.12}}, 'trending_down': {'trend_10_30': {'max': -0.01}}, 'oversold_in_uptrend': {'rsi_14': {'max': 40}, 'trend_10_30': {'min': 0.01}}}
+2025-05-20 14:59:50,037 - component.BasicPortfolio - INFO - Attempting to load specific config for 'BasicPortfolio' using key: 'components.basic_portfolio'
+2025-05-20 14:59:50,037 - src.core.config - INFO - ConfigLoader 4444151424: [[[[[ SimpleConfigLoader.get() CALLED for key: 'components.basic_portfolio' (type: <class 'str'>) ]]]]]
+2025-05-20 14:59:50,037 - src.core.config - INFO - ConfigLoader 4444151424: Accessing _config_data (shielded copy, id: 4444875328). Available top-level keys: ['system', 'logging', 'components']
+2025-05-20 14:59:50,037 - src.core.config - INFO - ConfigLoader 4444151424: Processing as NESTED key: 'components.basic_portfolio'
+2025-05-20 14:59:50,037 - src.core.config - INFO - ConfigLoader 4444151424: Successfully retrieved nested key 'components.basic_portfolio'. Value type: <class 'dict'>
+2025-05-20 14:59:50,037 - component.BasicPortfolio - INFO - Specific configuration loaded for 'BasicPortfolio' using key 'components.basic_portfolio'. Content: {'initial_cash': 100000.0}
+2025-05-20 14:59:50,037 - component.BasicPortfolio - INFO - Component 'BasicPortfolio' created. State: CREATED
+2025-05-20 14:59:50,037 - component.BasicPortfolio - INFO - BasicPortfolio 'BasicPortfolio' initialized with initial cash: 100000.00
+2025-05-20 14:59:50,037 - component.BasicRiskMan1 - INFO - Attempting to load specific config for 'BasicRiskMan1' using key: 'components.basic_risk_manager'
+2025-05-20 14:59:50,037 - src.core.config - INFO - ConfigLoader 4444151424: [[[[[ SimpleConfigLoader.get() CALLED for key: 'components.basic_risk_manager' (type: <class 'str'>) ]]]]]
+2025-05-20 14:59:50,037 - src.core.config - INFO - ConfigLoader 4444151424: Accessing _config_data (shielded copy, id: 4444875328). Available top-level keys: ['system', 'logging', 'components']
+2025-05-20 14:59:50,037 - src.core.config - INFO - ConfigLoader 4444151424: Processing as NESTED key: 'components.basic_risk_manager'
+2025-05-20 14:59:50,037 - src.core.config - INFO - ConfigLoader 4444151424: Successfully retrieved nested key 'components.basic_risk_manager'. Value type: <class 'dict'>
+2025-05-20 14:59:50,037 - component.BasicRiskMan1 - INFO - Specific configuration loaded for 'BasicRiskMan1' using key 'components.basic_risk_manager'. Content: {'target_trade_quantity': 100}
+2025-05-20 14:59:50,037 - component.BasicRiskMan1 - INFO - Component 'BasicRiskMan1' created. State: CREATED
+2025-05-20 14:59:50,037 - component.BasicRiskMan1 - INFO - BasicRiskMan1 initialized. Target trade quantity: 100. Portfolio manager key: 'portfolio_manager'.
+2025-05-20 14:59:50,037 - component.SimExec_1 - INFO - Attempting to load specific config for 'SimExec_1' using key: 'components.simulated_execution_handler'
+2025-05-20 14:59:50,037 - src.core.config - INFO - ConfigLoader 4444151424: [[[[[ SimpleConfigLoader.get() CALLED for key: 'components.simulated_execution_handler' (type: <class 'str'>) ]]]]]
+2025-05-20 14:59:50,037 - src.core.config - INFO - ConfigLoader 4444151424: Accessing _config_data (shielded copy, id: 4444875328). Available top-level keys: ['system', 'logging', 'components']
+2025-05-20 14:59:50,037 - src.core.config - INFO - ConfigLoader 4444151424: Processing as NESTED key: 'components.simulated_execution_handler'
+2025-05-20 14:59:50,037 - src.core.config - INFO - ConfigLoader 4444151424: Successfully retrieved nested key 'components.simulated_execution_handler'. Value type: <class 'dict'>
+2025-05-20 14:59:50,037 - component.SimExec_1 - INFO - Specific configuration loaded for 'SimExec_1' using key 'components.simulated_execution_handler'. Content: {'default_quantity': 100, 'commission_per_trade': 0.005, 'commission_type': 'per_share', 'passthrough': False, 'fill_price_logic': 'signal_price'}
+2025-05-20 14:59:50,037 - component.SimExec_1 - INFO - Component 'SimExec_1' created. State: CREATED
+2025-05-20 14:59:50,037 - component.SimExec_1 - INFO - SimExec_1 configured. Default Qty (if order lacks it): 100, Commission: 0.005, Passthrough: False
+2025-05-20 14:59:50,037 - component.SignalLogger - INFO - Attempting to load specific config for 'SignalLogger' using key: 'components.dummy_service'
+2025-05-20 14:59:50,037 - src.core.config - INFO - ConfigLoader 4444151424: [[[[[ SimpleConfigLoader.get() CALLED for key: 'components.dummy_service' (type: <class 'str'>) ]]]]]
+2025-05-20 14:59:50,037 - src.core.config - INFO - ConfigLoader 4444151424: Accessing _config_data (shielded copy, id: 4444875328). Available top-level keys: ['system', 'logging', 'components']
+2025-05-20 14:59:50,037 - src.core.config - INFO - ConfigLoader 4444151424: Processing as NESTED key: 'components.dummy_service'
+2025-05-20 14:59:50,037 - src.core.config - INFO - ConfigLoader 4444151424: Successfully retrieved nested key 'components.dummy_service'. Value type: <class 'dict'>
+2025-05-20 14:59:50,037 - component.SignalLogger - INFO - Specific configuration loaded for 'SignalLogger' using key 'components.dummy_service'. Content: {'some_setting': 'Dummy setting'}
+2025-05-20 14:59:50,037 - component.SignalLogger - INFO - Component 'SignalLogger' created. State: CREATED
+2025-05-20 14:59:50,037 - component.SignalLogger - INFO - DummyComponent 'SignalLogger' specific initialization. EventBus assigned. Listening to: SIGNAL
+2025-05-20 14:59:50,037 - component.OrderLogger - INFO - Attempting to load specific config for 'OrderLogger' using key: 'components.dummy_service'
+2025-05-20 14:59:50,037 - src.core.config - INFO - ConfigLoader 4444151424: [[[[[ SimpleConfigLoader.get() CALLED for key: 'components.dummy_service' (type: <class 'str'>) ]]]]]
+2025-05-20 14:59:50,037 - src.core.config - INFO - ConfigLoader 4444151424: Accessing _config_data (shielded copy, id: 4444875328). Available top-level keys: ['system', 'logging', 'components']
+2025-05-20 14:59:50,037 - src.core.config - INFO - ConfigLoader 4444151424: Processing as NESTED key: 'components.dummy_service'
+2025-05-20 14:59:50,037 - src.core.config - INFO - ConfigLoader 4444151424: Successfully retrieved nested key 'components.dummy_service'. Value type: <class 'dict'>
+2025-05-20 14:59:50,037 - component.OrderLogger - INFO - Specific configuration loaded for 'OrderLogger' using key 'components.dummy_service'. Content: {'some_setting': 'Dummy setting'}
+2025-05-20 14:59:50,037 - component.OrderLogger - INFO - Component 'OrderLogger' created. State: CREATED
+2025-05-20 14:59:50,037 - component.OrderLogger - INFO - DummyComponent 'OrderLogger' specific initialization. EventBus assigned. Listening to: ORDER
+2025-05-20 14:59:50,037 - __main__ - INFO - DataHandler, Strategy, RegimeDetector, PortfolioManager, RiskManager, ExecutionHandler, and Loggers resolved.
+2025-05-20 14:59:50,037 - __main__ - INFO - --- Setting up SPY_CSV_Loader ---
+2025-05-20 14:59:50,037 - component.SPY_CSV_Loader - INFO - Setting up CSVDataHandler 'SPY_CSV_Loader'...
+2025-05-20 14:59:50,082 - component.SPY_CSV_Loader - INFO - Successfully loaded CSV file: data/SPY_1min.csv. Initial full shape: (102236, 8)
+2025-05-20 14:59:50,098 - component.SPY_CSV_Loader - INFO - Data sorted by timestamp column 'timestamp'.
+2025-05-20 14:59:50,098 - component.SPY_CSV_Loader - INFO - Applying --bars limit: Using first 5 bars from loaded data (was 102236).
+2025-05-20 14:59:50,098 - component.SPY_CSV_Loader - INFO - Current dataset (size 5) split into: Train (4 bars), Test (1 bars).
+2025-05-20 14:59:50,098 - component.SPY_CSV_Loader - INFO - CSVDataHandler 'SPY_CSV_Loader' setup complete. Data loaded and splits prepared. Call set_active_dataset() to begin.
+2025-05-20 14:59:50,098 - __main__ - INFO - State of 'SPY_CSV_Loader' after setup: INITIALIZED
+2025-05-20 14:59:50,098 - __main__ - INFO - --- Setting up RegimeAdaptiveStrategy ---
+2025-05-20 14:59:50,098 - component.RegimeAdaptiveStrategy - INFO - Setting up MAStrategy 'RegimeAdaptiveStrategy'...
+2025-05-20 14:59:50,098 - component.RegimeAdaptiveStrategy - INFO - 'RegimeAdaptiveStrategy' subscribed to BAR events for symbol 'SPY'.
+2025-05-20 14:59:50,098 - component.RegimeAdaptiveStrategy - INFO - MAStrategy 'RegimeAdaptiveStrategy' setup complete. State: INITIALIZED
+2025-05-20 14:59:50,098 - component.RegimeAdaptiveStrategy - INFO - Successfully resolved RegimeDetector. Initial regime: default
+2025-05-20 14:59:50,098 - component.RegimeAdaptiveStrategy - INFO - No specific parameters for regime 'default'. Falling back to overall best parameters: {'short_window': 10, 'long_window': 20, 'rsi_indicator.period': 9, 'rsi_rule.oversold_threshold': 20.0, 'rsi_rule.overbought_threshold': 60.0, 'rsi_rule.weight': 0.4, 'ma_rule.weight': 0.6}
+2025-05-20 14:59:50,098 - component.RegimeAdaptiveStrategy - INFO - 'RegimeAdaptiveStrategy' parameters updated: short_window=10, long_window=20
+2025-05-20 14:59:50,098 - __main__ - INFO - State of 'RegimeAdaptiveStrategy' after setup: INITIALIZED
+2025-05-20 14:59:50,098 - __main__ - INFO - --- Setting up MyPrimaryRegimeDetector_Instance ---
+2025-05-20 14:59:50,098 - component.MyPrimaryRegimeDetector_Instance - INFO - Setting up component 'MyPrimaryRegimeDetector_Instance'...
+2025-05-20 14:59:50,098 - component.MyPrimaryRegimeDetector_Instance - INFO - Setting up classifier 'MyPrimaryRegimeDetector_Instance'
+2025-05-20 14:59:50,098 - component.MyPrimaryRegimeDetector_Instance - INFO - Classifier 'MyPrimaryRegimeDetector_Instance' setup complete. State: INITIALIZED. Subscribed to BAR events.
+2025-05-20 14:59:50,098 - component.MyPrimaryRegimeDetector_Instance_rsi_14 - INFO - Component 'MyPrimaryRegimeDetector_Instance_rsi_14' created. State: CREATED
+2025-05-20 14:59:50,098 - component.MyPrimaryRegimeDetector_Instance - INFO - Initialized indicator 'rsi_14' of type 'rsi' for MyPrimaryRegimeDetector_Instance.
+2025-05-20 14:59:50,098 - src.strategy.components.indicators.volatility.MyPrimaryRegimeDetector_Instance_atr_20 - INFO - ATRIndicator 'MyPrimaryRegimeDetector_Instance_atr_20' initialized with period 10.
+2025-05-20 14:59:50,098 - component.MyPrimaryRegimeDetector_Instance - INFO - Initialized indicator 'atr_20' of type 'atr' for MyPrimaryRegimeDetector_Instance.
+2025-05-20 14:59:50,098 - src.strategy.components.indicators.trend.MyPrimaryRegimeDetector_Instance_trend_10_30 - INFO - SimpleMATrendIndicator 'MyPrimaryRegimeDetector_Instance_trend_10_30' initialized with short_period=5, long_period=20.
+2025-05-20 14:59:50,098 - component.MyPrimaryRegimeDetector_Instance - INFO - Initialized indicator 'trend_10_30' of type 'simple_ma_trend' for MyPrimaryRegimeDetector_Instance.
+2025-05-20 14:59:50,098 - component.MyPrimaryRegimeDetector_Instance - INFO - RegimeDetector 'MyPrimaryRegimeDetector_Instance' setup complete.
+2025-05-20 14:59:50,098 - __main__ - INFO - State of 'MyPrimaryRegimeDetector_Instance' after setup: INITIALIZED
+2025-05-20 14:59:50,098 - __main__ - INFO - --- Setting up BasicPortfolio ---
+2025-05-20 14:59:50,098 - component.BasicPortfolio - INFO - Setting up component 'BasicPortfolio'...
+2025-05-20 14:59:50,098 - component.BasicPortfolio - INFO - Setting up BasicPortfolio 'BasicPortfolio'...
+2025-05-20 14:59:50,098 - component.BasicPortfolio - INFO - 'BasicPortfolio' subscribed to FILL, BAR, and CLASSIFICATION events.
+2025-05-20 14:59:50,098 - component.BasicPortfolio - INFO - Successfully resolved and linked RegimeDetector: MyPrimaryRegimeDetector_Instance
+2025-05-20 14:59:50,098 - component.BasicPortfolio - INFO - Initial market regime set to: default
+2025-05-20 14:59:50,099 - component.BasicPortfolio - INFO - Portfolio Update at 2025-05-20 21:59:50.098994+00:00 [default]: Cash=100000.00, Holdings Value=0.00, Total Value=100000.00, Realized PnL=0.00, Unrealized PnL=0.00
+2025-05-20 14:59:50,099 - component.BasicPortfolio - INFO - BasicPortfolio 'BasicPortfolio' setup complete. State: INITIALIZED
+2025-05-20 14:59:50,099 - __main__ - INFO - State of 'BasicPortfolio' after setup: INITIALIZED
+2025-05-20 14:59:50,099 - __main__ - INFO - --- Setting up BasicRiskMan1 ---
+2025-05-20 14:59:50,099 - component.BasicRiskMan1 - INFO - Setting up BasicRiskMan1...
+2025-05-20 14:59:50,099 - component.BasicRiskMan1 - INFO - Successfully resolved and linked portfolio_manager: BasicPortfolio
+2025-05-20 14:59:50,099 - component.BasicRiskMan1 - INFO - 'BasicRiskMan1' subscribed to SIGNAL events.
+2025-05-20 14:59:50,099 - component.BasicRiskMan1 - INFO - BasicRiskMan1 setup complete. State: INITIALIZED
+2025-05-20 14:59:50,099 - __main__ - INFO - State of 'BasicRiskMan1' after setup: INITIALIZED
+2025-05-20 14:59:50,099 - __main__ - INFO - --- Setting up SimExec_1 ---
+2025-05-20 14:59:50,099 - component.SimExec_1 - INFO - Setting up SimExec_1...
+2025-05-20 14:59:50,099 - component.SimExec_1 - INFO - 'SimExec_1' subscribed to ORDER events.
+2025-05-20 14:59:50,099 - component.SimExec_1 - INFO - SimExec_1 setup complete. State: INITIALIZED
+2025-05-20 14:59:50,099 - __main__ - INFO - State of 'SimExec_1' after setup: INITIALIZED
+2025-05-20 14:59:50,099 - __main__ - INFO - --- Setting up SignalLogger ---
+2025-05-20 14:59:50,099 - component.SignalLogger - INFO - DummyComponent 'SignalLogger' performing its specific setup.
+2025-05-20 14:59:50,099 - component.SignalLogger - INFO - DummyComponent specific setting 'some_setting': Dummy setting
+2025-05-20 14:59:50,099 - component.SignalLogger - INFO - 'SignalLogger' subscribed to SIGNAL events.
+2025-05-20 14:59:50,099 - component.SignalLogger - INFO - DummyComponent 'SignalLogger' setup complete. State: INITIALIZED
+2025-05-20 14:59:50,099 - __main__ - INFO - State of 'SignalLogger' after setup: INITIALIZED
+2025-05-20 14:59:50,099 - __main__ - INFO - --- Setting up OrderLogger ---
+2025-05-20 14:59:50,099 - component.OrderLogger - INFO - DummyComponent 'OrderLogger' performing its specific setup.
+2025-05-20 14:59:50,099 - component.OrderLogger - INFO - DummyComponent specific setting 'some_setting': Dummy setting
+2025-05-20 14:59:50,099 - component.OrderLogger - INFO - 'OrderLogger' subscribed to ORDER events.
+2025-05-20 14:59:50,099 - component.OrderLogger - INFO - DummyComponent 'OrderLogger' setup complete. State: INITIALIZED
+2025-05-20 14:59:50,099 - __main__ - INFO - State of 'OrderLogger' after setup: INITIALIZED
+2025-05-20 14:59:50,099 - __main__ - INFO - Standard run: Setting active dataset to 'full' in DataHandler (respects --bars if provided).
+2025-05-20 14:59:50,099 - component.SPY_CSV_Loader - INFO - Setting active dataset to: 'full' for SPY_CSV_Loader
+2025-05-20 14:59:50,099 - component.SPY_CSV_Loader - INFO - Active dataset 'full' ready with 5 bars.
+2025-05-20 14:59:50,099 - __main__ - INFO - --- Starting SPY_CSV_Loader ---
+2025-05-20 14:59:50,099 - component.SPY_CSV_Loader - INFO - CSVDataHandler 'SPY_CSV_Loader' starting to publish BAR events from active dataset (5 bars)...
+2025-05-20 14:59:50,099 - component.MyPrimaryRegimeDetector_Instance - INFO - RegimeDet 'MyPrimaryRegimeDetector_Instance' publishing CLASSIFICATION event for regime 'default' at 2024-03-26 13:30:00+00:00
+2025-05-20 14:59:50,099 - component.MyPrimaryRegimeDetector_Instance - INFO - Classifier 'MyPrimaryRegimeDetector_Instance' published CLASSIFICATION event: New='default', Prev='None' at 2024-03-26 13:30:00+00:00
+2025-05-20 14:59:50,099 - component.BasicPortfolio - INFO - Portfolio Update at 2024-03-26 13:30:00+00:00 [default]: Cash=100000.00, Holdings Value=0.00, Total Value=100000.00, Realized PnL=0.00, Unrealized PnL=0.00
+2025-05-20 14:59:50,100 - component.BasicPortfolio - INFO - Portfolio Update at 2024-03-26 13:31:00+00:00 [default]: Cash=100000.00, Holdings Value=0.00, Total Value=100000.00, Realized PnL=0.00, Unrealized PnL=0.00
+2025-05-20 14:59:50,100 - component.BasicPortfolio - INFO - Portfolio Update at 2024-03-26 13:32:00+00:00 [default]: Cash=100000.00, Holdings Value=0.00, Total Value=100000.00, Realized PnL=0.00, Unrealized PnL=0.00
+2025-05-20 14:59:50,100 - component.BasicPortfolio - INFO - Portfolio Update at 2024-03-26 13:33:00+00:00 [default]: Cash=100000.00, Holdings Value=0.00, Total Value=100000.00, Realized PnL=0.00, Unrealized PnL=0.00
+2025-05-20 14:59:50,100 - component.BasicPortfolio - INFO - Portfolio Update at 2024-03-26 13:34:00+00:00 [default]: Cash=100000.00, Holdings Value=0.00, Total Value=100000.00, Realized PnL=0.00, Unrealized PnL=0.00
+2025-05-20 14:59:50,100 - component.SPY_CSV_Loader - INFO - Finished publishing 5 BAR events for 'SPY_CSV_Loader'.
+2025-05-20 14:59:50,100 - component.SPY_CSV_Loader - INFO - CSVDataHandler 'SPY_CSV_Loader' completed data streaming for active dataset. State: STOPPED
+2025-05-20 14:59:50,100 - __main__ - INFO - State of 'SPY_CSV_Loader' after start: STOPPED
+2025-05-20 14:59:50,100 - __main__ - INFO - --- Starting RegimeAdaptiveStrategy ---
+2025-05-20 14:59:50,100 - component.RegimeAdaptiveStrategy - INFO - MAStrategy 'RegimeAdaptiveStrategy' started with SW=10, LW=20. Listening for BAR events...
+2025-05-20 14:59:50,100 - component.RegimeAdaptiveStrategy - INFO - 'RegimeAdaptiveStrategy' subscribed to CLASSIFICATION events.
+2025-05-20 14:59:50,100 - __main__ - INFO - State of 'RegimeAdaptiveStrategy' after start: STARTED
+2025-05-20 14:59:50,100 - __main__ - INFO - --- Starting MyPrimaryRegimeDetector_Instance ---
+2025-05-20 14:59:50,100 - component.MyPrimaryRegimeDetector_Instance - INFO - Starting component 'MyPrimaryRegimeDetector_Instance'...
+2025-05-20 14:59:50,100 - component.MyPrimaryRegimeDetector_Instance - INFO - Classifier 'MyPrimaryRegimeDetector_Instance' successfully started. State: STARTED
+2025-05-20 14:59:50,100 - __main__ - INFO - State of 'MyPrimaryRegimeDetector_Instance' after start: STARTED
+2025-05-20 14:59:50,100 - __main__ - INFO - --- Starting BasicPortfolio ---
+2025-05-20 14:59:50,100 - component.BasicPortfolio - INFO - Starting component 'BasicPortfolio'...
+2025-05-20 14:59:50,100 - component.BasicPortfolio - INFO - BasicPortfolio 'BasicPortfolio' started.
+2025-05-20 14:59:50,100 - __main__ - INFO - State of 'BasicPortfolio' after start: INITIALIZED
+2025-05-20 14:59:50,100 - __main__ - INFO - --- Starting BasicRiskMan1 ---
+2025-05-20 14:59:50,100 - component.BasicRiskMan1 - INFO - BasicRiskMan1 started. Listening for SIGNAL events...
+2025-05-20 14:59:50,100 - __main__ - INFO - State of 'BasicRiskMan1' after start: STARTED
+2025-05-20 14:59:50,100 - __main__ - INFO - --- Starting SimExec_1 ---
+2025-05-20 14:59:50,100 - component.SimExec_1 - INFO - SimExec_1 started. Listening for ORDER events...
+2025-05-20 14:59:50,100 - __main__ - INFO - State of 'SimExec_1' after start: STARTED
+2025-05-20 14:59:50,100 - __main__ - INFO - --- Starting SignalLogger ---
+2025-05-20 14:59:50,100 - component.SignalLogger - INFO - DummyComponent 'SignalLogger' started. Listening for configured events...
+2025-05-20 14:59:50,100 - __main__ - INFO - State of 'SignalLogger' after start: STARTED
+2025-05-20 14:59:50,100 - __main__ - INFO - --- Starting OrderLogger ---
+2025-05-20 14:59:50,100 - component.OrderLogger - INFO - DummyComponent 'OrderLogger' started. Listening for configured events...
+2025-05-20 14:59:50,100 - __main__ - INFO - State of 'OrderLogger' after start: STARTED
+2025-05-20 14:59:50,100 - __main__ - INFO - All operational components started. Event flow: BAR -> Strategy -> RiskManager -> ORDER -> ExecutionHandler -> FILL -> Portfolio.
+2025-05-20 14:59:50,100 - __main__ - INFO - --- Initiating application shutdown sequence (standard backtest) ---
+2025-05-20 14:59:50,100 - __main__ - INFO - --- Closing all open positions at timestamp: 2024-03-26 13:34:00+00:00 ---
+2025-05-20 14:59:50,100 - component.BasicPortfolio - INFO - close_all_open_positions called (alias for close_all_positions)
+2025-05-20 14:59:50,100 - component.BasicPortfolio - INFO - 'BasicPortfolio' initiating closing of all open positions at 2024-03-26 13:34:00+00:00.
+2025-05-20 14:59:50,100 - component.BasicPortfolio - INFO - Portfolio Update at 2024-03-26 13:34:00+00:00 [default]: Cash=100000.00, Holdings Value=0.00, Total Value=100000.00, Realized PnL=0.00, Unrealized PnL=0.00
+2025-05-20 14:59:50,100 - component.BasicPortfolio - INFO - 'BasicPortfolio' finished attempting to close all open positions.
+2025-05-20 14:59:50,100 - __main__ - INFO - --- Finished attempt to close open positions. ---
+2025-05-20 14:59:50,100 - __main__ - INFO - --- Stopping OrderLogger (Current State: STARTED) ---
+2025-05-20 14:59:50,100 - component.OrderLogger - INFO - DummyComponent 'OrderLogger' performing its specific stop actions.
+2025-05-20 14:59:50,100 - component.OrderLogger - INFO - 'OrderLogger' attempted to unsubscribe from ORDER events.
+2025-05-20 14:59:50,100 - component.OrderLogger - INFO - DummyComponent 'OrderLogger' stopped. State: STOPPED
+2025-05-20 14:59:50,100 - __main__ - INFO - State of 'OrderLogger' after stop: STOPPED
+2025-05-20 14:59:50,100 - __main__ - INFO - --- Stopping SignalLogger (Current State: STARTED) ---
+2025-05-20 14:59:50,100 - component.SignalLogger - INFO - DummyComponent 'SignalLogger' performing its specific stop actions.
+2025-05-20 14:59:50,100 - component.SignalLogger - INFO - 'SignalLogger' attempted to unsubscribe from SIGNAL events.
+2025-05-20 14:59:50,100 - component.SignalLogger - INFO - DummyComponent 'SignalLogger' stopped. State: STOPPED
+2025-05-20 14:59:50,100 - __main__ - INFO - State of 'SignalLogger' after stop: STOPPED
+2025-05-20 14:59:50,100 - __main__ - INFO - --- Stopping SimExec_1 (Current State: STARTED) ---
+2025-05-20 14:59:50,100 - component.SimExec_1 - INFO - Stopping SimExec_1...
+2025-05-20 14:59:50,100 - component.SimExec_1 - INFO - 'SimExec_1' attempted to unsubscribe from ORDER events.
+2025-05-20 14:59:50,100 - component.SimExec_1 - INFO - SimExec_1 stopped. State: STOPPED
+2025-05-20 14:59:50,100 - __main__ - INFO - State of 'SimExec_1' after stop: STOPPED
+2025-05-20 14:59:50,100 - __main__ - INFO - --- Stopping BasicRiskMan1 (Current State: STARTED) ---
+2025-05-20 14:59:50,100 - component.BasicRiskMan1 - INFO - Stopping BasicRiskMan1...
+2025-05-20 14:59:50,100 - component.BasicRiskMan1 - INFO - 'BasicRiskMan1' attempted to unsubscribe from SIGNAL events.
+2025-05-20 14:59:50,100 - component.BasicRiskMan1 - INFO - BasicRiskMan1 stopped. State: STOPPED
+2025-05-20 14:59:50,100 - __main__ - INFO - State of 'BasicRiskMan1' after stop: STOPPED
+2025-05-20 14:59:50,100 - __main__ - INFO - --- Stopping BasicPortfolio (Current State: INITIALIZED) ---
+2025-05-20 14:59:50,100 - component.BasicPortfolio - INFO - Stopping BasicPortfolio...
+2025-05-20 14:59:50,100 - component.BasicPortfolio - INFO - --- BasicPortfolio Final Summary ---
+2025-05-20 14:59:50,100 - component.BasicPortfolio - INFO - Initial Cash: 100000.00
+2025-05-20 14:59:50,100 - component.BasicPortfolio - INFO - Final Cash: 100000.00
+2025-05-20 14:59:50,100 - component.BasicPortfolio - INFO - Final Open Holdings: None (all positions were closed).
+2025-05-20 14:59:50,100 - component.BasicPortfolio - INFO - Final Portfolio Value: 100000.00
+2025-05-20 14:59:50,100 - component.BasicPortfolio - INFO - Total Realized P&L: 0.00
+2025-05-20 14:59:50,100 - component.BasicPortfolio - INFO - Number of Trade Segments Logged: 0
+2025-05-20 14:59:50,100 - component.BasicPortfolio - INFO - --- Performance by Regime ---
+2025-05-20 14:59:50,100 - component.BasicPortfolio - INFO - 'BasicPortfolio' unsubscribed from events.
+2025-05-20 14:59:50,100 - component.BasicPortfolio - INFO - Stopping component 'BasicPortfolio'...
+2025-05-20 14:59:50,100 - component.BasicPortfolio - INFO - BasicPortfolio stopped. State: INITIALIZED
+2025-05-20 14:59:50,100 - __main__ - INFO - State of 'BasicPortfolio' after stop: INITIALIZED
+2025-05-20 14:59:50,100 - __main__ - INFO - --- Stopping MyPrimaryRegimeDetector_Instance (Current State: STARTED) ---
+2025-05-20 14:59:50,101 - __main__ - INFO - Generating summary for RegimeDetector 'MyPrimaryRegimeDetector_Instance'...
+2025-05-20 14:59:50,101 - component.MyPrimaryRegimeDetector_Instance - INFO - === Regime Detection Summary ===
+No regime detection checks were performed
+=== End of Summary ===
+2025-05-20 14:59:50,101 - component.MyPrimaryRegimeDetector_Instance - INFO - Stopping component 'MyPrimaryRegimeDetector_Instance'...
+2025-05-20 14:59:50,101 - component.MyPrimaryRegimeDetector_Instance - INFO - === Regime Detection Summary ===
+No regime detection checks were performed
+=== End of Summary ===
+2025-05-20 14:59:50,101 - component.MyPrimaryRegimeDetector_Instance - INFO - Stopping component 'MyPrimaryRegimeDetector_Instance'...
+2025-05-20 14:59:50,101 - component.MyPrimaryRegimeDetector_Instance - INFO - Stopping classifier 'MyPrimaryRegimeDetector_Instance'...
+2025-05-20 14:59:50,101 - component.MyPrimaryRegimeDetector_Instance - INFO - Classifier 'MyPrimaryRegimeDetector_Instance' unsubscribed from BAR events.
+2025-05-20 14:59:50,101 - component.MyPrimaryRegimeDetector_Instance - INFO - Classifier 'MyPrimaryRegimeDetector_Instance' stopped. State: STOPPED
+2025-05-20 14:59:50,101 - __main__ - INFO - State of 'MyPrimaryRegimeDetector_Instance' after stop: STOPPED
+2025-05-20 14:59:50,101 - __main__ - INFO - --- Stopping RegimeAdaptiveStrategy (Current State: STARTED) ---
+2025-05-20 14:59:50,101 - component.RegimeAdaptiveStrategy - INFO - 'RegimeAdaptiveStrategy' unsubscribed from CLASSIFICATION events.
+2025-05-20 14:59:50,101 - component.RegimeAdaptiveStrategy - INFO - Stopping MAStrategy 'RegimeAdaptiveStrategy'...
+2025-05-20 14:59:50,101 - component.RegimeAdaptiveStrategy - INFO - 'RegimeAdaptiveStrategy' attempted to unsubscribe from BAR events.
+2025-05-20 14:59:50,101 - component.RegimeAdaptiveStrategy - INFO - MAStrategy 'RegimeAdaptiveStrategy' stopped. State: STOPPED
+2025-05-20 14:59:50,101 - __main__ - INFO - State of 'RegimeAdaptiveStrategy' after stop: STOPPED
+2025-05-20 14:59:50,101 - __main__ - INFO - Main application logic (standard backtest) finished.
+2025-05-20 14:59:50,101 - __main__ - INFO - ADMF-Trader MVP finished.

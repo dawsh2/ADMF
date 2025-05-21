@@ -35,7 +35,7 @@ class EventBus:
                 self._subscribers[event_type].append(handler)
                 logger.debug(f"Handler '{getattr(handler, '__name__', repr(handler))}' subscribed to event type '{event_type.name}'.")
             else:
-                logger.warning(f"Handler '{getattr(handler, '__name__', repr(handler))}' already subscribed to event type '{event_type.name}'.")
+                logger.debug(f"Handler '{getattr(handler, '__name__', repr(handler))}' already subscribed to event type '{event_type.name}'. Skipping duplicate subscription.")
 
     def unsubscribe(self, event_type: EventType, handler: Callable[[Event], None]):
         """
@@ -45,15 +45,18 @@ class EventBus:
             event_type (EventType): The type of event to unsubscribe from.
             handler (Callable[[Event], None]): The handler to remove.
         """
+        # Use a debug-level log for not found handlers to reduce noise
         with self._lock:
             try:
                 if handler in self._subscribers[event_type]:
                     self._subscribers[event_type].remove(handler)
                     logger.debug(f"Handler '{getattr(handler, '__name__', repr(handler))}' unsubscribed from event type '{event_type.name}'.")
                 else:
-                    logger.warning(f"Handler '{getattr(handler, '__name__', repr(handler))}' not found for event type '{event_type.name}' during unsubscribe.")
+                    logger.debug(f"Handler '{getattr(handler, '__name__', repr(handler))}' not found for event type '{event_type.name}' during unsubscribe.")
             except ValueError: # Should not happen if 'in' check is done, but as a safeguard
-                logger.warning(f"Handler '{getattr(handler, '__name__', repr(handler))}' not found for event type '{event_type.name}' during unsubscribe (ValueError).")
+                logger.debug(f"Handler '{getattr(handler, '__name__', repr(handler))}' not found for event type '{event_type.name}' during unsubscribe (ValueError).")
+            except KeyError: # EventType not in subscribers
+                logger.debug(f"No subscribers found for event type '{event_type.name}' during unsubscribe.")
 
 
     def publish(self, event: Event):

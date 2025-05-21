@@ -53,6 +53,16 @@ class BasicPortfolio(BaseComponent):
         """Reset the portfolio to its initial state for a fresh backtest run."""
         self.logger.info(f"Resetting portfolio '{self.name}' to initial state")
         
+        # Unsubscribe from events first to prevent duplicate subscriptions
+        if self._event_bus:
+            try:
+                self._event_bus.unsubscribe(EventType.FILL, self.on_fill)
+                self._event_bus.unsubscribe(EventType.BAR, self.on_bar)
+                self._event_bus.unsubscribe(EventType.CLASSIFICATION, self.on_classification_change)
+                self.logger.debug(f"'{self.name}' unsubscribed from events during reset.")
+            except Exception as e:
+                self.logger.warning(f"Error unsubscribing from events during reset: {e}")
+        
         # Close any open positions
         if self.open_positions:
             now = datetime.datetime.now(datetime.timezone.utc)
@@ -513,9 +523,29 @@ class BasicPortfolio(BaseComponent):
         return self.close_all_positions(timestamp, data_for_closure)
 
     def get_final_portfolio_value(self) -> float:
-        if self._portfolio_value_history:
-            return self._portfolio_value_history[-1][1] 
-        return self.current_total_value 
+        """
+        Returns the final portfolio value (current_total_value).
+        
+        First checks if there is a history entry, otherwise returns current value. 
+        Also validates the return value to ensure it is not None or NaN.
+        """
+        result = None
+        # Check history first - most accurate for backtest results
+        if self._portfolio_value_history and len(self._portfolio_value_history) > 0:
+            result = self._portfolio_value_history[-1][1]
+            logging.debug(f"get_final_portfolio_value returning from history: {result}")
+        
+        # If no history or invalid result, use current value
+        if result is None or (isinstance(result, float) and (result != result or result == float('inf') or result == float('-inf'))):
+            result = self.current_total_value
+            logging.debug(f"get_final_portfolio_value returning current_total_value: {result}")
+        
+        # As a last resort, return initial cash if everything else fails
+        if result is None or (isinstance(result, float) and (result != result or result == float('inf') or result == float('-inf'))):
+            result = self.initial_cash
+            logging.warning(f"WARNING: Using initial_cash as fallback for get_final_portfolio_value: {result}")
+            
+        return result
 
     def _calculate_performance_by_regime(self) -> Dict[str, Dict[str, Any]]:
         """
@@ -646,6 +676,36 @@ class BasicPortfolio(BaseComponent):
             Dict[str, Dict[str, Any]]: Dictionary with regime names as keys and performance metrics as values
         """
         return self._calculate_performance_by_regime()
+        
+    def get_performance(self) -> Dict[str, Any]:
+        """
+        Returns a dictionary of overall portfolio performance metrics.
+        
+        Returns:
+            Dict[str, Any]: Dictionary of performance metrics
+        """
+        # Calculate overall performance metrics
+        metrics = {
+            "final_portfolio_value": self.current_total_value,
+            "initial_portfolio_value": self.initial_cash,
+            "total_return": (self.current_total_value / self.initial_cash) - 1.0 if self.initial_cash > 0 else 0.0,
+            "realized_pnl": self.realized_pnl,
+            "unrealized_pnl": self.unrealized_pnl,
+            "current_cash": self.current_cash,
+            "current_holdings_value": self.current_holdings_value
+        }
+        
+        # Add additional metrics from any regime calculations if they exist
+        return metrics
+        
+    def get_final_portfolio_value(self) -> float:
+        """
+        Returns the final portfolio value (current_total_value).
+        
+        Returns:
+            float: Current total portfolio value
+        """
+        return self.current_total_value
     
     def _log_final_performance_summary(self):
         self.logger.info(f"--- {self.name} Final Summary ---")
