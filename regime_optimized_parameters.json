@@ -1,106 +1,25 @@
 {
-  "timestamp": "2025-05-20T17:58:00.217834",
+  "timestamp": "2025-05-20T18:17:01.973303",
   "overall_best_parameters": {
     "short_window": 5,
     "long_window": 20,
-    "rsi_indicator.period": 14,
-    "rsi_rule.oversold_threshold": 30.0,
+    "rsi_indicator.period": 9,
+    "rsi_rule.oversold_threshold": 20.0,
     "rsi_rule.overbought_threshold": 60.0,
-    "rsi_rule.weight": 0.6,
-    "ma_rule.weight": 0.6
+    "rsi_rule.weight": 0.4,
+    "ma_rule.weight": 0.4
   },
   "overall_best_metric": {
     "name": "get_final_portfolio_value",
-    "value": 100797.35999999994,
+    "value": 100264.92999999996,
     "higher_is_better": true
   },
-  "regime_best_parameters": {
-    "default": {
-      "parameters": {
-        "short_window": 10,
-        "long_window": 20,
-        "rsi_indicator.period": 14,
-        "rsi_rule.oversold_threshold": 30.0,
-        "rsi_rule.overbought_threshold": 70.0,
-        "rsi_rule.weight": 0.6,
-        "ma_rule.weight": 0.6
-      },
-      "metric": {
-        "name": "sharpe_ratio",
-        "value": 1.0672681784328393,
-        "higher_is_better": true
-      }
-    },
-    "ranging_low_vol": {
-      "parameters": {
-        "short_window": 10,
-        "long_window": 20,
-        "rsi_indicator.period": 14,
-        "rsi_rule.oversold_threshold": 30.0,
-        "rsi_rule.overbought_threshold": 60.0,
-        "rsi_rule.weight": 0.6,
-        "ma_rule.weight": 0.6
-      },
-      "metric": {
-        "name": "sharpe_ratio",
-        "value": -9.295724471230706,
-        "higher_is_better": true
-      }
-    },
-    "trending_down": {
-      "parameters": {
-        "short_window": 5,
-        "long_window": 20,
-        "rsi_indicator.period": 14,
-        "rsi_rule.oversold_threshold": 30.0,
-        "rsi_rule.overbought_threshold": 60.0,
-        "rsi_rule.weight": 0.6,
-        "ma_rule.weight": 0.4
-      },
-      "metric": {
-        "name": "sharpe_ratio",
-        "value": 14.514592150767562,
-        "higher_is_better": true
-      }
-    },
-    "trending_up_low_vol": {
-      "parameters": {
-        "short_window": 5,
-        "long_window": 20,
-        "rsi_indicator.period": 9,
-        "rsi_rule.oversold_threshold": 30.0,
-        "rsi_rule.overbought_threshold": 70.0,
-        "rsi_rule.weight": 0.6,
-        "ma_rule.weight": 0.6
-      },
-      "metric": {
-        "name": "sharpe_ratio",
-        "value": -4.549570751020331,
-        "higher_is_better": true
-      }
-    },
-    "trending_up_volatile": {
-      "parameters": {
-        "short_window": 5,
-        "long_window": 20,
-        "rsi_indicator.period": 14,
-        "rsi_rule.oversold_threshold": 30.0,
-        "rsi_rule.overbought_threshold": 70.0,
-        "rsi_rule.weight": 0.6,
-        "ma_rule.weight": 0.6
-      },
-      "metric": {
-        "name": "sharpe_ratio",
-        "value": -23.371072434608504,
-        "higher_is_better": true
-      }
-    }
-  },
+  "regime_best_parameters": {},
   "regimes_encountered": [
-    "ranging_low_vol",
     "trending_up_volatile",
-    "default",
     "trending_down",
+    "ranging_low_vol",
+    "default",
     "trending_up_low_vol"
   ],
   "min_trades_per_regime": 5,
@@ -108,16 +27,16 @@
     {
       "rank": 1,
       "parameters": {
-        "short_window": 10,
+        "short_window": 5,
         "long_window": 20,
-        "rsi_indicator.period": 14,
-        "rsi_rule.oversold_threshold": 30.0,
+        "rsi_indicator.period": 9,
+        "rsi_rule.oversold_threshold": 20.0,
         "rsi_rule.overbought_threshold": 60.0,
-        "rsi_rule.weight": 0.6,
-        "ma_rule.weight": 0.6
+        "rsi_rule.weight": 0.4,
+        "ma_rule.weight": 0.4
       },
-      "train_metric": 100782.72499999989,
-      "test_metric": 99917.03999999998
+      "train_metric": 100264.92999999996,
+      "test_metric": 100000.0
     },
     {
       "rank": 2,
@@ -126,67 +45,29 @@
         "long_window": 20,
         "rsi_indicator.period": 9,
         "rsi_rule.oversold_threshold": 20.0,
-        "rsi_rule.overbought_threshold": 70.0,
-        "rsi_rule.weight": 0.6,
+        "rsi_rule.overbought_threshold": 60.0,
+        "rsi_rule.weight": 0.4,
         "ma_rule.weight": 0.6
       },
-      "train_metric": 100617.45999999995,
-      "test_metric": 99835.23999999998
+      "train_metric": 100264.92999999996,
+      "test_metric": 100000.0
     },
     {
       "rank": 3,
       "parameters": {
         "short_window": 5,
         "long_window": 20,
-        "rsi_indicator.period": 14,
-        "rsi_rule.oversold_threshold": 30.0,
+        "rsi_indicator.period": 9,
+        "rsi_rule.oversold_threshold": 20.0,
         "rsi_rule.overbought_threshold": 60.0,
         "rsi_rule.weight": 0.6,
-        "ma_rule.weight": 0.6
+        "ma_rule.weight": 0.4
       },
-      "train_metric": 100797.35999999994,
-      "test_metric": 99821.23999999998
+      "train_metric": 100264.92999999996,
+      "test_metric": 100000.0
     }
   ],
   "regime_adaptive_test_results": {
-    "best_overall_metric": 100000.0,
-    "best_overall_regime_performance": {
-      "_boundary_trades_summary": {}
-    },
-    "regimes_detected": [
-      "default",
-      "trending_up_low_vol",
-      "trending_down",
-      "ranging_low_vol",
-      "trending_up_volatile",
-      "oversold_in_uptrend"
-    ],
-    "warning": "No trades were generated during adaptive test",
-    "adaptive_metric": 100000.0,
-    "adaptive_regime_performance": {
-      "_boundary_trades_summary": {}
-    },
-    "improvement_pct": 0.0,
-    "method": "true_adaptive",
-    "message": "Used true regime-adaptive strategy with dynamic parameter switching",
-    "trade_counts": {
-      "best_overall": 0,
-      "adaptive": 0
-    },
-    "regimes_info": {
-      "regimes_with_optimized_params": [
-        "default",
-        "trending_up_low_vol",
-        "trending_down",
-        "ranging_low_vol",
-        "trending_up_volatile"
-      ],
-      "regimes_without_params": [
-        "oversold_in_uptrend"
-      ],
-      "would_use_default_for": [
-        "oversold_in_uptrend"
-      ]
-    }
+    "error": "No regime-specific parameters available"
   }
 }

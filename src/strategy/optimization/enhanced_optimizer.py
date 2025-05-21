@@ -791,6 +791,16 @@ class EnhancedOptimizer(BasicOptimizer):
             results["regime_adaptive_test_results"] = {}
             self.logger.debug("Initialized empty regime_adaptive_test_results dictionary")
             
+        # Define component dependencies for proper lifecycle management
+        component_dependencies = [
+            "MyPrimaryPortfolio", 
+            self._portfolio_service_name, 
+            self._strategy_service_name, 
+            "MyPrimaryRiskManager", 
+            "MyPrimaryRegimeDetector", 
+            self._data_handler_service_name
+        ]
+            
         try:
             # Get all necessary components with proper error handling
             self.logger.debug("Resolving all required components for regime-adaptive test")
@@ -849,16 +859,6 @@ class EnhancedOptimizer(BasicOptimizer):
             # Step 1: Run the best overall strategy on test set for comparison baseline
             # ==========================================
             self.logger.info("Running best overall strategy on test set for baseline comparison...")
-            
-            # Define component dependencies for proper lifecycle management
-            component_dependencies = [
-                "MyPrimaryPortfolio", 
-                self._portfolio_service_name, 
-                self._strategy_service_name, 
-                "MyPrimaryRiskManager", 
-                "MyPrimaryRegimeDetector", 
-                self._data_handler_service_name
-            ]
             
             # PROPER COMPONENT LIFECYCLE MANAGEMENT:
             # First stop all components in reverse dependency order
