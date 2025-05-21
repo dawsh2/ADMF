@@ -350,6 +350,33 @@ class RegimeDetector(Classifier):
             except Exception as e:
                 self.logger.error(f"Error publishing classification event from '{self.name}': {e}", exc_info=True)
                 
+    def reset(self):
+        """Reset the regime detector to initial state for a fresh run."""
+        self.logger.info(f"Resetting RegimeDetector '{self.name}' to initial state")
+        
+        # Reset classification state
+        self._current_classification = None
+        self._current_regime_duration = 0
+        self._pending_regime = None
+        self._pending_duration = 0
+        
+        # Reset statistics tracking
+        self._total_checks = 0
+        self._no_match_count = 0
+        self._regime_counts = {}
+        self._checks_since_last_log = 0
+        
+        # Reset all indicators if they have a reset method
+        for name, indicator in self._regime_indicators.items():
+            if hasattr(indicator, 'reset') and callable(getattr(indicator, 'reset')):
+                try:
+                    indicator.reset()
+                    self.logger.debug(f"Reset indicator '{name}' in {self.name}")
+                except Exception as e:
+                    self.logger.warning(f"Error resetting indicator '{name}' in {self.name}: {e}")
+        
+        self.logger.debug(f"RegimeDetector '{self.name}' reset complete")
+    
     def stop(self):
         """Stop the detector and generate a summary report."""
         self.logger.info(f"Stopping component '{self.name}'...")

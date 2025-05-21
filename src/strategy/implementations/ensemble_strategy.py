@@ -256,7 +256,7 @@ class EnsembleSignalStrategy(MAStrategy): # Inheriting MAStrategy for quick demo
                               (rsi_signal_type_int * self.rsi_rule.weight)
         
         self.logger.info(f"MA Signal: {ma_signal_type_int}, RSI Signal: {rsi_signal_type_int}, Combined: {combined_strength:.2f}, Weights: MA={self.ma_weight}, RSI={self.rsi_rule.weight}")
-        self.logger.info(f"Current parameters - short_window: {self._short_window}, long_window: {self._long_window}, RSI period: {self.rsi_indicator._period}, RSI thresholds: oversold={self.rsi_rule._oversold_threshold}, overbought={self.rsi_rule._overbought_threshold}")
+        self.logger.info(f"Current parameters - short_window: {self._short_window}, long_window: {self._long_window}, RSI period: {self.rsi_indicator.period}, RSI thresholds: oversold={self.rsi_rule.oversold_threshold}, overbought={self.rsi_rule.overbought_threshold}")
 
         # Relax the thresholds to generate more signals during optimization
         current_signal_to_publish = 0
@@ -303,18 +303,25 @@ class EnsembleSignalStrategy(MAStrategy): # Inheriting MAStrategy for quick demo
 
 
     def set_parameters(self, params: Dict[str, Any]):
-        super().set_parameters(params) # For MAStrategy part
+        super().set_parameters(params) # For MAStrategy part (this stores extended params with underscores)
         
         # Parameters for RSI components might be prefixed, e.g., "rsi_indicator.period"
         rsi_indicator_params = {k.split('.', 1)[1]: v for k, v in params.items() if k.startswith("rsi_indicator.")}
         if rsi_indicator_params:
+            self.logger.info(f"'{self.name}' storing extended parameter: rsi_indicator.period={rsi_indicator_params.get('period', 'MISSING')}")
             self.rsi_indicator.set_parameters(rsi_indicator_params)
 
         rsi_rule_params = {k.split('.', 1)[1]: v for k, v in params.items() if k.startswith("rsi_rule.")}
         if rsi_rule_params:
             self.rsi_rule.set_parameters(rsi_rule_params)
             
-        self.ma_weight = params.get('ma_rule.weight', self.ma_weight)
+        # BUGFIX: Properly handle ma_rule.weight parameter 
+        # The parent class can't store "ma_rule.weight" as an attribute due to the dot,
+        # so we need to handle it manually here
+        if 'ma_rule.weight' in params:
+            self.ma_weight = params['ma_rule.weight']
+            self.logger.info(f"'{self.name}' storing extended parameter: ma_rule.weight={self.ma_weight}")
+            
         self.logger.info(f"EnsembleSignalStrategy '{self.name}' parameters updated.")
         return True 
 

@@ -146,6 +146,16 @@ class ATRIndicator:
             else:
                 self.logger.warning(f"Attempted to set invalid period {new_period} for {self.instance_name}")
         return False
+    
+    def reset(self):
+        """Reset the indicator to its initial state."""
+        self._high_prices.clear()
+        self._low_prices.clear()
+        self._close_prices.clear()
+        self._true_ranges.clear()
+        self._current_value = None
+        self._is_ready = False
+        self.logger.debug(f"ATRIndicator '{self.instance_name}' reset to initial state")
         
     # If your indicators are expected to be BaseComponents and need these lifecycle methods:
     # def setup(self):

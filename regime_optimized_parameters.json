@@ -1,5 +1,5 @@
 {
-  "timestamp": "2025-05-20T18:20:52.622670",
+  "timestamp": "2025-05-20T18:45:46.433695",
   "overall_best_parameters": {
     "short_window": 5,
     "long_window": 20,
@@ -7,15 +7,20 @@
     "rsi_rule.oversold_threshold": 20.0,
     "rsi_rule.overbought_threshold": 60.0,
     "rsi_rule.weight": 0.4,
-    "ma_rule.weight": 0.4
+    "ma_rule.weight": 0.6
   },
   "overall_best_metric": {
     "name": "get_final_portfolio_value",
-    "value": 100000.0,
+    "value": 99890.98000000001,
     "higher_is_better": true
   },
   "regime_best_parameters": {},
-  "regimes_encountered": [],
+  "regimes_encountered": [
+    "trending_up_volatile",
+    "trending_up_low_vol",
+    "trending_down",
+    "default"
+  ],
   "min_trades_per_regime": 5,
   "test_results": [
     {
@@ -27,10 +32,10 @@
         "rsi_rule.oversold_threshold": 20.0,
         "rsi_rule.overbought_threshold": 60.0,
         "rsi_rule.weight": 0.4,
-        "ma_rule.weight": 0.4
+        "ma_rule.weight": 0.6
       },
-      "train_metric": 100000.0,
-      "test_metric": 100000.0
+      "train_metric": 99890.98000000001,
+      "test_metric": 100019.495
     },
     {
       "rank": 2,
@@ -40,11 +45,11 @@
         "rsi_indicator.period": 9,
         "rsi_rule.oversold_threshold": 20.0,
         "rsi_rule.overbought_threshold": 60.0,
-        "rsi_rule.weight": 0.4,
-        "ma_rule.weight": 0.6
+        "rsi_rule.weight": 0.6,
+        "ma_rule.weight": 0.4
       },
-      "train_metric": 100000.0,
-      "test_metric": 100000.0
+      "train_metric": 99890.98000000001,
+      "test_metric": 100005.495
     },
     {
       "rank": 3,
@@ -55,10 +60,10 @@
         "rsi_rule.oversold_threshold": 20.0,
         "rsi_rule.overbought_threshold": 60.0,
         "rsi_rule.weight": 0.6,
-        "ma_rule.weight": 0.4
+        "ma_rule.weight": 0.6
       },
-      "train_metric": 100000.0,
-      "test_metric": 100000.0
+      "train_metric": 99890.98000000001,
+      "test_metric": 100005.495
     }
   ],
   "regime_adaptive_test_results": {

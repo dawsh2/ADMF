@@ -49,7 +49,7 @@ class EnhancedOptimizer(BasicOptimizer):
     def _perform_single_backtest_run(self, params_to_test: Dict[str, Any], dataset_type: str) -> Tuple[Optional[float], Optional[Dict[str, Dict[str, Any]]]]:
         """
         Overridden to also return regime-specific performance metrics.
-        First resets the portfolio to ensure each run starts from the same initial state.
+        First resets the portfolio AND regime detector to ensure each run starts from a clean state.
         Directly processes regimes like test_regime_detection.py does.
         """
         # Reset the portfolio state before each run
@@ -61,12 +61,26 @@ class EnhancedOptimizer(BasicOptimizer):
             self.logger.error(f"Error resetting portfolio before backtest run: {e}", exc_info=True)
             # Continue with the run even if reset fails, as the parent method will handle other errors
         
-        # Ensure RegimeDetector is available
+        # Ensure RegimeDetector is available and reset it properly
         try:
             regime_detector = self._container.resolve("MyPrimaryRegimeDetector")
             self.logger.info(f"Found regime detector for optimization: {regime_detector.name}")
+            
+            # IMPORTANT: Reset the regime detector to ensure clean state for each run
+            if hasattr(regime_detector, 'reset') and callable(getattr(regime_detector, 'reset')):
+                self.logger.debug(f"Resetting regime detector state before {dataset_type} run")
+                regime_detector.reset()
+            else:
+                # If no reset method exists, try stopping and starting for clean state
+                if hasattr(regime_detector, 'stop') and callable(getattr(regime_detector, 'stop')):
+                    regime_detector.stop()
+                if hasattr(regime_detector, 'setup') and callable(getattr(regime_detector, 'setup')):
+                    regime_detector.setup()
+                if hasattr(regime_detector, 'start') and callable(getattr(regime_detector, 'start')):
+                    regime_detector.start()
+                self.logger.debug(f"Restarted regime detector for clean state before {dataset_type} run")
         except Exception as e:
-            self.logger.warning(f"RegimeDetector not available for run: {e}. Regime-specific optimization may be limited.")
+            self.logger.warning(f"RegimeDetector not available or could not be reset for run: {e}. Regime-specific optimization may be limited.")
         
         # Get the overall performance metric from parent class
         overall_metric = super()._perform_single_backtest_run(params_to_test, dataset_type)
@@ -114,6 +128,10 @@ class EnhancedOptimizer(BasicOptimizer):
         # Special handling for the boundary trades summary section
         boundary_trades_summary = regime_performance.get('_boundary_trades_summary', {})
         
+        # Log information about available regimes
+        trade_regimes = [r for r in regime_performance.keys() if not r.startswith('_')]
+        self.logger.info(f"Processing regimes with trades: {trade_regimes}")
+        
         # Process each regime's metrics
         for regime, metrics in regime_performance.items():
             # Skip the boundary trades summary section, we'll process it separately
@@ -128,15 +146,21 @@ class EnhancedOptimizer(BasicOptimizer):
             pure_regime_count = metrics.get('pure_regime_count', 0)
             total_count = metrics.get('count', 0)
             
-            # Skip regimes with too few trades
+            # Get trade PnL information
+            total_pnl = metrics.get('net_pnl', metrics.get('pnl', 0))
+            gross_pnl = metrics.get('gross_pnl', 0)
+            
+            self.logger.info(f"Regime '{regime}' trades: {total_count}, PnL: {total_pnl:.2f}, Pure regime trades: {pure_regime_count}")
+            
+            # Skip regimes with too few trades (but log it for analysis)
             if total_count < self._min_trades_per_regime:
-                self.logger.debug(f"Regime '{regime}' had only {total_count} trades with params {params}, which is less than the minimum {self._min_trades_per_regime} required.")
+                self.logger.info(f"Regime '{regime}' had only {total_count} trades with params {params}, which is less than the minimum {self._min_trades_per_regime} required.")
                 continue
             
             # Log boundary trade percentage for debugging
             if total_count > 0:
                 boundary_pct = (boundary_trade_count / total_count) * 100
-                self.logger.debug(f"Regime '{regime}': {boundary_trade_count} boundary trades out of {total_count} total ({boundary_pct:.1f}%)")
+                self.logger.info(f"Regime '{regime}': {boundary_trade_count} boundary trades out of {total_count} total ({boundary_pct:.1f}%)")
             
             # Get the metric value for this regime
             metric_value = metrics.get(self._regime_metric)
@@ -793,10 +817,9 @@ class EnhancedOptimizer(BasicOptimizer):
             
         # Define component dependencies for proper lifecycle management
         component_dependencies = [
-            "MyPrimaryPortfolio", 
             self._portfolio_service_name, 
             self._strategy_service_name, 
-            "MyPrimaryRiskManager", 
+            self._risk_manager_service_name, 
             "MyPrimaryRegimeDetector", 
             self._data_handler_service_name
         ]
@@ -817,7 +840,7 @@ class EnhancedOptimizer(BasicOptimizer):
             
             # Try to get risk manager if it exists
             try:
-                risk_manager = self._container.resolve("MyPrimaryRiskManager")
+                risk_manager = self._container.resolve(self._risk_manager_service_name)
                 self.logger.info(f"Found risk manager for adaptive test: {risk_manager.name if hasattr(risk_manager, 'name') else 'unknown'}")
             except Exception as e:
                 self.logger.warning(f"Risk manager not available: {e}. Will proceed without explicit risk management.")
@@ -919,10 +942,9 @@ class EnhancedOptimizer(BasicOptimizer):
             component_start_order = [
                 self._data_handler_service_name, 
                 "MyPrimaryRegimeDetector", 
-                "MyPrimaryRiskManager", 
+                self._risk_manager_service_name, 
                 self._strategy_service_name, 
-                self._portfolio_service_name, 
-                "MyPrimaryPortfolio"
+                self._portfolio_service_name
             ]
             
             self.logger.debug("Starting all components in correct dependency order")
@@ -949,12 +971,10 @@ class EnhancedOptimizer(BasicOptimizer):
                 except Exception:
                     pass
                     
-            # Run simulation with best overall parameters
-            self.logger.info("Running simulation with best overall parameters...")
-            if hasattr(data_handler, "run_simulation") and callable(getattr(data_handler, "run_simulation")):
-                self.logger.debug("Calling run_simulation() on data handler")
-                data_handler.run_simulation()
-                self.logger.debug("Simulation with best overall parameters completed")
+            # Let data flow naturally - the data handler will automatically stream when started
+            self.logger.info("Starting data flow with best overall parameters...")
+            self.logger.debug("Data streaming will occur automatically via component lifecycle")
+            # No explicit run_simulation call needed - data streams when components are started
             
             # Check if any trades were generated
             trade_count_best = 0
@@ -1192,14 +1212,10 @@ class EnhancedOptimizer(BasicOptimizer):
             else:
                 self.logger.warning("No initial regime classification available for manual trigger")
             
-            # Run the simulation with regime-adaptive behavior
-            self.logger.info("Running test simulation with adaptive regime-switching...")
-            if hasattr(data_handler, "run_simulation") and callable(getattr(data_handler, "run_simulation")):
-                self.logger.debug("Calling run_simulation() on data handler for adaptive test")
-                data_handler.run_simulation()
-                self.logger.debug("Adaptive simulation completed")
-            else:
-                self.logger.error("Data handler does not have run_simulation method!")
+            # The simulation will run automatically - data streams when components are started
+            self.logger.info("Data flow initiated with adaptive regime-switching...")
+            self.logger.debug("Adaptive simulation will occur automatically via component lifecycle")
+            # No explicit run_simulation call needed - data streams when components are started
                 
             # Check if any trades were generated
             trade_count_adaptive = 0

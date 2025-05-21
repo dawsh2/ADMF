@@ -6,6 +6,22 @@ The Execution module is responsible for order processing, market simulation, and
 
 > **Important Architectural Note**: The Execution module ONLY processes ORDER events from the Risk module. It does NOT interact directly with SIGNAL events, which are handled exclusively by the Risk module.
 
+## Problem Statement
+
+The ADMF-Trader system operates in multiple execution contexts with different threading requirements:
+
+1. **Backtesting**: Historical simulation with varying thread requirements
+2. **Optimization**: Multiple backtest instances running in parallel
+3. **Live Trading**: Real-time market data and order processing
+
+Without clearly defined execution modes, several issues can arise:
+
+- Inconsistent thread safety applications leading to either race conditions or performance overhead
+- Unclear concurrency assumptions across components
+- Thread management inconsistencies across execution contexts
+- Performance bottlenecks from unnecessary synchronization overhead
+- Difficulty reasoning about system behavior in different execution modes
+
 ## Key Components
 
 The Execution module consists of these core components:
@@ -763,6 +779,34 @@ class ThreadIsolationGuidelines:
                 'strategy': 'thread_isolated',
             }
             return live_overrides.get(component_type, default_levels.get(component_type, 'shared'))
+            
+    @staticmethod
+    def should_use_locks(context, component_type):
+        """
+        Determine if component should use locks.
+        
+        Args:
+            context: Execution context
+            component_type: Type of component
+            
+        Returns:
+            bool: Whether locks should be used
+        """
+        # Single-threaded backtest doesn't need locks
+        if context.execution_mode == ExecutionMode.BACKTEST_SINGLE:
+            return False
+            
+        # Live trading always needs locks
+        if context.is_live:
+            return True
+            
+        # Optimization depends on component sharing
+        if context.execution_mode == ExecutionMode.OPTIMIZATION:
+            shared_components = ['data_handler']
+            return component_type in shared_components
+            
+        # Default to using locks in multi-threaded contexts
+        return context.is_multi_threaded
 ```
 
 ### 3. Thread Synchronization Guidelines
@@ -1146,7 +1190,7 @@ For more detailed information on asynchronous implementation, see the [ASYNCHRON
 
 ### Hybrid Execution Model
 
-The ADMF-Trader system supports a hybrid execution model that combines synchronous and asynchronous paradigms:
+The ADMF-Trader system supports a hybrid execution model that combines the strengths of both synchronous and asynchronous paradigms:
 
 | Execution Context | Primary Paradigm | Benefits |
 |-------------------|------------------|----------|
@@ -1155,6 +1199,8 @@ The ADMF-Trader system supports a hybrid execution model that combines synchrono
 | Optimization      | Process-parallel | Maximum CPU utilization across cores |
 | Live Trading      | Asynchronous     | Non-blocking I/O, efficient resource utilization |
 | Paper Trading     | Asynchronous     | Same model as live trading for accurate simulation |
+
+The system automatically selects the appropriate execution paradigm based on the execution mode but allows for explicit configuration when needed.
 
 ## Error Handling Framework
 

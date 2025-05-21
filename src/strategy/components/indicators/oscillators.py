@@ -165,6 +165,11 @@ class RSIIndicator(BaseComponent):
         self._current_value = None
         self._initialized_smoothing = False
         # self.logger.debug(f"RSIIndicator '{self.name}' state reset.")
+    
+    def reset(self):
+        """Reset the indicator to its initial state."""
+        self.reset_state()
+        self.logger.debug(f"RSIIndicator '{self.name}' reset to initial state")
 
     @property
     def parameter_space(self) -> Dict[str, List[Any]]:

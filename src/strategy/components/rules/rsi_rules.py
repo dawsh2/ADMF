@@ -103,6 +103,11 @@ class RSIRule(BaseComponent):
         self._last_rsi_value = None
         self._current_signal_state = 0
         # self.logger.debug(f"RSIRule '{self.name}' state reset.")
+    
+    @property
+    def weight(self) -> float:
+        """Expose the weight as a property for easy access."""
+        return self._weight
 
     @property
     def parameter_space(self) -> Dict[str, List[Any]]:

@@ -152,6 +152,15 @@ class SimpleMATrendIndicator:
             self._is_ready = False
             self.logger.info(f"Parameters updated for {self.instance_name}. New short: {self.short_period}, new long: {self.long_period}")
         return changed
+    
+    def reset(self):
+        """Reset the indicator to its initial state."""
+        self._prices.clear()
+        self._short_ma_values.clear()
+        self._long_ma_values.clear()
+        self._current_value = None
+        self._is_ready = False
+        self.logger.debug(f"SimpleMATrendIndicator '{self.instance_name}' reset to initial state")
 
     # Lifecycle methods if inheriting BaseComponent
     # def setup(self): self.logger.info(f"{self.instance_name} setup complete.")

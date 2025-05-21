@@ -190,6 +190,12 @@ class CSVDataHandler(BaseComponent):
             self.logger.info(f"CSVDataHandler '{self.name}' completed data streaming (0 bars). State: {self.state}")
             return
 
+        # IMPORTANT: Reset the data iterator each time we start to ensure fresh iteration
+        self.logger.debug(f"Resetting data iterator for fresh data streaming in {self.name}")
+        self._data_iterator = self._active_df.iterrows()
+        self._bars_processed_current_run = 0
+        self._last_bar_timestamp = None
+
         self.logger.info(f"CSVDataHandler '{self.name}' starting to publish BAR events from active dataset ({len(self._active_df)} bars)...")
         self.state = BaseComponent.STATE_STARTED
         
