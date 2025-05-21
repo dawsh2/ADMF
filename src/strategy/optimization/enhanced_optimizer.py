@@ -850,8 +850,7 @@ class EnhancedOptimizer(BasicOptimizer):
             # ==========================================
             self.logger.info("Running best overall strategy on test set for baseline comparison...")
             
-            # PROPER COMPONENT LIFECYCLE MANAGEMENT:
-            # First stop all components in reverse dependency order
+            # Define component dependencies for proper lifecycle management
             component_dependencies = [
                 "MyPrimaryPortfolio", 
                 self._portfolio_service_name, 
@@ -861,6 +860,8 @@ class EnhancedOptimizer(BasicOptimizer):
                 self._data_handler_service_name
             ]
             
+            # PROPER COMPONENT LIFECYCLE MANAGEMENT:
+            # First stop all components in reverse dependency order
             self.logger.debug("Stopping all components in reverse dependency order")
             for component_name in component_dependencies:
                 try:

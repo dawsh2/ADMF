@@ -107,6 +107,17 @@ def setup_logging(config_loader, cmd_log_level=None, optimization_mode=False, de
         optimization_mode: If True, configures for optimization (concise format)
         debug_file: Optional path to debug log file, if provided enables detailed DEBUG logging to file
     """
+    # Create logs directory if it doesn't exist
+    import datetime
+    from pathlib import Path
+    logs_dir = Path("logs")
+    logs_dir.mkdir(exist_ok=True)
+    
+    # Generate timestamp for log filename
+    timestamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
+    if not debug_file:
+        debug_file = logs_dir / f"admf_{timestamp}.log"
+    
     # Command-line log level override takes precedence if provided
     if cmd_log_level is not None:
         log_level_str = cmd_log_level.upper()
@@ -127,7 +138,7 @@ def setup_logging(config_loader, cmd_log_level=None, optimization_mode=False, de
     if optimization_mode:
         formatter = FORMATTERS['standard']
     else:
-        formatter = FORMATTERS['standard']
+        formatter = FORMATTERS['verbose']
     
     # Clear existing handlers if any
     if root_logger.hasHandlers():
@@ -135,16 +146,29 @@ def setup_logging(config_loader, cmd_log_level=None, optimization_mode=False, de
             handler.setLevel(log_level)
             handler.setFormatter(formatter)
     else:
-        # Basic configuration logs to stdout
-        handler = logging.StreamHandler(sys.stdout)
-        handler.setLevel(log_level)
-        handler.setFormatter(formatter)  
-        root_logger.addHandler(handler)
+        # Basic configuration logs to stdout and file
+        stdout_handler = logging.StreamHandler(sys.stdout)
+        stdout_handler.setLevel(log_level)
+        stdout_handler.setFormatter(formatter)
+        root_logger.addHandler(stdout_handler)
+        
+        # Always add a file handler for all logs
+        file_handler = logging.FileHandler(debug_file, mode='w', encoding='utf-8')
+        file_handler.setLevel(logging.DEBUG)  # Always log at DEBUG level to file
+        file_handler.setFormatter(FORMATTERS['debug'])
+        root_logger.addHandler(file_handler)
+        print(f"Logging to file: {debug_file}")
     
-    # Setup debug file logging if requested
-    if debug_file:
+    # Setup additional debug file logging if requested specifically
+    if debug_file and debug_file != str(debug_file):
         debug_handler = create_debug_file_logger(debug_file)
-        print(f"Detailed DEBUG logging enabled to file: {debug_file}")
+        print(f"Additional detailed DEBUG logging enabled to file: {debug_file}")
+    
+    # Set specific loggers to DEBUG level to capture all events
+    for module in ['src.strategy.regime_detector', 'src.strategy.regime_adaptive_strategy',
+                  'src.core.event_bus', 'src.strategy.ma_strategy']:
+        component_logger = logging.getLogger(module)
+        component_logger.setLevel(logging.DEBUG)
     
     # Only log the level change if not in optimization mode
     if not optimization_mode:

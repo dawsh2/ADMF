@@ -66,8 +66,12 @@ class MAStrategy(BaseComponent):
     def set_parameters(self, params: Dict[str, Any]):
         """
         Sets new parameters for the strategy and re-initializes dependent state.
-        Expected params: {"short_window": int, "long_window": int}
+        Expected params: {"short_window": int, "long_window": int} and other strategy-specific params
         """
+        # Log all parameters received
+        self.logger.info(f"Setting parameters for '{self.name}': {params}")
+        
+        # Extract core window parameters
         new_short_window = params.get("short_window", self._short_window)
         new_long_window = params.get("long_window", self._long_window)
 
@@ -89,6 +93,14 @@ class MAStrategy(BaseComponent):
             self._long_window = old_long
             self.logger.error(f"Invalid parameters in set_parameters: {e}. Parameters reverted.")
             return False # Indicate failure
+        
+        # Store additional parameters for rules/indicators
+        # These will be used later in signal generation
+        for key, value in params.items():
+            if key not in ["short_window", "long_window"]:
+                # Store extended parameters (RSI period, thresholds, weights, etc.)
+                self.logger.info(f"'{self.name}' storing extended parameter: {key}={value}")
+                setattr(self, f"_{key}", value)
             
         self._initialize_parameter_dependent_state()
         self.logger.info(f"'{self.name}' parameters updated: short_window={self._short_window}, long_window={self._long_window}")
@@ -180,16 +192,51 @@ class MAStrategy(BaseComponent):
         if current_short_ma is not None and current_long_ma is not None and \
            self._prev_short_ma is not None and self._prev_long_ma is not None:
             
+            # Get the weight for MA signals (default to 0.6 if not set)
+            ma_weight = getattr(self, "_ma_weight", 0.6)
+            
+            # Get RSI thresholds and weight if they exist
+            rsi_weight = getattr(self, "_rsi_weight", None)
+            oversold_threshold = getattr(self, "_oversold_threshold", None)
+            overbought_threshold = getattr(self, "_overbought_threshold", None)
+            
+            # Apply MA crossing logic for signals
             if self._prev_short_ma <= self._prev_long_ma and current_short_ma > current_long_ma:
                 if self._current_signal_state != 1:
+                    # Log the parameters being used for signal generation
+                    self.logger.info(f"'{self.name}' generating BUY signal with MA weight: {ma_weight}, "
+                                    f"RSI weight: {rsi_weight}, oversold: {oversold_threshold}, "
+                                    f"overbought: {overbought_threshold}")
                     generated_signal_type_int = 1
                     self._current_signal_state = 1
             elif self._prev_short_ma >= self._prev_long_ma and current_short_ma < current_long_ma:
                 if self._current_signal_state != -1:
+                    # Log the parameters being used for signal generation
+                    self.logger.info(f"'{self.name}' generating SELL signal with MA weight: {ma_weight}, "
+                                    f"RSI weight: {rsi_weight}, oversold: {oversold_threshold}, "
+                                    f"overbought: {overbought_threshold}")
                     generated_signal_type_int = -1
                     self._current_signal_state = -1
             
             if generated_signal_type_int is not None:
+                # Collect all parameters for the signal payload
+                all_params = {
+                    "short_window": self._short_window, 
+                    "long_window": self._long_window
+                }
+                
+                # Add extended parameters if they exist
+                if hasattr(self, "_ma_weight"):
+                    all_params["ma_weight"] = self._ma_weight
+                if hasattr(self, "_rsi_weight"):
+                    all_params["rsi_weight"] = self._rsi_weight
+                if hasattr(self, "_period"):
+                    all_params["period"] = self._period
+                if hasattr(self, "_oversold_threshold"):
+                    all_params["oversold_threshold"] = self._oversold_threshold
+                if hasattr(self, "_overbought_threshold"):
+                    all_params["overbought_threshold"] = self._overbought_threshold
+                
                 signal_payload: Dict[str, Any] = {
                     "symbol": self._symbol,
                     "timestamp": bar_timestamp, 
@@ -198,13 +245,13 @@ class MAStrategy(BaseComponent):
                     "strategy_id": self.name,
                     "short_ma": current_short_ma,
                     "long_ma": current_long_ma,
-                    "params": {"short_window": self._short_window, "long_window": self._long_window} # Add current params to signal
+                    "params": all_params # Add all current parameters to signal
                 }
                 signal_event = Event(EventType.SIGNAL, signal_payload)
                 self._event_bus.publish(signal_event)
                 self.logger.info(
                     f"Published SIGNAL Event: Type={generated_signal_type_int}, Symbol={self._symbol}, "
-                    f"Price={close_price:.2f}, Timestamp={bar_timestamp}, Params=SW:{self._short_window},LW:{self._long_window}"
+                    f"Price={close_price:.2f}, Timestamp={bar_timestamp}, Params={all_params}"
                 )
 
         if current_short_ma is not None:

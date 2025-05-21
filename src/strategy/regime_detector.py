@@ -325,9 +325,25 @@ class RegimeDetector(Classifier):
                     subscribers = getattr(self._event_bus, '_subscribers')
                     classification_subscribers = subscribers.get(EventType.CLASSIFICATION, [])
                     self.logger.info(f"Publishing CLASSIFICATION event with {len(classification_subscribers)} active subscribers")
+                    
+                    # List all subscribers for debugging
+                    for i, subscriber in enumerate(classification_subscribers):
+                        subscriber_name = getattr(subscriber, '__name__', 'Unknown')
+                        subscriber_module = getattr(subscriber, '__module__', 'Unknown')
+                        self.logger.info(f"  Subscriber #{i+1}: {subscriber_name} from {subscriber_module}")
+                        
+                        # Try to get more information about the subscriber
+                        if hasattr(subscriber, '__self__'):
+                            subscriber_instance = getattr(subscriber, '__self__')
+                            instance_class = subscriber_instance.__class__.__name__
+                            instance_name = getattr(subscriber_instance, 'name', 'unnamed')
+                            self.logger.info(f"  -> Instance: {instance_class} '{instance_name}'")
                 
                 # Always publish the event
                 self._event_bus.publish(classification_event)
+                
+                # Log the full event for debugging
+                self.logger.debug(f"Published CLASSIFICATION event: {classification_event}")
                 
                 # Log confirmation
                 self.logger.info(f"Successfully published CLASSIFICATION event for regime '{regime}'")

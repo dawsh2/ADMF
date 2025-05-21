@@ -88,14 +88,103 @@ class EnsembleSignalStrategy(MAStrategy): # Inheriting MAStrategy for quick demo
         self.state = BaseComponent.STATE_INITIALIZED
         
     def on_classification_change(self, event: Event):
-        """Handle regime classification changes."""
+        """
+        Handle regime classification changes and update parameters.
+        """
+        self.logger.info(f"'{self.name}' received classification event: {event}")
+        
+        if not hasattr(event, 'payload'):
+            self.logger.warning(f"'{self.name}' received event without payload attribute: {event}")
+            return
+            
+        if not event.payload:
+            self.logger.warning(f"'{self.name}' received event with empty payload: {event}")
+            return
+            
         payload = event.payload
-        if not isinstance(payload, dict): return
+        self.logger.info(f"'{self.name}' classification event payload: {payload}")
+        
+        if not isinstance(payload, dict):
+            self.logger.warning(f"'{self.name}' received non-dict payload: {payload}")
+            return
+            
         new_regime = payload.get('classification')
+        self.logger.info(f"'{self.name}' extracted classification from payload: {new_regime}")
+        
+        if not new_regime:
+            self.logger.warning(f"'{self.name}' missing 'classification' in payload: {payload}")
+            return
+            
         timestamp = payload.get('timestamp', datetime.datetime.now(datetime.timezone.utc))
-        if new_regime and new_regime != self._current_regime:
-            self.logger.info(f"Strategy: Market regime changed from '{self._current_regime}' to '{new_regime}' at {timestamp} for '{self.name}'.")
-            self._current_regime = new_regime
+            
+        if new_regime == self._current_regime:
+            self.logger.info(f"'{self.name}' regime unchanged: {new_regime}")
+            return
+            
+        self.logger.info(f"'{self.name}' market regime changed from '{self._current_regime}' to '{new_regime}' at {timestamp}.")
+        self._current_regime = new_regime
+        
+        # Apply regime-specific parameters if available
+        self._apply_regime_specific_parameters(new_regime)
+        
+    def _apply_regime_specific_parameters(self, regime: str) -> None:
+        """
+        Apply parameters specific to the given regime.
+        
+        This method looks for optimized parameters in the standard location
+        where EnhancedOptimizer saves them.
+        """
+        # Default parameters file path
+        params_file_path = "regime_optimized_parameters.json"
+        
+        import os
+        import json
+        
+        if not os.path.isfile(params_file_path):
+            self.logger.warning(f"Regime parameters file not found: {params_file_path}")
+            return
+            
+        try:
+            with open(params_file_path, 'r') as f:
+                data = json.load(f)
+                
+            # Extract regime-specific parameters
+            if 'regime_best_parameters' in data:
+                regime_specific_params = {}
+                
+                # Check if we have parameters for this specific regime
+                if regime in data['regime_best_parameters']:
+                    regime_data = data['regime_best_parameters'][regime]
+                    if 'parameters' in regime_data:
+                        regime_specific_params = regime_data['parameters']
+                        self.logger.info(f"Found regime-specific parameters for '{regime}': {regime_specific_params}")
+                        
+                # If not, use overall best parameters as fallback
+                elif 'overall_best_parameters' in data:
+                    regime_specific_params = data['overall_best_parameters']
+                    self.logger.info(f"No specific parameters for regime '{regime}'. Using overall best parameters: {regime_specific_params}")
+                
+                # Apply the parameters if we found any
+                if regime_specific_params:
+                    # Translate parameters to format expected by the strategy
+                    translated_params = self._translate_parameters(regime_specific_params)
+                    self.logger.info(f"Applying translated parameters for '{regime}': {translated_params}")
+                    self.set_parameters(regime_specific_params)
+            else:
+                self.logger.warning("No regime-specific parameters found in parameters file")
+                
+        except Exception as e:
+            self.logger.error(f"Error loading or applying regime parameters: {e}", exc_info=True)
+    
+    def _translate_parameters(self, raw_params: Dict[str, Any]) -> Dict[str, Any]:
+        """
+        Translate parameter names if needed.
+        
+        This is mainly a placeholder for any future parameter name translation needs.
+        Currently, the set_parameters method already handles dotted parameter names.
+        """
+        # Return the parameters as is, since set_parameters already handles the dotted names
+        return raw_params
 
 
     def _on_bar_event(self, event: Event):

@@ -8,6 +8,25 @@ The Execution module is responsible for order processing, market simulation, and
 
 ## Key Components
 
+The Execution module consists of these core components:
+
+```
+ExecutionModule
+  ├── OrderManager           # Order lifecycle and tracking
+  ├── Broker (Interface)     # Abstract broker interface
+  │   ├── SimulatedBroker    # Backtest simulation broker 
+  │   └── PassthroughBroker  # Testing/development broker
+  ├── SlippageModels         # Price impact simulation
+  │   ├── FixedSlippage      # Fixed percentage slippage
+  │   ├── PercentageSlippage # Order size-based slippage
+  │   └── VolumeSlippage     # Volume-relative slippage
+  ├── CommissionModels       # Trading cost calculation
+  │   ├── FixedCommission    # Fixed per-trade commission
+  │   ├── PercentCommission  # Percentage-based commission
+  │   └── TieredCommission   # Size-dependent commission
+  └── BacktestCoordinator    # Orchestrates backtest execution
+```
+
 ### 1. Order Manager
 
 The Order Manager receives ORDER events from the Risk module, validates them, and forwards them to the appropriate broker. It tracks the full order lifecycle and maintains the system's order state.
@@ -512,7 +531,83 @@ class ThreadPoolManager:
                     max_workers=max_workers, 
                     thread_name_prefix='compute_worker'
                 )
+            elif self.context.is_live:
+                # More threads for live trading
+                self._thread_pools['market_data'] = concurrent.futures.ThreadPoolExecutor(
+                    max_workers=2, 
+                    thread_name_prefix='market_data_worker'
+                )
+                self._thread_pools['order_processing'] = concurrent.futures.ThreadPoolExecutor(
+                    max_workers=2, 
+                    thread_name_prefix='order_worker'
+                )
+                self._thread_pools['strategy'] = concurrent.futures.ThreadPoolExecutor(
+                    max_workers=2, 
+                    thread_name_prefix='strategy_worker'
+                )
+        elif self.context.thread_model == ThreadModel.PROCESS_PARALLEL:
+            # Process pool for optimization
+            max_workers = max(1, os.cpu_count() - 1)
+            self._thread_pools['optimization'] = concurrent.futures.ProcessPoolExecutor(
+                max_workers=max_workers
+            )
+            
+    def get_executor(self, pool_name: str):
+        """
+        Get thread pool executor.
+        
+        Args:
+            pool_name: Name of thread pool
+            
+        Returns:
+            Executor for the requested pool
+            
+        Raises:
+            ValueError: If pool doesn't exist
+        """
+        if pool_name not in self._thread_pools:
+            raise ValueError(f"Thread pool '{pool_name}' does not exist")
+            
+        return self._thread_pools[pool_name]
+        
+    def shutdown(self):
+        """Shutdown all thread pools."""
+        for pool in self._thread_pools.values():
+            pool.shutdown()
 ```
+
+### 1.1 Thread Affinity Management
+
+Thread affinity binds specific threads to particular CPU cores for performance optimization:
+
+```python
+def set_thread_affinity(thread_type, cpu_ids):
+    """
+    Set thread affinity for specific thread types.
+    
+    Args:
+        thread_type: Type of thread
+        cpu_ids: List of CPU IDs to bind to
+    """
+    # Example implementation using Python's multiprocessing module
+    # Actual implementation would depend on platform
+    import multiprocessing
+    
+    # Get process ID
+    pid = os.getpid()
+    
+    # Set affinity
+    os.sched_setaffinity(pid, cpu_ids)
+```
+
+Recommended affinity settings:
+
+| Thread Type | Recommended Affinity |
+|-------------|----------------------|
+| Market Data Processing | Dedicated CPU core for low-latency response |
+| Strategy Computation | Multiple CPU cores for parallel computation |
+| Order Processing | Dedicated CPU core for consistent latency |
+| Background Tasks | Shared CPU cores for lower-priority tasks |
 
 ### 2. Thread Isolation Guidelines
 
@@ -573,6 +668,45 @@ class ThreadSynchronizationGuidelines:
             'broker': ['lock', 'event'],
             'order_manager': ['lock', 'queue'],
         }
+        
+        # Live trading may need additional synchronization
+        if context.is_live:
+            live_overrides = {
+                'data_handler': ['lock', 'thread_local', 'queue'],
+                'broker': ['lock', 'event', 'queue'],
+            }
+            return live_overrides.get(component_type, default_primitives.get(component_type, ['lock']))
+            
+        # Return default recommendations
+        return default_primitives.get(component_type, ['lock'])
+        
+    @staticmethod
+    def get_lock_strategy(context, component_type):
+        """
+        Get recommended locking strategy for component in context.
+        
+        Args:
+            context: Execution context
+            component_type: Type of component
+            
+        Returns:
+            str: Recommended locking strategy
+        """
+        # Component-specific recommendations
+        if component_type == 'data_handler':
+            return 'reader_writer_lock' if context.is_multi_threaded else 'none'
+        elif component_type == 'portfolio':
+            return 'fine_grained_lock' if context.is_multi_threaded else 'none'
+        elif component_type == 'order_manager':
+            return 'fine_grained_lock' if context.is_multi_threaded else 'none'
+            
+        # Default recommendations
+        if context.execution_mode == ExecutionMode.BACKTEST_SINGLE:
+            return 'none'
+        elif context.is_multi_threaded:
+            return 'reentrant_lock'
+        else:
+            return 'none'
 ```
 
 ## Configuration Examples
@@ -716,6 +850,212 @@ with context:
         trading_system.stop()
 ```
 
+## Advanced Performance Analysis
+
+### 1. Trade Analysis
+
+Comprehensive trade analysis provides deeper insights into strategy performance:
+
+```python
+def analyze_trades(self, trades):
+    """
+    Analyze trades with detailed metrics.
+    
+    Args:
+        trades: List of trade dictionaries
+        
+    Returns:
+        dict: Detailed trade metrics
+    """
+    if not trades:
+        return {}
+        
+    # Calculate basic metrics
+    win_count = sum(1 for t in trades if t['realized_pnl'] > 0)
+    loss_count = sum(1 for t in trades if t['realized_pnl'] < 0)
+    
+    # Calculate advanced metrics
+    holding_times = []
+    for trade in trades:
+        if 'entry_time' in trade and 'exit_time' in trade:
+            holding_time = (trade['exit_time'] - trade['entry_time']).total_seconds() / 3600  # hours
+            holding_times.append(holding_time)
+            
+    # Calculate trade size distribution
+    trade_sizes = [abs(t['quantity']) for t in trades]
+    
+    # Calculate profit distribution
+    profits = [t['realized_pnl'] for t in trades if t['realized_pnl'] > 0]
+    losses = [t['realized_pnl'] for t in trades if t['realized_pnl'] < 0]
+    
+    # Return comprehensive metrics
+    return {
+        'win_rate': win_count / len(trades) if trades else 0,
+        'profit_factor': sum(profits) / abs(sum(losses)) if sum(losses) else float('inf'),
+        'avg_win': sum(profits) / len(profits) if profits else 0,
+        'avg_loss': sum(losses) / len(losses) if losses else 0,
+        'avg_holding_time': sum(holding_times) / len(holding_times) if holding_times else 0,
+        'max_win': max(profits) if profits else 0,
+        'max_loss': min(losses) if losses else 0,
+        'avg_trade_size': sum(trade_sizes) / len(trade_sizes) if trade_sizes else 0
+    }
+```
+
+### 2. Equity Curve Analysis
+
+Enhanced equity curve analysis provides deeper risk and performance insights:
+
+```python
+def analyze_equity_curve(self, equity_curve):
+    """
+    Analyze equity curve with advanced metrics.
+    
+    Args:
+        equity_curve: List of equity points
+        
+    Returns:
+        dict: Detailed equity curve metrics
+    """
+    if not equity_curve:
+        return {}
+        
+    # Extract equity values
+    equity_values = [point['portfolio_value'] for point in equity_curve]
+    
+    # Calculate returns
+    returns = []
+    for i in range(1, len(equity_values)):
+        ret = (equity_values[i] / equity_values[i-1]) - 1
+        returns.append(ret)
+        
+    # Calculate metrics
+    pos_returns = [r for r in returns if r > 0]
+    neg_returns = [r for r in returns if r < 0]
+    
+    # Return detailed metrics
+    return {
+        'total_return': (equity_values[-1] / equity_values[0]) - 1,
+        'volatility': np.std(returns) * np.sqrt(252),  # Annualized
+        'sharpe_ratio': np.mean(returns) / np.std(returns) * np.sqrt(252) if np.std(returns) > 0 else 0,
+        'sortino_ratio': np.mean(returns) / np.std(neg_returns) * np.sqrt(252) if np.std(neg_returns) > 0 else 0,
+        'max_drawdown': self._calculate_max_drawdown(equity_values),
+        'profit_to_drawdown': abs((equity_values[-1] / equity_values[0] - 1) / self._calculate_max_drawdown(equity_values)) if self._calculate_max_drawdown(equity_values) > 0 else 0,
+        'winning_days': len(pos_returns) / len(returns) if returns else 0
+    }
+```
+
+### 3. Advanced Slippage Models
+
+For more realistic simulation, consider these advanced slippage models:
+
+```python
+class VolatilityAwareSlippageModel(SlippageModel):
+    """
+    Volatility-aware slippage model.
+    
+    Adjusts slippage based on recent price volatility.
+    """
+    
+    def apply_slippage(self, price, direction, quantity, volatility=None):
+        """
+        Apply volatility-adjusted slippage.
+        
+        Args:
+            price: Base price
+            direction: Order direction ('BUY' or 'SELL')
+            quantity: Order quantity
+            volatility: Recent price volatility
+            
+        Returns:
+            float: Adjusted price
+        """
+        # Get parameters
+        base_slippage = self.parameters.get('base_slippage', 0.0001)
+        volatility_multiplier = self.parameters.get('volatility_multiplier', 5.0)
+        
+        # Default volatility if not provided
+        if volatility is None:
+            volatility = self.parameters.get('default_volatility', 0.01)
+            
+        # Calculate volatility-adjusted slippage
+        slippage_pct = base_slippage + (volatility * volatility_multiplier)
+        
+        # Apply slippage based on direction
+        if direction == 'BUY':
+            return price * (1.0 + slippage_pct)
+        else:  # SELL
+            return price * (1.0 - slippage_pct)
+```
+
+## Implementation Strategy Roadmap
+
+The implementation of the Execution module follows this step-by-step approach:
+
+### 1. Core Implementation
+
+1. Implement `ExecutionMode` and `ThreadModel` enumerations
+2. Implement `ExecutionContext` class
+3. Update system bootstrap to use execution context
+
+### 2. Thread Management
+
+1. Implement `ThreadPoolManager` class
+2. Create thread isolation guidelines
+3. Implement thread affinity management
+
+### 3. Mode-Specific Components
+
+1. Implement single-threaded backtest coordinator
+2. Implement multi-threaded backtest coordinator
+3. Implement optimization engine with process parallelism
+4. Implement live trading system with thread pools
+
+### 4. Testing
+
+1. Create mode-specific test suites
+2. Implement thread safety validation tests
+3. Create performance benchmark tests for different modes
+
+## Asynchronous Architecture Integration
+
+For more detailed information on asynchronous implementation, see the [ASYNCHRONOUS_ARCHITECTURE.md](../core/ASYNCHRONOUS_ARCHITECTURE.md) document. This covers:
+
+1. Comprehensive async component interfaces
+2. Event loop management strategies
+3. Async-specific thread safety guidelines
+4. Implementation patterns for async components
+
+### Hybrid Execution Model
+
+The ADMF-Trader system supports a hybrid execution model that combines synchronous and asynchronous paradigms:
+
+| Execution Context | Primary Paradigm | Benefits |
+|-------------------|------------------|----------|
+| Backtest Single   | Synchronous      | Simplicity, performance for single-threaded operation |
+| Backtest Parallel | Multi-threaded   | Parallel processing with thread pool |
+| Optimization      | Process-parallel | Maximum CPU utilization across cores |
+| Live Trading      | Asynchronous     | Non-blocking I/O, efficient resource utilization |
+| Paper Trading     | Asynchronous     | Same model as live trading for accurate simulation |
+
+## Error Handling Framework
+
+The system implements a comprehensive error handling approach:
+
+1. **Thread-specific error handling**:
+   - Handle thread interruption appropriately
+   - Implement thread-safe error reporting
+   - Use timeouts to prevent deadlocks
+
+2. **Graceful recovery strategies**:
+   - Implement retry mechanisms with backoff
+   - Use circuit breakers for external services
+   - Provide fallback options for critical operations
+
+3. **Shutdown coordination**:
+   - Implement graceful shutdown for all thread pools
+   - Ensure proper resource cleanup
+   - Handle shutdown signals across threads
+
 ## Conclusion
 
 The Execution module is a critical component of the ADMF-Trader system, responsible for order processing, market simulation, and backtest coordination. It provides:
@@ -725,5 +1065,7 @@ The Execution module is a critical component of the ADMF-Trader system, responsi
 3. Flexible execution modes for different operating contexts
 4. Thread management appropriate to each execution mode
 5. Performance optimization through context-aware thread safety
+6. Advanced analysis tools for performance evaluation
+7. Support for both synchronous and asynchronous execution models
 
 By following the guidelines and best practices outlined in this document, you can effectively utilize the Execution module to build robust trading strategies with realistic execution dynamics.

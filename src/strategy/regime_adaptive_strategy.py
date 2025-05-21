@@ -135,20 +135,39 @@ class RegimeAdaptiveStrategy(MAStrategy):
         """
         Handle regime classification changes by updating parameters.
         """
-        if not hasattr(event, 'payload') or not event.payload:
+        self.logger.info(f"'{self.name}' received classification event: {event}")
+        
+        if not hasattr(event, 'payload'):
+            self.logger.warning(f"'{self.name}' received event without payload attribute: {event}")
+            return
+            
+        if not event.payload:
+            self.logger.warning(f"'{self.name}' received event with empty payload: {event}")
             return
             
         payload = event.payload
+        self.logger.info(f"'{self.name}' classification event payload: {payload}")
+        
         if not isinstance(payload, dict):
+            self.logger.warning(f"'{self.name}' received non-dict payload: {payload}")
             return
             
         new_regime = payload.get('classification')
-        if new_regime and new_regime != self._current_regime:
-            self.logger.info(f"Market regime changed from '{self._current_regime}' to '{new_regime}'.")
-            self._current_regime = new_regime
+        self.logger.info(f"'{self.name}' extracted classification from payload: {new_regime}")
+        
+        if not new_regime:
+            self.logger.warning(f"'{self.name}' missing 'classification' in payload: {payload}")
+            return
             
-            # Apply new parameters for the new regime
-            self._apply_regime_specific_parameters(new_regime)
+        if new_regime == self._current_regime:
+            self.logger.info(f"'{self.name}' regime unchanged: {new_regime}")
+            return
+            
+        self.logger.info(f"'{self.name}' market regime changed from '{self._current_regime}' to '{new_regime}'.")
+        self._current_regime = new_regime
+        
+        # Apply new parameters for the new regime
+        self._apply_regime_specific_parameters(new_regime)
     
     def _apply_regime_specific_parameters(self, regime: str) -> None:
         """
@@ -160,19 +179,62 @@ class RegimeAdaptiveStrategy(MAStrategy):
             
         # Check if we have parameters for this specific regime
         if regime in self._regime_specific_params:
-            new_params = self._regime_specific_params[regime]
-            self.logger.info(f"Applying regime-specific parameters for '{regime}': {new_params}")
+            raw_params = self._regime_specific_params[regime]
+            self.logger.info(f"Raw parameters for regime '{regime}': {raw_params}")
+            
+            # Map dotted parameters to the format expected by MAStrategy
+            new_params = self._translate_parameters(raw_params)
+            self.logger.info(f"Applying translated parameters for '{regime}': {new_params}")
+            
             self.set_parameters(new_params)
             self._last_applied_regime = regime
             
         # Fall back to overall best parameters if configured to do so
         elif self._fallback_to_overall_best and self._overall_best_params:
-            self.logger.info(f"No specific parameters for regime '{regime}'. Falling back to overall best parameters: {self._overall_best_params}")
-            self.set_parameters(self._overall_best_params)
+            raw_params = self._overall_best_params
+            self.logger.info(f"Raw overall best parameters: {raw_params}")
+            
+            # Map dotted parameters to the format expected by MAStrategy
+            new_params = self._translate_parameters(raw_params)
+            self.logger.info(f"Applying translated overall best parameters for '{regime}': {new_params}")
+            
+            self.set_parameters(new_params)
             self._last_applied_regime = regime
             
         else:
             self.logger.warning(f"No parameters available for regime '{regime}' and no fallback configured. Keeping current parameters.")
+            
+    def _translate_parameters(self, raw_params: Dict[str, Any]) -> Dict[str, Any]:
+        """
+        Translate dotted parameter names in the config to the format expected by MAStrategy.
+        
+        For example, 'rsi_indicator.period' would be mapped to MAStrategy-specific parameter names.
+        """
+        # Parameters directly used by MAStrategy
+        translated_params = {
+            "short_window": raw_params.get("short_window"),
+            "long_window": raw_params.get("long_window")
+        }
+        
+        # Add any other parameters needed by the strategy
+        # Check if we have RSI period
+        if "rsi_indicator.period" in raw_params:
+            translated_params["period"] = raw_params.get("rsi_indicator.period")
+            
+        # Check if we have RSI thresholds
+        if "rsi_rule.oversold_threshold" in raw_params:
+            translated_params["oversold_threshold"] = raw_params.get("rsi_rule.oversold_threshold")
+        if "rsi_rule.overbought_threshold" in raw_params:
+            translated_params["overbought_threshold"] = raw_params.get("rsi_rule.overbought_threshold")
+            
+        # Check for weights - fix the duplicate weights issue
+        if "rsi_rule.weight" in raw_params:
+            translated_params["rsi_weight"] = raw_params.get("rsi_rule.weight")
+        if "ma_rule.weight" in raw_params:
+            translated_params["ma_weight"] = raw_params.get("ma_rule.weight")
+            
+        # Remove any None values from the translated parameters
+        return {k: v for k, v in translated_params.items() if v is not None}
     
     def start(self):
         """
