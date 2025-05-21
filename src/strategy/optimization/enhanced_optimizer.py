@@ -821,6 +821,7 @@ class EnhancedOptimizer(BasicOptimizer):
             self._strategy_service_name, 
             self._risk_manager_service_name, 
             "MyPrimaryRegimeDetector", 
+            "execution_handler",  # Missing execution handler!
             self._data_handler_service_name
         ]
             
@@ -912,6 +913,20 @@ class EnhancedOptimizer(BasicOptimizer):
             if hasattr(data_handler, "set_active_dataset") and callable(getattr(data_handler, "set_active_dataset")):
                 data_handler.set_active_dataset("test")
                 self.logger.debug("Set active dataset to 'test'")
+                
+                # DEBUG: Verify the test dataset was actually set
+                if hasattr(data_handler, '_active_df'):
+                    df_size = len(data_handler._active_df) if data_handler._active_df is not None else 0
+                    self.logger.warning(f"ADAPTIVE_DEBUG: After setting test dataset, active_df size: {df_size}")
+                    
+                # DEBUG: Check what datasets are available
+                if hasattr(data_handler, 'test_df'):
+                    test_size = len(data_handler.test_df) if data_handler.test_df is not None else 0
+                    self.logger.warning(f"ADAPTIVE_DEBUG: test_df size: {test_size}")
+                if hasattr(data_handler, 'train_df'):
+                    train_size = len(data_handler.train_df) if data_handler.train_df is not None else 0
+                    self.logger.warning(f"ADAPTIVE_DEBUG: train_df size: {train_size}")
+                    
             else:
                 self.logger.warning("Data handler does not have set_active_dataset method, trying fallbacks...")
                 if hasattr(data_handler, "use_test_data") and callable(getattr(data_handler, "use_test_data")):
@@ -938,29 +953,32 @@ class EnhancedOptimizer(BasicOptimizer):
             else:
                 self.logger.warning("No best_parameters_on_train available in results")
                 
-            # Restart components in dependency order (reverse of stopping order)
+            # Start consumers first, then data publisher
+            # Data handler should be LAST so all consumers are ready for events
             component_start_order = [
-                self._data_handler_service_name, 
                 "MyPrimaryRegimeDetector", 
+                "execution_handler",  # Handles ORDER events from risk manager
                 self._risk_manager_service_name, 
                 self._strategy_service_name, 
-                self._portfolio_service_name
+                self._portfolio_service_name,
+                self._data_handler_service_name  # LAST - publishes events after all consumers ready
             ]
             
             self.logger.debug("Starting all components in correct dependency order")
             for component_name in component_start_order:
                 try:
                     component = self._container.resolve(component_name)
-                    if hasattr(component, "setup") and callable(getattr(component, "setup")):
-                        self.logger.debug(f"Setting up component: {component.name if hasattr(component, 'name') else component_name}")
-                        component.setup()
+                    # Components are already initialized - no need to call setup() again
+                    # Calling setup() would reset the CSVDataHandler's _active_df = None
                     
                     if hasattr(component, "start") and callable(getattr(component, "start")):
-                        self.logger.debug(f"Starting component: {component.name if hasattr(component, 'name') else component_name}")
+                        self.logger.warning(f"OPTIMIZER_DEBUG: Starting component: {component.name if hasattr(component, 'name') else component_name} (State: {component.state if hasattr(component, 'state') else 'N/A'})")
                         component.start()
-                        self.logger.debug(f"Successfully started component: {component.name if hasattr(component, 'name') else component_name}")
+                        self.logger.warning(f"OPTIMIZER_DEBUG: Successfully started component: {component.name if hasattr(component, 'name') else component_name} (New State: {component.state if hasattr(component, 'state') else 'N/A'})")
+                    else:
+                        self.logger.debug(f"Component {component_name} does not have a callable start method.")
                 except Exception as e:
-                    self.logger.warning(f"Could not start component {component_name}: {e}")
+                    self.logger.warning(f"Could not start or process component {component_name}: {e}", exc_info=True)
             
             # Verify component states
             for component_name in component_start_order:
@@ -1093,10 +1111,9 @@ class EnhancedOptimizer(BasicOptimizer):
                 results["regime_adaptive_test_results"]["regimes_detected"] = regimes_detected
                 self.logger.info(f"Regimes detected in test set: {regimes_detected}")
             
-            # Reset everything for a clean test
-            self.logger.debug("Resetting portfolio for adaptive strategy test")
-            portfolio_manager.reset()
-            self.logger.debug("Portfolio reset complete")
+            # NOTE: Do NOT reset portfolio here - we want to measure the results from the adaptive test
+            # The portfolio was already reset before the adaptive test started
+            self.logger.debug("Preserving portfolio state from adaptive strategy test for measurement")
             
             if hasattr(regime_detector, "reset") and callable(getattr(regime_detector, "reset")):
                 self.logger.debug("Resetting regime detector")
@@ -1118,7 +1135,7 @@ class EnhancedOptimizer(BasicOptimizer):
             
             def on_classification_change(event):
                 """Handle regime classification change events and update strategy parameters"""
-                self.logger.info("Classification event received")
+                self.logger.warning("REGIME_DEBUG: Classification event received in optimizer")
                 if not hasattr(event, 'payload') or not event.payload:
                     self.logger.warning("No payload in classification event")
                     return
@@ -1133,7 +1150,7 @@ class EnhancedOptimizer(BasicOptimizer):
                     self.logger.warning("No classification in payload")
                     return
                     
-                self.logger.info(f"Regime changed to: {new_regime}")
+                self.logger.warning(f"REGIME_DEBUG: Regime changed to: {new_regime}")
                 
                 # Log timestamp if available
                 if 'timestamp' in payload:
@@ -1142,10 +1159,10 @@ class EnhancedOptimizer(BasicOptimizer):
                 # Apply regime-specific parameters
                 if new_regime in results["best_parameters_per_regime"]:
                     params = results["best_parameters_per_regime"][new_regime]
-                    self.logger.info(f"Applying optimized parameters for regime {new_regime}: {params}")
+                    self.logger.warning(f"REGIME_DEBUG: Applying optimized parameters for regime {new_regime}: {params}")
                     try:
                         strategy_to_optimize.set_parameters(params)
-                        self.logger.debug(f"Successfully applied parameters for regime {new_regime}")
+                        self.logger.warning(f"REGIME_DEBUG: Successfully applied parameters for regime {new_regime}")
                     except Exception as e:
                         self.logger.error(f"Failed to apply parameters for regime {new_regime}: {e}", exc_info=True)
                 elif "default" in results["best_parameters_per_regime"]:
@@ -1175,17 +1192,17 @@ class EnhancedOptimizer(BasicOptimizer):
             for component_name in component_start_order:
                 try:
                     component = self._container.resolve(component_name)
-                    # Always ensure setup is called before start
-                    if hasattr(component, "setup") and callable(getattr(component, "setup")):
-                        self.logger.debug(f"Setting up component: {component.name if hasattr(component, 'name') else component_name}")
-                        component.setup()
+                    # Components are already initialized - no need to call setup() again
+                    # Calling setup() would reset the CSVDataHandler's _active_df = None
                     
                     if hasattr(component, "start") and callable(getattr(component, "start")):
-                        self.logger.debug(f"Starting component: {component.name if hasattr(component, 'name') else component_name}")
+                        self.logger.warning(f"OPTIMIZER_DEBUG: Starting component: {component.name if hasattr(component, 'name') else component_name} (State: {component.state if hasattr(component, 'state') else 'N/A'})")
                         component.start()
-                        self.logger.debug(f"Successfully started component: {component.name if hasattr(component, 'name') else component_name}")
+                        self.logger.warning(f"OPTIMIZER_DEBUG: Successfully started component: {component.name if hasattr(component, 'name') else component_name} (New State: {component.state if hasattr(component, 'state') else 'N/A'})")
+                    else:
+                        self.logger.debug(f"Component {component_name} does not have a callable start method.")
                 except Exception as e:
-                    self.logger.warning(f"Could not start component {component_name}: {e}", exc_info=True)
+                    self.logger.warning(f"Could not start or process component {component_name}: {e}", exc_info=True)
             
             # Verify all components are properly started
             for component_name in component_start_order:
@@ -1206,17 +1223,17 @@ class EnhancedOptimizer(BasicOptimizer):
             # Immediately force a classification to ensure parameter switching works
             current_regime = None
             try:
-                self.logger.debug("Requesting current classification from regime detector")
+                self.logger.warning("REGIME_DEBUG: Requesting current classification from regime detector")
                 current_regime = regime_detector.get_current_classification()
-                self.logger.info(f"Initial regime detected: {current_regime}")
+                self.logger.warning(f"REGIME_DEBUG: Initial regime detected: {current_regime}")
             except Exception as e:
-                self.logger.error(f"Error getting current classification: {e}", exc_info=True)
+                self.logger.error(f"REGIME_DEBUG: Error getting current classification: {e}", exc_info=True)
             
             # Manually trigger an initial classification event
             if current_regime:
                 try:
                     from src.core.event import Event
-                    self.logger.debug(f"Creating manual classification event for regime: {current_regime}")
+                    self.logger.warning(f"REGIME_DEBUG: Creating manual classification event for regime: {current_regime}")
                     classification_payload = {
                         'classification': current_regime,
                         'timestamp': datetime.datetime.now(datetime.timezone.utc),
@@ -1224,9 +1241,9 @@ class EnhancedOptimizer(BasicOptimizer):
                         'source': 'manual_trigger_from_optimizer'
                     }
                     classification_event = Event(EventType.CLASSIFICATION, classification_payload)
-                    self.logger.debug("Publishing manual classification event to event bus")
+                    self.logger.warning("REGIME_DEBUG: Publishing manual classification event to event bus")
                     self._event_bus.publish(classification_event)
-                    self.logger.info(f"Manually published initial CLASSIFICATION event for regime '{current_regime}'")
+                    self.logger.warning(f"REGIME_DEBUG: Manually published initial CLASSIFICATION event for regime '{current_regime}'")
                 except Exception as e:
                     self.logger.error(f"Error publishing manual classification event: {e}", exc_info=True)
             else:
@@ -1236,11 +1253,26 @@ class EnhancedOptimizer(BasicOptimizer):
             self.logger.info("Data flow initiated with adaptive regime-switching...")
             self.logger.debug("Adaptive simulation will occur automatically via component lifecycle")
             # No explicit run_simulation call needed - data streams when components are started
+            
+            # IMPORTANT: Wait for data streaming to complete
+            import time
+            time.sleep(0.1)  # Brief pause to ensure all events are processed
+            
+            self.logger.warning("=== CRITICAL_TIMING_DEBUG: Data streaming should be complete ===")
+            if hasattr(portfolio_manager, "_trade_log"):
+                immediate_count = len(portfolio_manager._trade_log)
+                self.logger.warning(f"CRITICAL_TIMING_DEBUG: Immediate post-streaming trade count: {immediate_count}")
                 
             # Check if any trades were generated
+            self.logger.warning("=== CRITICAL_MEASUREMENT_DEBUG: About to check adaptive trade count ===")
+            if hasattr(portfolio_manager, "_trade_log"):
+                actual_count = len(portfolio_manager._trade_log)
+                self.logger.warning(f"CRITICAL_MEASUREMENT_DEBUG: Portfolio _trade_log has {actual_count} trades")
+                
             trade_count_adaptive = 0
             if hasattr(portfolio_manager, "_trade_log"):
                 trade_count_adaptive = len(portfolio_manager._trade_log)
+                self.logger.warning(f"CRITICAL_MEASUREMENT_DEBUG: Measured adaptive strategy trades: {trade_count_adaptive}")
                 self.logger.info(f"Adaptive strategy generated {trade_count_adaptive} trades in total")
                 
                 # Log trade details if available
@@ -1263,17 +1295,31 @@ class EnhancedOptimizer(BasicOptimizer):
                     if hasattr(data_handler, "current_index"):
                         self.logger.debug(f"Data handler current index: {data_handler.current_index}")
             
+            # CRITICAL DEBUG: Check portfolio state IMMEDIATELY after data streaming is complete
+            self.logger.warning("=== ADAPTIVE_FINAL_DEBUG: Checking portfolio state immediately after data streaming ===")
+            if hasattr(portfolio_manager, "_trade_log"):
+                trade_count = len(portfolio_manager._trade_log)
+                self.logger.warning(f"ADAPTIVE_FINAL_DEBUG: Portfolio has {trade_count} trades in _trade_log")
+                if trade_count > 0:
+                    self.logger.warning(f"ADAPTIVE_FINAL_DEBUG: First trade: {portfolio_manager._trade_log[0]}")
+                    self.logger.warning(f"ADAPTIVE_FINAL_DEBUG: Last trade: {portfolio_manager._trade_log[-1]}")
+            if hasattr(portfolio_manager, "current_cash"):
+                self.logger.warning(f"ADAPTIVE_FINAL_DEBUG: Portfolio current_cash: {portfolio_manager.current_cash}")
+            if hasattr(portfolio_manager, "current_total_value"):
+                self.logger.warning(f"ADAPTIVE_FINAL_DEBUG: Portfolio current_total_value: {portfolio_manager.current_total_value}")
+            
             # Get adaptive strategy performance
             adaptive_metric = None
             try:
-                self.logger.debug(f"Attempting to get performance metric for adaptive strategy: {self._metric_to_optimize}")
+                self.logger.warning(f"ADAPTIVE_FINAL_DEBUG: Attempting to get performance metric for adaptive strategy: {self._metric_to_optimize}")
                 
                 # Try multiple approaches to get the metric value
+                # IMPORTANT: Don't call methods that might reset the portfolio!
                 if hasattr(portfolio_manager, self._metric_to_optimize) and callable(getattr(portfolio_manager, self._metric_to_optimize)):
                     # Direct method call
                     method = getattr(portfolio_manager, self._metric_to_optimize)
                     adaptive_metric = method()
-                    self.logger.debug(f"Got adaptive metric via direct method call: {self._metric_to_optimize}() = {adaptive_metric}")
+                    self.logger.warning(f"ADAPTIVE_FINAL_DEBUG: Got adaptive metric via direct method call: {self._metric_to_optimize}() = {adaptive_metric}")
                 elif hasattr(portfolio_manager, "get_performance") and callable(getattr(portfolio_manager, "get_performance")):
                     # Via performance dictionary
                     performance = portfolio_manager.get_performance()

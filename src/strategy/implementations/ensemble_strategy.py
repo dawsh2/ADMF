@@ -211,7 +211,10 @@ class EnsembleSignalStrategy(MAStrategy): # Inheriting MAStrategy for quick demo
 
 
     def _on_bar_event(self, event: Event):
+        self.logger.warning(f"ENSEMBLE_DEBUG: {self.name} received BAR event (state: {self.state})")
         if event.event_type != EventType.BAR or event.payload.get("symbol") != self._symbol:
+            event_symbol = event.payload.get("symbol") if hasattr(event, 'payload') else 'N/A'
+            self.logger.warning(f"ENSEMBLE_DEBUG: {self.name} ignoring event - type: {event.event_type}, symbol: {event_symbol}, expected: {self._symbol}")
             return
         
         bar_data: Dict[str, Any] = event.payload
@@ -344,19 +347,20 @@ class EnsembleSignalStrategy(MAStrategy): # Inheriting MAStrategy for quick demo
 
 
     def set_parameters(self, params: Dict[str, Any]):
+        self.logger.warning(f"PARAM_DEBUG: EnsembleSignalStrategy.set_parameters called with: {params}")
         super().set_parameters(params) # For MAStrategy part (this stores extended params with underscores)
         
         # Parameters for RSI components might be prefixed, e.g., "rsi_indicator.period"
         rsi_indicator_params = {k.split('.', 1)[1]: v for k, v in params.items() if k.startswith("rsi_indicator.")}
         if rsi_indicator_params:
-            self.logger.info(f"'{self.name}' updating RSI indicator parameters: {rsi_indicator_params}")
+            self.logger.warning(f"PARAM_DEBUG: '{self.name}' updating RSI indicator parameters: {rsi_indicator_params}")
             self.rsi_indicator.set_parameters(rsi_indicator_params)
             # Re-setup indicator to ensure parameters take effect
             self.rsi_indicator.setup()
 
         rsi_rule_params = {k.split('.', 1)[1]: v for k, v in params.items() if k.startswith("rsi_rule.")}
         if rsi_rule_params:
-            self.logger.info(f"'{self.name}' updating RSI rule parameters: {rsi_rule_params}")
+            self.logger.warning(f"PARAM_DEBUG: '{self.name}' updating RSI rule parameters: {rsi_rule_params}")
             self.rsi_rule.set_parameters(rsi_rule_params)
             # Re-setup rule to ensure parameters take effect
             self.rsi_rule.setup()
@@ -366,7 +370,7 @@ class EnsembleSignalStrategy(MAStrategy): # Inheriting MAStrategy for quick demo
         # so we need to handle it manually here
         if 'ma_rule.weight' in params:
             self.ma_weight = params['ma_rule.weight']
-            self.logger.info(f"'{self.name}' storing extended parameter: ma_rule.weight={self.ma_weight}")
+            self.logger.warning(f"PARAM_DEBUG: '{self.name}' storing extended parameter: ma_rule.weight={self.ma_weight}")
             
         # CRITICAL FIX: Reset signal states when parameters change during optimization
         # This ensures each parameter combination gets a fresh start

@@ -51,6 +51,14 @@ class BasicPortfolio(BaseComponent):
         
     def reset(self):
         """Reset the portfolio to its initial state for a fresh backtest run."""
+        trade_count_before = len(self._trade_log) if hasattr(self, '_trade_log') else 0
+        self.logger.warning(f"PORTFOLIO_RESET_DEBUG: Resetting portfolio '{self.name}' - had {trade_count_before} trades")
+        
+        # DEBUG: Add stack trace to identify what's calling reset
+        import traceback
+        stack_trace = ''.join(traceback.format_stack()[-5:])  # Last 5 stack frames
+        self.logger.warning(f"PORTFOLIO_RESET_DEBUG: Reset called from:\n{stack_trace}")
+        
         self.logger.info(f"Resetting portfolio '{self.name}' to initial state")
         
         # Unsubscribe from events first to prevent duplicate subscriptions
@@ -126,6 +134,21 @@ class BasicPortfolio(BaseComponent):
 
     def start(self):
         super().start()
+        
+        # Check state before allowing start
+        if self.state not in [BaseComponent.STATE_INITIALIZED, BaseComponent.STATE_STOPPED]:
+            self.logger.warning(f"Cannot start {self.name} from state '{self.state}'. Expected INITIALIZED or STOPPED.")
+            return
+            
+        # Ensure we're subscribed to events (needed for restarts)
+        if self._event_bus:
+            self._event_bus.subscribe(EventType.FILL, self.on_fill)
+            self._event_bus.subscribe(EventType.BAR, self.on_bar)
+            self._event_bus.subscribe(EventType.CLASSIFICATION, self.on_classification_change)
+            self.logger.debug(f"'{self.name}' re-subscribed to FILL, BAR, and CLASSIFICATION events on start/restart")
+        
+        # CRITICAL: Set state to STARTED
+        self.state = BaseComponent.STATE_STARTED
         self.logger.info(f"BasicPortfolio '{self.name}' started.")
         if not self._portfolio_value_history:
              self._update_portfolio_value(datetime.datetime.now(datetime.timezone.utc))
@@ -142,6 +165,8 @@ class BasicPortfolio(BaseComponent):
             except Exception as e:
                 self.logger.error(f"Error unsubscribing '{self.name}': {e}", exc_info=True)
         super().stop()
+        # Ensure state is set to STOPPED
+        self.state = BaseComponent.STATE_STOPPED
         self.logger.info(f"{self.name} stopped. State: {self.state}")
 
     def on_classification_change(self, event: Event):
@@ -160,7 +185,10 @@ class BasicPortfolio(BaseComponent):
         return self._current_market_regime or "default"
 
     def on_fill(self, event: Event):
+        self.logger.warning(f"PORTFOLIO_DEBUG: {self.name} received FILL event")
         fill_data = event.payload
+        fill_id = fill_data.get('fill_id', 'NO_ID')
+        self.logger.warning(f"PORTFOLIO_FILL_DEBUG: Processing FILL {fill_id} - current trades: {len(self._trade_log)}")
         if not (isinstance(fill_data, dict) and all(k in fill_data for k in ['symbol', 'timestamp', 'quantity_filled', 'fill_price', 'direction'])):
             self.logger.error(f"'{self.name}' received incomplete or invalid FILL data: {fill_data}"); return
 
@@ -241,6 +269,7 @@ class BasicPortfolio(BaseComponent):
             }
             
             self._trade_log.append(trade_entry)
+            self.logger.warning(f"PORTFOLIO_FILL_DEBUG: Trade added to log! Now have {len(self._trade_log)} trades")
             
             # Log boundary trades specifically for analysis
             if entry_regime != exit_regime:

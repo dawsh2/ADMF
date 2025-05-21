@@ -56,6 +56,7 @@ class SimulatedExecutionHandler(BaseComponent):
         return f"{prefix}{uuid.uuid4().hex[:8]}"
 
     def _on_order_event(self, order_event: Event): # Renamed from _on_signal_event
+        self.logger.warning(f"EXECUTION_DEBUG: {self.name} received ORDER event")
         if order_event.event_type != EventType.ORDER:
             return
 
@@ -128,6 +129,7 @@ class SimulatedExecutionHandler(BaseComponent):
             "exchange": "SIMULATED_EXCHANGE"
         }
         fill_event = Event(EventType.FILL, fill_payload)
+        self.logger.warning(f"EXECUTION_DEBUG: {self.name} publishing FILL event: {quantity} {symbol} at {fill_price}")
         self._event_bus.publish(fill_event)
         self.logger.info(
             f"{self.name} published FILL Event: ID={fill_id} for OrderID={order_id}, "
@@ -135,9 +137,15 @@ class SimulatedExecutionHandler(BaseComponent):
         )
 
     def start(self):
-        if self.state != BaseComponent.STATE_INITIALIZED:
-            self.logger.warning(f"Cannot start {self.name} from state '{self.state}'. Expected INITIALIZED.")
+        if self.state not in [BaseComponent.STATE_INITIALIZED, BaseComponent.STATE_STOPPED]:
+            self.logger.warning(f"Cannot start {self.name} from state '{self.state}'. Expected INITIALIZED or STOPPED.")
             return
+            
+        # Ensure we're subscribed to ORDER events (needed for restarts)
+        if self._event_bus:
+            self._event_bus.subscribe(EventType.ORDER, self._on_order_event)
+            self.logger.debug(f"{self.name} re-subscribed to ORDER events on start/restart")
+            
         self.logger.info(f"{self.name} started. Listening for ORDER events...") # Updated log message
         self.state = BaseComponent.STATE_STARTED
 

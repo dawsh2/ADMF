@@ -79,8 +79,11 @@ class EventBus:
             handlers_to_call = list(self._subscribers.get(event.event_type, []))
 
         if not handlers_to_call:
-            logger.debug(f"No handlers subscribed for event type '{event.event_type.name}'.")
+            logger.warning(f"EVENTBUS_DEBUG: No handlers subscribed for event type '{event.event_type.name}'.")
             return
+        
+        if event.event_type.name == 'BAR':
+            logger.warning(f"EVENTBUS_DEBUG: Publishing BAR event to {len(handlers_to_call)} handlers")
 
         for handler in handlers_to_call:
             try:

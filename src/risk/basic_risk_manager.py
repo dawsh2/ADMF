@@ -73,6 +73,7 @@ class BasicRiskManager(BaseComponent):
         return f"{prefix}{uuid.uuid4().hex[:10]}"
 
     def _on_signal_event(self, signal_event: Event):
+        self.logger.warning(f"RISK_DEBUG: {self.name} received SIGNAL event")
         if signal_event.event_type != EventType.SIGNAL:
             return
 
@@ -140,6 +141,7 @@ class BasicRiskManager(BaseComponent):
         }
         
         order_event = Event(EventType.ORDER, order_payload)
+        self.logger.warning(f"RISK_DEBUG: {self.name} publishing ORDER event: {order_direction} {order_quantity_abs} {symbol}")
         self._event_bus.publish(order_event)
         self.logger.info(
             f"'{self.name}' published ORDER: ID={order_id}, {order_direction} {order_quantity_abs} {symbol} "
@@ -148,13 +150,19 @@ class BasicRiskManager(BaseComponent):
         )
 
     def start(self):
-        if self.state != BaseComponent.STATE_INITIALIZED:
-            self.logger.warning(f"Cannot start {self.name} from state '{self.state}'. Expected INITIALIZED.")
+        if self.state not in [BaseComponent.STATE_INITIALIZED, BaseComponent.STATE_STOPPED]:
+            self.logger.warning(f"Cannot start {self.name} from state '{self.state}'. Expected INITIALIZED or STOPPED.")
             return
         if not self._portfolio_manager: # Double check portfolio manager linkage before starting fully
             self.logger.error(f"Cannot start {self.name}: PortfolioManager not linked. Setup may have failed.")
             self.state = BaseComponent.STATE_FAILED
             return
+            
+        # Ensure we're subscribed to SIGNAL events (needed for restarts)
+        if self._event_bus:
+            self._event_bus.subscribe(EventType.SIGNAL, self._on_signal_event)
+            self.logger.debug(f"'{self.name}' re-subscribed to SIGNAL events on start/restart")
+            
         self.logger.info(f"{self.name} started. Listening for SIGNAL events...")
         self.state = BaseComponent.STATE_STARTED
 

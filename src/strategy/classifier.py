@@ -45,6 +45,7 @@ class Classifier(BaseComponent):
         self.logger.info(f"Classifier '{self.name}' setup complete. State: {self.state}. Subscribed to BAR events.")
     
     def on_bar(self, event: Event): 
+        self.logger.warning(f"CLASSIFIER_DEBUG: {self.name} received BAR event (state: {self.state})")
         data: Dict[str, Any] = event.payload 
         
         if not isinstance(data, dict):
@@ -121,13 +122,19 @@ class Classifier(BaseComponent):
     
     def start(self):
         super().start() 
-        if self.state == BaseComponent.STATE_INITIALIZED: # Check state before forcing
+        if self.state in [BaseComponent.STATE_INITIALIZED, BaseComponent.STATE_STOPPED]: # Check state before forcing
             self.state = BaseComponent.STATE_STARTED
-            self.logger.info(f"Classifier '{self.name}' successfully started. State: {self.state}")
+            
+            # Ensure we're subscribed to BAR events (needed for restarts)
+            if self._event_bus:
+                self._event_bus.subscribe(EventType.BAR, self.on_bar)
+                self.logger.debug(f"Classifier '{self.name}' re-subscribed to BAR events on start/restart")
+                
+            self.logger.info(f"Classifier '{self.name}' successfully started/restarted. State: {self.state}")
         elif self.state == BaseComponent.STATE_STARTED:
              self.logger.info(f"Classifier '{self.name}' already started.")
         else:
-            self.logger.warning(f"Classifier '{self.name}' was not in INITIALIZED state (was {self.state}) before attempting to start. State not changed by Classifier.start().")
+            self.logger.warning(f"Classifier '{self.name}' was not in expected state (was {self.state}) before attempting to start. Expected INITIALIZED or STOPPED. State not changed by Classifier.start().")
 
     def stop(self):
         super().stop() # Call parent's stop, it should handle state if it's not abstract

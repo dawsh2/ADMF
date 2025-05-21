@@ -144,11 +144,20 @@ class MAStrategy(BaseComponent):
 
     # _on_bar_event remains the same as your last working version (using integer signals)
     def _on_bar_event(self, event: Event):
-        if event.event_type != EventType.BAR:
-            return 
-        
-        bar_data: Dict[str, Any] = event.payload 
-        if bar_data.get("symbol") != self._symbol:
+        try:
+            self.logger.warning(f"STRATEGY_DEBUG: {self.name} received BAR event (state: {self.state})")
+            if event.event_type != EventType.BAR:
+                self.logger.warning(f"STRATEGY_DEBUG: {self.name} ignoring non-BAR event: {event.event_type}")
+                return 
+            
+            bar_data: Dict[str, Any] = event.payload 
+            event_symbol = bar_data.get("symbol")
+            self.logger.warning(f"STRATEGY_DEBUG: {self.name} checking symbol: event={event_symbol}, expected={self._symbol}")
+            if event_symbol != self._symbol:
+                self.logger.warning(f"STRATEGY_DEBUG: {self.name} ignoring event for wrong symbol: {event_symbol}")
+                return
+        except Exception as e:
+            self.logger.error(f"STRATEGY_DEBUG: Exception in {self.name} _on_bar_event: {e}", exc_info=True)
             return 
 
         close_price_val = bar_data.get("close")
@@ -248,6 +257,7 @@ class MAStrategy(BaseComponent):
                     "params": all_params # Add all current parameters to signal
                 }
                 signal_event = Event(EventType.SIGNAL, signal_payload)
+                self.logger.warning(f"STRATEGY_DEBUG: Publishing SIGNAL event: {generated_signal_type_int}")
                 self._event_bus.publish(signal_event)
                 self.logger.info(
                     f"Published SIGNAL Event: Type={generated_signal_type_int}, Symbol={self._symbol}, "
@@ -261,9 +271,14 @@ class MAStrategy(BaseComponent):
 
     # start() and stop() methods remain largely the same, ensuring state is cleared in stop()
     def start(self):
-        if self.state != BaseComponent.STATE_INITIALIZED:
-            self.logger.warning(f"Cannot start MAStrategy '{self.name}' from state '{self.state}'. Expected INITIALIZED.")
+        if self.state not in [BaseComponent.STATE_INITIALIZED, BaseComponent.STATE_STOPPED]:
+            self.logger.warning(f"Cannot start MAStrategy '{self.name}' from state '{self.state}'. Expected INITIALIZED or STOPPED.")
             return
+        
+        # Ensure we're subscribed to BAR events (needed for restarts)
+        if self._event_bus:
+            self._event_bus.subscribe(EventType.BAR, self._on_bar_event)
+            self.logger.warning(f"STRATEGY_SUBSCRIPTION_DEBUG: '{self.name}' re-subscribed to BAR events on start/restart with handler {self._on_bar_event}")
         
         self.logger.info(f"MAStrategy '{self.name}' started with SW={self._short_window}, LW={self._long_window}. Listening for BAR events...")
         self.state = BaseComponent.STATE_STARTED
