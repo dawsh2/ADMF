@@ -244,9 +244,15 @@ class EnsembleSignalStrategy(MAStrategy): # Inheriting MAStrategy for quick demo
         if current_short_ma is not None and current_long_ma is not None and \
            self._prev_short_ma is not None and self._prev_long_ma is not None:
             if self._prev_short_ma <= self._prev_long_ma and current_short_ma > current_long_ma:
-                if self._current_signal_state != 1: ma_signal_type_int = 1
+                if self._current_signal_state != 1: 
+                    ma_signal_type_int = 1
+                    rsi_overbought = getattr(self.rsi_rule, '_overbought_threshold', 'N/A')
+                    self.logger.warning(f"SIGNAL_DEBUG: MA BUY signal with params: short_window={self._short_window}, long_window={self._long_window}, overbought={rsi_overbought}, regime={self._current_regime}")
             elif self._prev_short_ma >= self._prev_long_ma and current_short_ma < current_long_ma:
-                if self._current_signal_state != -1: ma_signal_type_int = -1
+                if self._current_signal_state != -1: 
+                    ma_signal_type_int = -1
+                    rsi_overbought = getattr(self.rsi_rule, '_overbought_threshold', 'N/A')
+                    self.logger.warning(f"SIGNAL_DEBUG: MA SELL signal with params: short_window={self._short_window}, long_window={self._long_window}, overbought={rsi_overbought}, regime={self._current_regime}")
         
         # Update MA prev values
         if current_short_ma is not None: self._prev_short_ma = current_short_ma
@@ -259,6 +265,8 @@ class EnsembleSignalStrategy(MAStrategy): # Inheriting MAStrategy for quick demo
         rsi_signal_type_int = 0
         if rsi_triggered:
             rsi_signal_type_int = int(rsi_strength) # 1 for BUY, -1 for SELL
+            # Log the parameters being used when signals are generated
+            self.logger.warning(f"SIGNAL_DEBUG: RSI signal triggered ({rsi_signal_type_str}) with params: short_window={self._short_window}, overbought_threshold={getattr(self.rsi_rule, '_overbought_threshold', 'N/A')}, regime={self._current_regime}")
 
         # 3. Combine Signals Using Voting Weights System
         final_signal_type_int: Optional[int] = None
@@ -349,6 +357,16 @@ class EnsembleSignalStrategy(MAStrategy): # Inheriting MAStrategy for quick demo
     def set_parameters(self, params: Dict[str, Any]):
         self.logger.warning(f"PARAM_DEBUG: EnsembleSignalStrategy.set_parameters called with: {params}")
         super().set_parameters(params) # For MAStrategy part (this stores extended params with underscores)
+        
+        # CRITICAL FIX: Update ensemble strategy's own parameter copies
+        if "short_window" in params:
+            old_short = getattr(self, '_short_window', 'unset')
+            self._short_window = params["short_window"]
+            self.logger.warning(f"PARAM_DEBUG: Updated ensemble _short_window from {old_short} to {self._short_window}")
+        if "long_window" in params:
+            old_long = getattr(self, '_long_window', 'unset')
+            self._long_window = params["long_window"]
+            self.logger.warning(f"PARAM_DEBUG: Updated ensemble _long_window from {old_long} to {self._long_window}")
         
         # Parameters for RSI components might be prefixed, e.g., "rsi_indicator.period"
         rsi_indicator_params = {k.split('.', 1)[1]: v for k, v in params.items() if k.startswith("rsi_indicator.")}

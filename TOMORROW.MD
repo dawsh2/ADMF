@@ -117,6 +117,75 @@ This document outlines the key development and refactoring initiatives planned f
 * **Continuous Reference to Design Documents:** Regularly consult `PLAN.MD`, `IMPLEMENTATION.MD`, `ARCH.MD`, and other specific `.MD` files (like those for Analytics, Optimization, Strategy) to ensure development aligns with the intended architecture.
 * **Code Reviews:** If possible, have code reviewed to catch issues early and ensure clarity.
 
+### Initiative 7: Multi-Strategy Testing from Single Training Run
+
+* **Goal:** Enable execution of multiple strategy variants using derived optimal parameters and classifier data from a single backtest/optimization run.
+* **Key Implementation Steps:**
+    1. **Training Phase Output Framework:**
+        * Persist optimization results (optimal parameters for each strategy/rule combination from grid search).
+        * Save regime classifier training data and trained model.
+        * Store performance rankings and metrics for all tested combinations.
+    2. **Testing Phase Capabilities:**
+        * **Top N Strategy**: Run ensemble of top N performing strategies from optimization.
+        * **Adaptive Regime Switching**: Use regime classifier to dynamically switch between strategies.
+        * **Risk-Adjusted Ensemble**: Weight strategies based on risk-adjusted performance metrics.
+        * **Regime-Specific Strategies**: Deploy different strategies for different market regimes.
+        * **Performance Bracket Testing**: Test strategies grouped by performance tiers (top 10%, top 25%, etc.).
+    3. **Implementation Requirements:**
+        * Results persistence layer for optimization outputs and classifier data.
+        * Framework to instantiate multiple strategy variants from saved parameters.
+        * Test harness to run various ensemble/selection methodologies.
+        * Comparative analysis across different strategy selection approaches.
+    4. **Test Orchestration Framework:**
+        * **`StrategyTestRunner` Class**: Orchestrates multiple strategy tests from single optimization run.
+        * **Test Configuration**: Define multiple test scenarios in config (Top N with different N values, risk-adjusted weightings, regime adaptive switching, performance brackets).
+        * **Test Execution Pipeline**:
+            - Load optimization results once (`optimization_results.json`)
+            - For each test scenario: build strategy config from optimization results, create fresh system with test data, run backtest on out-of-sample data
+        * **Strategy Config Builders**:
+            - `EnsembleConfig`: For Top N strategies with various weighting schemes (equal, performance-based, risk-adjusted)
+            - `AdaptiveConfig`: For regime-based strategy switching using pre-trained classifier
+            - `BracketConfig`: For performance percentile-based strategy selection
+        * **Comparative Analysis**: Aggregate results across all test scenarios for comprehensive performance comparison.
+    5. **Benefits:**
+        * Comprehensive strategy evaluation without re-running expensive optimization processes.
+        * Enable rapid testing of multiple ensemble approaches from single training run.
+        * Facilitate robust strategy selection and validation methodologies.
+
+### Initiative 8: Live Trading Integration with Configuration-Driven Mode Selection
+
+* **Goal:** Enable seamless transition between backtesting and live trading using the same codebase with configuration-driven mode selection.
+* **Key Implementation Steps:**
+    1. **Execution Handler Abstraction:**
+        * Create `LiveExecutionHandler` class alongside existing `SimulatedExecutionHandler`.
+        * Both implement same interface but handle orders differently (real broker vs simulation).
+        * Live handler integrates with broker APIs (Alpaca, Interactive Brokers, etc.).
+    2. **Data Handler Abstraction:**
+        * Create `LiveDataHandler` class alongside existing `CSVDataHandler`.
+        * Live handler connects to real-time data feeds.
+        * Maintain same data interface for strategy components.
+    3. **Configuration-Driven Architecture:**
+        * Add execution mode flag to config: `execution.mode: "live"` or `"backtest"`.
+        * Add data source configuration: `data.source: "live"` or `"csv"`.
+        * Include live trading parameters: broker credentials, data feed settings.
+        * Strategy deployment configuration: `strategy.load_from_optimization: true`, `deployment_method: "top_n"`.
+    4. **Bootstrap Integration:**
+        * Modify `bootstrap.py` to instantiate appropriate handlers based on config.
+        * Enable loading of pre-optimized parameters from optimization results.
+        * Support multiple deployment methods (Top N, adaptive regime, risk-adjusted ensemble).
+    5. **Strategy State Management:**
+        * Ensure strategy logic remains identical across both modes.
+        * Same strategy components work with both simulated and live data/execution.
+        * Maintain consistent internal state management regardless of execution context.
+    6. **Live Trading Deployment Options:**
+        * **Pre-Selection Deployment**: Deploy single chosen ensemble method from optimization results.
+        * **Real-Time Strategy Selection**: Use live regime classifier to switch between strategies.
+        * **Ensemble Execution**: Run multiple strategies simultaneously with optimized position weights.
+    7. **Safety & Testing:**
+        * Easy mode switching via configuration for validation.
+        * Separate config files for development/staging/production environments.
+        * Parameter persistence: optimization results automatically flow to live trading.
+
 ## 5. Conclusion
 
 Successfully completing these initiatives will significantly enhance the ADMF-Trader system's capabilities, robustness, maintainability, and extensibility. It will pave the way for more advanced strategy development, optimization techniques, and in-depth performance analysis.

@@ -57,11 +57,21 @@ class MAStrategy(BaseComponent):
 
     def _initialize_parameter_dependent_state(self):
         """Re-initializes state that depends on window parameters."""
-        self._prices = deque(maxlen=self._long_window)
+        # Preserve existing price history if it exists (for adaptive testing)
+        if hasattr(self, '_prices') and len(self._prices) > 0:
+            # Keep existing prices but adjust deque size for new long_window
+            existing_prices = list(self._prices)
+            self._prices = deque(existing_prices, maxlen=self._long_window)
+            self.logger.warning(f"STATE_RESET_DEBUG: '{self.name}' preserving {len(existing_prices)} prices, adjusted maxlen to {self._long_window}")
+        else:
+            # Fresh start (normal case for training)
+            self._prices = deque(maxlen=self._long_window)
+            self.logger.warning(f"STATE_RESET_DEBUG: '{self.name}' fresh start with empty prices, maxlen={self._long_window}")
+        
+        # Always reset signal calculation state
         self._prev_short_ma = None
         self._prev_long_ma = None
         self._current_signal_state = 0
-        self.logger.debug(f"'{self.name}' state re-initialized for windows: short={self._short_window}, long={self._long_window}")
 
     def set_parameters(self, params: Dict[str, Any]):
         """

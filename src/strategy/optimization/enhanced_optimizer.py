@@ -52,14 +52,7 @@ class EnhancedOptimizer(BasicOptimizer):
         First resets the portfolio AND regime detector to ensure each run starts from a clean state.
         Directly processes regimes like test_regime_detection.py does.
         """
-        # Reset the portfolio state before each run
-        try:
-            portfolio_manager: BasicPortfolio = self._container.resolve(self._portfolio_service_name)
-            self.logger.debug(f"Resetting portfolio state before {dataset_type} run with params: {params_to_test}")
-            portfolio_manager.reset()
-        except Exception as e:
-            self.logger.error(f"Error resetting portfolio before backtest run: {e}", exc_info=True)
-            # Continue with the run even if reset fails, as the parent method will handle other errors
+        # Portfolio reset will be handled by parent class - no need to duplicate
         
         # Ensure RegimeDetector is available and reset it properly
         try:
@@ -572,8 +565,10 @@ class EnhancedOptimizer(BasicOptimizer):
             adaptive_results = results['regime_adaptive_test_results']
             
             # Print the directly accessed metrics
+            self.logger.warning(f"SUMMARY_DEBUG: Available keys in adaptive_results: {list(adaptive_results.keys())}")
             best_metric = adaptive_results.get('best_overall_metric')
             adaptive_metric = adaptive_results.get('adaptive_metric')
+            self.logger.warning(f"SUMMARY_DEBUG: best_metric = {best_metric}, adaptive_metric = {adaptive_metric}")
             
             # Format the values
             best_str = f"{best_metric:.2f}" if isinstance(best_metric, (int, float)) else "N/A"
@@ -880,9 +875,53 @@ class EnhancedOptimizer(BasicOptimizer):
                 self._save_results_to_file(results)
             
             # ==========================================
+            # Reset components before adaptive test to clear state from previous test runs
+            # ==========================================
+            self.logger.info("Resetting components before adaptive test to clear previous test state...")
+            
+            # Get component dependencies for proper reset order
+            component_dependencies = [
+                "MyPrimaryRegimeDetector", 
+                "execution_handler",
+                self._risk_manager_service_name, 
+                self._strategy_service_name, 
+                self._portfolio_service_name,
+                self._data_handler_service_name
+            ]
+            
+            # Stop all components in reverse dependency order to clear state
+            self.logger.debug("Stopping all components to clear state from previous test runs")
+            for component_name in component_dependencies:
+                try:
+                    component = self._container.resolve(component_name)
+                    if hasattr(component, "stop") and callable(getattr(component, "stop")):
+                        self.logger.debug(f"Stopping component: {component.name if hasattr(component, 'name') else 'unknown'}")
+                        component.stop()
+                        self.logger.debug(f"Successfully stopped component: {component.name if hasattr(component, 'name') else 'unknown'}")
+                except Exception as e:
+                    self.logger.debug(f"Could not stop component {component_name}: {e}")
+            
+            # Reset portfolio for clean state
+            portfolio_manager = self._container.resolve(self._portfolio_service_name)
+            self.logger.debug("Resetting portfolio to clean state before adaptive test")
+            portfolio_manager.reset()
+            self.logger.debug("Portfolio reset complete")
+            
+            # Reset regime detector
+            regime_detector = self._container.resolve("MyPrimaryRegimeDetector")
+            if hasattr(regime_detector, "reset") and callable(getattr(regime_detector, "reset")):
+                self.logger.debug("Resetting regime detector")
+                regime_detector.reset()
+                self.logger.debug("Regime detector reset complete")
+            
+            # ==========================================
             # Step 1: Run the best overall strategy on test set for comparison baseline
             # ==========================================
-            self.logger.info("Running best overall strategy on test set for baseline comparison...")
+            # TEMPORARILY COMMENTED OUT FOR DEBUGGING - focus only on adaptive test
+            self.logger.info("SKIPPING best overall strategy test - focusing on adaptive test only...")
+            
+            # Comment out entire best overall test section to simplify debugging
+            """
             
             # PROPER COMPONENT LIFECYCLE MANAGEMENT:
             # First stop all components in reverse dependency order
@@ -947,9 +986,11 @@ class EnhancedOptimizer(BasicOptimizer):
             if "best_parameters_on_train" in results and results["best_parameters_on_train"]:
                 best_overall_params = results["best_parameters_on_train"]
                 if hasattr(strategy_to_optimize, "set_parameters") and callable(getattr(strategy_to_optimize, "set_parameters")):
-                    self.logger.debug(f"Applying best overall parameters to strategy: {best_overall_params}")
+                    self.logger.warning(f"BEST_OVERALL_DEBUG: Applying best overall parameters to strategy: {best_overall_params}")
                     strategy_to_optimize.set_parameters(best_overall_params)
-                    self.logger.debug("Successfully applied parameters to strategy")
+                    # Verify what parameters were actually applied
+                    current_params = strategy_to_optimize.get_parameters()
+                    self.logger.warning(f"BEST_OVERALL_DEBUG: Current strategy params after application: {current_params}")
             else:
                 self.logger.warning("No best_parameters_on_train available in results")
                 
@@ -1039,6 +1080,7 @@ class EnhancedOptimizer(BasicOptimizer):
             # Get performance metrics
             best_overall_metric = None
             try:
+                self.logger.warning(f"BEST_OVERALL_DEBUG: Portfolio object ID: {id(portfolio_manager)}, trade count: {len(portfolio_manager._trade_log) if hasattr(portfolio_manager, '_trade_log') else 'N/A'}")
                 self.logger.debug(f"Attempting to get performance metric: {self._metric_to_optimize}")
                 
                 # Try multiple approaches to get the metric value
@@ -1084,6 +1126,11 @@ class EnhancedOptimizer(BasicOptimizer):
                     self.logger.debug(f"Regimes with trades in best overall run: {regimes_with_trades}")
                 
             results["regime_adaptive_test_results"]["best_overall_regime_performance"] = best_overall_regime_performance
+            """
+            
+            # Initialize results without best overall test
+            results["regime_adaptive_test_results"]["best_overall_performance"] = {"final_value": "N/A - test skipped"}
+            results["regime_adaptive_test_results"]["best_overall_regime_performance"] = None
             
             # ==========================================
             # Step 2: Run the adaptive strategy with regime-specific parameters
@@ -1111,9 +1158,12 @@ class EnhancedOptimizer(BasicOptimizer):
                 results["regime_adaptive_test_results"]["regimes_detected"] = regimes_detected
                 self.logger.info(f"Regimes detected in test set: {regimes_detected}")
             
-            # NOTE: Do NOT reset portfolio here - we want to measure the results from the adaptive test
-            # The portfolio was already reset before the adaptive test started
-            self.logger.debug("Preserving portfolio state from adaptive strategy test for measurement")
+            # CRITICAL FIX: Reset portfolio between best overall test and adaptive test
+            # This ensures each test runs independently and accumulates its own trades
+            # COMMENTED OUT: Since we're only running adaptive test now, this reset wipes out the results
+            # self.logger.warning("PORTFOLIO_RESET_DEBUG: Resetting portfolio between best overall and adaptive tests")
+            # portfolio_manager.reset()
+            # self.logger.warning("PORTFOLIO_RESET_DEBUG: Portfolio reset complete for independent adaptive test")
             
             if hasattr(regime_detector, "reset") and callable(getattr(regime_detector, "reset")):
                 self.logger.debug("Resetting regime detector")
@@ -1157,12 +1207,15 @@ class EnhancedOptimizer(BasicOptimizer):
                     self.logger.debug(f"Classification timestamp: {payload['timestamp']}")
                 
                 # Apply regime-specific parameters
+                self.logger.warning(f"REGIME_DEBUG: Available optimized regimes in results: {list(results['best_parameters_per_regime'].keys())}")
                 if new_regime in results["best_parameters_per_regime"]:
                     params = results["best_parameters_per_regime"][new_regime]
                     self.logger.warning(f"REGIME_DEBUG: Applying optimized parameters for regime {new_regime}: {params}")
                     try:
                         strategy_to_optimize.set_parameters(params)
-                        self.logger.warning(f"REGIME_DEBUG: Successfully applied parameters for regime {new_regime}")
+                        # Verify the parameters were actually applied
+                        current_params = strategy_to_optimize.get_parameters()
+                        self.logger.warning(f"REGIME_DEBUG: Successfully applied parameters for regime {new_regime}. Current strategy params: {current_params}")
                     except Exception as e:
                         self.logger.error(f"Failed to apply parameters for regime {new_regime}: {e}", exc_info=True)
                 elif "default" in results["best_parameters_per_regime"]:
@@ -1186,6 +1239,16 @@ class EnhancedOptimizer(BasicOptimizer):
             self.logger.info("Subscribing to CLASSIFICATION events")
             self._event_bus.subscribe(EventType.CLASSIFICATION, on_classification_change)
             self.logger.debug("Successfully subscribed to CLASSIFICATION events")
+            
+            # Define component start order for adaptive test
+            component_start_order = [
+                "MyPrimaryRegimeDetector", 
+                "execution_handler",  # Handles ORDER events from risk manager
+                self._risk_manager_service_name, 
+                self._strategy_service_name, 
+                self._portfolio_service_name,
+                self._data_handler_service_name  # LAST - publishes events after all consumers ready
+            ]
             
             # Start components in dependency order
             self.logger.debug("Starting all components for adaptive test in dependency order")
@@ -1311,6 +1374,7 @@ class EnhancedOptimizer(BasicOptimizer):
             # Get adaptive strategy performance
             adaptive_metric = None
             try:
+                self.logger.warning(f"ADAPTIVE_FINAL_DEBUG: Portfolio object ID: {id(portfolio_manager)}, trade count: {len(portfolio_manager._trade_log) if hasattr(portfolio_manager, '_trade_log') else 'N/A'}")
                 self.logger.warning(f"ADAPTIVE_FINAL_DEBUG: Attempting to get performance metric for adaptive strategy: {self._metric_to_optimize}")
                 
                 # Try multiple approaches to get the metric value
@@ -1375,17 +1439,17 @@ class EnhancedOptimizer(BasicOptimizer):
             self._event_bus.unsubscribe(EventType.CLASSIFICATION, on_classification_change)
             self.logger.debug("Successfully unsubscribed from CLASSIFICATION events")
             
-            # Calculate improvement over best overall
-            if isinstance(adaptive_metric, (int, float)) and isinstance(best_overall_metric, (int, float)) and best_overall_metric != 0:
-                improvement_pct = ((adaptive_metric - best_overall_metric) / abs(best_overall_metric)) * 100
-                results["regime_adaptive_test_results"]["improvement_pct"] = improvement_pct
-                self.logger.info(f"Improvement over best overall parameters: {improvement_pct:.2f}%")
+            # Calculate improvement over best overall (skipped since we're only running adaptive test)
+            # if isinstance(adaptive_metric, (int, float)) and isinstance(best_overall_metric, (int, float)) and best_overall_metric != 0:
+            #     improvement_pct = ((adaptive_metric - best_overall_metric) / abs(best_overall_metric)) * 100
+            #     results["regime_adaptive_test_results"]["improvement_pct"] = improvement_pct
+            #     self.logger.info(f"Improvement over best overall parameters: {improvement_pct:.2f}%")
             
             # Add detailed results
             results["regime_adaptive_test_results"]["method"] = "true_adaptive" 
             results["regime_adaptive_test_results"]["message"] = "Used true regime-adaptive strategy with dynamic parameter switching"
             results["regime_adaptive_test_results"]["trade_counts"] = {
-                "best_overall": trade_count_best,
+                "best_overall": "N/A - test skipped",
                 "adaptive": trade_count_adaptive
             }
             
@@ -1412,11 +1476,11 @@ class EnhancedOptimizer(BasicOptimizer):
             self.logger.info(f"Regimes with optimized parameters: {regimes_with_params}")
             if missing_regimes:
                 self.logger.info(f"Regimes using fallback parameters: {missing_regimes}")
-            self.logger.info(f"Best overall metric: {best_overall_metric}")
+            # self.logger.info(f"Best overall metric: {best_overall_metric}")  # Skipped since we're only running adaptive test
             self.logger.info(f"Adaptive strategy metric: {adaptive_metric}")
-            if isinstance(adaptive_metric, (int, float)) and isinstance(best_overall_metric, (int, float)) and best_overall_metric != 0:
-                self.logger.info(f"Improvement: {improvement_pct:.2f}%")
-            self.logger.info(f"Trades with best overall: {trade_count_best}")
+            # if isinstance(adaptive_metric, (int, float)) and isinstance(best_overall_metric, (int, float)) and best_overall_metric != 0:
+            #     self.logger.info(f"Improvement: {improvement_pct:.2f}%")
+            # self.logger.info(f"Trades with best overall: {trade_count_best}")  # Skipped
             self.logger.info(f"Trades with adaptive: {trade_count_adaptive}")
             
             # Verify results dictionary is complete
