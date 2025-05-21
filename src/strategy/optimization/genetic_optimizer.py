@@ -65,14 +65,24 @@ class GeneticOptimizer(BasicOptimizer):
         Uses the same _perform_single_backtest_run from BaseOptimizer.
         
         Args:
-            individual: Dictionary of parameter values
+            individual: Dictionary of parameter values (typically just weights)
             dataset_type: Whether to use "train" or "test" dataset
             
         Returns:
             Fitness value (metric value from backtest)
         """
-        self.logger.debug(f"Evaluating fitness for individual with weights: {individual} on {dataset_type} data")
-        metric_value = self._perform_single_backtest_run(individual, dataset_type)
+        # CRITICAL FIX: Merge regime parameters with weight parameters
+        # The genetic optimizer only provides weights, but the strategy needs both
+        # regime-specific parameters (MA windows, RSI thresholds) AND weights
+        strategy = self._container.resolve(self._strategy_service_name)
+        current_params = strategy.get_parameters() if hasattr(strategy, 'get_parameters') else {}
+        
+        # Merge current regime parameters with weight parameters from genetic algorithm
+        combined_params = current_params.copy()
+        combined_params.update(individual)
+        
+        self.logger.debug(f"Evaluating fitness with combined params: {combined_params} on {dataset_type} data")
+        metric_value = self._perform_single_backtest_run(combined_params, dataset_type)
         
         if metric_value is None:
             self.logger.warning(f"Failed to evaluate fitness for individual: {individual}")

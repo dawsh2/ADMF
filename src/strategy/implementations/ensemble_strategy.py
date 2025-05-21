@@ -77,9 +77,19 @@ class EnsembleSignalStrategy(MAStrategy): # Inheriting MAStrategy for quick demo
         self.logger.info(f"EnsembleSignalStrategy '{self.name}' initialized with MA weight: {self._ma_weight}, RSI weight: {self._rsi_weight}")
 
     def setup(self):
+        # Check weights before setup
+        pre_setup_ma = getattr(self, '_ma_weight', 'not_set')
+        pre_setup_rsi = getattr(self, '_rsi_weight', 'not_set')
+        self.logger.debug(f"Weights before setup: MA={pre_setup_ma}, RSI={pre_setup_rsi}")
+        
         super().setup() # Setup MAStrategy part
         self.rsi_indicator.setup()
         self.rsi_rule.setup()
+        
+        # Check weights after setup
+        post_setup_ma = getattr(self, '_ma_weight', 'not_set')
+        post_setup_rsi = getattr(self, '_rsi_weight', 'not_set')
+        self.logger.debug(f"Weights after setup: MA={post_setup_ma}, RSI={post_setup_rsi}")
         
         # Subscribe to CLASSIFICATION events to track regime changes
         if self._event_bus:
@@ -328,11 +338,16 @@ class EnsembleSignalStrategy(MAStrategy): # Inheriting MAStrategy for quick demo
         self.logger.debug(f"Current RSI value: {current_rsi}")
         
         # Get RSI thresholds for logging
-        oversold = getattr(self.rsi_rule, '_oversold_threshold', 'N/A')
-        overbought = getattr(self.rsi_rule, '_overbought_threshold', 'N/A')
+        oversold = getattr(self.rsi_rule, 'oversold_threshold', 'N/A')
+        overbought = getattr(self.rsi_rule, 'overbought_threshold', 'N/A')
         self.logger.debug(f"RSI thresholds - oversold: {oversold}, overbought: {overbought}")
         
         rsi_triggered, rsi_strength, rsi_signal_type_str = self.rsi_rule.evaluate(bar_data)
+        
+        # Log RSI signal generation details
+        if rsi_triggered:
+            self.logger.info(f"🔍 RSI SIGNAL: RSI={current_rsi:.2f}, thresholds=({oversold}, {overbought}), " +
+                           f"signal={rsi_signal_type_str}, strength={rsi_strength}, params_hash={hash(str(oversold)+str(overbought))}")
         
         rsi_signal_type_int = 0
         if rsi_triggered:
@@ -550,14 +565,21 @@ class EnsembleSignalStrategy(MAStrategy): # Inheriting MAStrategy for quick demo
         rsi_rule_params = {k.split('.', 1)[1]: v for k, v in params.items() 
                            if k.startswith("rsi_rule.") and k != "rsi_rule.weight"}
         if rsi_rule_params:
-            self.logger.debug(f"'{self.name}' updating RSI rule parameters: {rsi_rule_params}")
+            self.logger.debug(f"Updating RSI rule parameters: {rsi_rule_params}")
             self.rsi_rule.set_parameters(rsi_rule_params)
+            
+            # Verify parameters were applied
+            applied_oversold = getattr(self.rsi_rule, 'oversold_threshold', 'not_set')
+            applied_overbought = getattr(self.rsi_rule, 'overbought_threshold', 'not_set')
+            self.logger.debug(f"RSI rule updated: oversold={applied_oversold}, overbought={applied_overbought}")
             # Note: Not calling setup() to preserve rule state during regime changes
             
         # Preserve signal states during all parameter changes, regardless of adaptive mode
         self.logger.info(f"Preserving signal states during parameter changes - current signal: {self._current_signal_state}")
             
-        self.logger.info(f"EnsembleSignalStrategy '{self.name}' parameters updated with MA weight: {self._ma_weight}, RSI weight: {self._rsi_weight}")
+        # Add instance tracking for debugging
+        instance_id = id(self)
+        self.logger.info(f"🔍 PARAMS SET: Instance {instance_id} - MA weight: {self._ma_weight}, RSI weight: {self._rsi_weight}, RSI thresholds: {getattr(self.rsi_rule, 'oversold_threshold', 'N/A')}/{getattr(self.rsi_rule, 'overbought_threshold', 'N/A')}")
         return True 
         
     def enable_adaptive_mode(self, regime_parameters: Dict[str, Dict[str, Any]]):

@@ -121,21 +121,21 @@ class BasicOptimizer(BaseComponent):
             
             # Reset portfolio state to ensure a clean start
             try:
-                # DEBUG: Check portfolio state BEFORE reset
+                # Check portfolio state before reset
                 if hasattr(portfolio_manager, 'get_portfolio_value'):
                     pre_reset_value = portfolio_manager.get_portfolio_value()
                     trade_count = len(portfolio_manager._trade_log) if hasattr(portfolio_manager, '_trade_log') else 0
-                    self.logger.warning(f"🔍 PORTFOLIO DEBUG BEFORE RESET ({dataset_type}): Value={pre_reset_value:.2f}, Trades={trade_count}")
+                    self.logger.debug(f"Portfolio before reset ({dataset_type}): Value={pre_reset_value:.2f}, Trades={trade_count}")
                 
                 self.logger.info(f"Optimizer: Resetting portfolio state before {dataset_type} run with params: {params_to_test}")
                 if hasattr(portfolio_manager, 'reset') and callable(portfolio_manager.reset):
                     portfolio_manager.reset()
                     
-                    # DEBUG: Check portfolio state AFTER reset
+                    # Check portfolio state after reset
                     if hasattr(portfolio_manager, 'get_portfolio_value'):
                         post_reset_value = portfolio_manager.get_portfolio_value()
                         trade_count = len(portfolio_manager._trade_log) if hasattr(portfolio_manager, '_trade_log') else 0
-                        self.logger.warning(f"🔍 PORTFOLIO DEBUG AFTER RESET ({dataset_type}): Value={post_reset_value:.2f}, Trades={trade_count}")
+                        self.logger.debug(f"Portfolio after reset ({dataset_type}): Value={post_reset_value:.2f}, Trades={trade_count}")
                 else:
                     self.logger.warning("Portfolio does not have a reset method. State may persist between runs.")
             except Exception as e:
@@ -171,15 +171,15 @@ class BasicOptimizer(BaseComponent):
             self.logger.debug(f"Optimizer: Closing positions for '{dataset_type}' run with {params_to_test} at {last_ts}")
             portfolio_manager.close_all_positions(last_ts)
             
-            # DEBUG: Final portfolio state before metric calculation
+            # Final portfolio state before metric calculation
             if hasattr(portfolio_manager, 'get_portfolio_value'):
                 final_value = portfolio_manager.get_portfolio_value()
                 final_trade_count = len(portfolio_manager._trade_log) if hasattr(portfolio_manager, '_trade_log') else 0
-                self.logger.warning(f"🔍 PORTFOLIO DEBUG FINAL ({dataset_type}): Value={final_value:.2f}, Trades={final_trade_count}")
+                self.logger.debug(f"Portfolio final ({dataset_type}): Value={final_value:.2f}, Trades={final_trade_count}")
             
             metric_method = getattr(portfolio_manager, self._metric_to_optimize)
             metric_value = metric_method()
-            self.logger.warning(f"🔍 OPTIMIZER RESULT ({dataset_type}): Params {params_to_test} -> Metric '{self._metric_to_optimize}': {metric_value}")
+            self.logger.info(f"Optimizer result ({dataset_type}): {self._metric_to_optimize}={metric_value:.2f}")
             
             return metric_value
 

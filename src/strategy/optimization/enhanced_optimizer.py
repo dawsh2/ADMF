@@ -371,13 +371,13 @@ class EnhancedOptimizer(BasicOptimizer):
                     # Use optimizer logger for test phase
                     self.opt_logger.info(f"Testing rank #{rank+1} parameters: {param_str} (train score: {train_metric:.4f})")
                     
-                    # DEBUG: Verify data handler is using test data
+                    # Verify data handler is using test data
                     data_handler = self._container.resolve(self._data_handler_service_name)
                     if hasattr(data_handler, '_active_df'):
                         active_size = len(data_handler._active_df) if data_handler._active_df is not None else 0
                         train_size = len(data_handler._train_df) if hasattr(data_handler, '_train_df') and data_handler._train_df is not None else 0
                         test_size = len(data_handler._test_df) if hasattr(data_handler, '_test_df') and data_handler._test_df is not None else 0
-                        self.logger.warning(f"🔍 DATA DEBUG: Before test run - Active: {active_size}, Train: {train_size}, Test: {test_size}")
+                        self.logger.debug(f"Data sizes - Active: {active_size}, Train: {train_size}, Test: {test_size}")
                     
                     test_metric_value, _ = self._perform_single_backtest_run(params, dataset_type="test")
                     
