@@ -65,14 +65,20 @@ class RSIRule(BaseComponent):
         triggered = False
         signal_type_str = None 
 
+        # RSI crossing logic
         if self._last_rsi_value is not None:
-            if self._last_rsi_value <= self.oversold_threshold and rsi_value > self.oversold_threshold:
+            # Check oversold crossing (BUY signal)
+            oversold_cross = self._last_rsi_value <= self.oversold_threshold and rsi_value > self.oversold_threshold
+            # Check overbought crossing (SELL signal)  
+            overbought_cross = self._last_rsi_value >= self.overbought_threshold and rsi_value < self.overbought_threshold
+            
+            if oversold_cross:
                 if self._current_signal_state != 1:
                     signal_strength = 1.0 
                     triggered = True
                     self._current_signal_state = 1
                     signal_type_str = "BUY"
-            elif self._last_rsi_value >= self.overbought_threshold and rsi_value < self.overbought_threshold:
+            elif overbought_cross:
                 if self._current_signal_state != -1:
                     signal_strength = -1.0
                     triggered = True
@@ -90,9 +96,15 @@ class RSIRule(BaseComponent):
         }
 
     def set_parameters(self, params: Dict[str, Any]) -> None:
+        old_os = self.oversold_threshold
+        old_ob = self.overbought_threshold
+        old_weight = self._weight
+        
         self.oversold_threshold = params.get('oversold_threshold', self.oversold_threshold)
         self.overbought_threshold = params.get('overbought_threshold', self.overbought_threshold)
         self._weight = params.get('weight', self._weight)
+        
+        
         self.reset_state()
         self.logger.info(
             f"RSIRule '{self.name}' parameters updated: OS={self.oversold_threshold}, OB={self.overbought_threshold}, W={self._weight}"

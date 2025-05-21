@@ -88,6 +88,7 @@ class BasicRiskManager(BaseComponent):
         # signal_timestamp = signal_data.get("timestamp", datetime.datetime.now(datetime.timezone.utc)) # Already there
         strategy_id = signal_data.get("strategy_id", "UnknownStrategy")
 
+
         if not all([symbol, signal_type_int is not None, price_at_signal is not None]):
             self.logger.error(f"'{self.name}' received incomplete SIGNAL data: {signal_data}")
             return

@@ -129,18 +129,19 @@ class BasicOptimizer(BaseComponent):
             except Exception as e:
                 self.logger.error(f"Error resetting portfolio before backtest run: {e}", exc_info=True)
             
+            # CRITICAL FIX: Set parameters BEFORE component setup to avoid race conditions
+            if not strategy.set_parameters(params_to_test):
+                self.logger.error(f"Optimizer: Failed to set parameters {params_to_test} on strategy {strategy.name}. Skipping {dataset_type} run.")
+                return None
+            
             for comp in components_for_this_run:
-                self.logger.debug(f"Optimizer: Setting up component '{comp.name}' for '{dataset_type}' run.")
+                self.logger.debug(f"Optimizer: Setting up component '{comp.name}' for '{dataset_type}' run with correct parameters.")
                 comp.setup() 
                 if comp.get_state() == BaseComponent.STATE_FAILED:
                     self.logger.error(f"Optimizer: Component '{comp.name}' failed setup. Skipping {dataset_type} run.")
                     return None
             
-            data_handler.set_active_dataset(dataset_type) 
-
-            if not strategy.set_parameters(params_to_test):
-                self.logger.error(f"Optimizer: Failed to set parameters {params_to_test} on strategy {strategy.name}. Skipping {dataset_type} run.")
-                return None
+            data_handler.set_active_dataset(dataset_type)
             
             for comp in components_for_this_run:
                 if comp.get_state() == BaseComponent.STATE_INITIALIZED:

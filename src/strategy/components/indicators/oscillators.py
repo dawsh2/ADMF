@@ -72,33 +72,26 @@ class RSIIndicator(BaseComponent):
             self.logger.warning(f"Invalid data/price type received by {self.name}: {type(data_or_price)}. Expected dict or float.")
             return self._current_value
 
-        # --- The rest of your RSI logic remains the same, using price_input ---
+        # Store the new price and calculate change
         if not self._prices: 
             self._prices.append(price_input)
             return None
 
+        # Calculate price change
         change = price_input - self._prices[-1]
+        self._prices.append(price_input)
         
-        if len(self._prices) < self.period: 
-            self._prices.append(price_input) 
-            if len(self._prices) > 1: 
-                if change > 0:
-                    self._gains.append(change)
-                    self._losses.append(0.0)
-                else:
-                    self._gains.append(0.0)
-                    self._losses.append(abs(change))
-            return None
-        
-        if len(self._gains) == self.period: # Should always be true if len(_prices) >= period
-            self._gains.popleft()
-            self._losses.popleft()
-        
+        # Calculate gain and loss for this change
         current_gain = change if change > 0 else 0.0
         current_loss = abs(change) if change < 0 else 0.0
+        
+        # Add gain/loss to deques (deques automatically maintain maxlen)
         self._gains.append(current_gain)
         self._losses.append(current_loss)
-        self._prices.append(price_input) 
+        
+        # We need at least 'period' gains/losses to start calculating RSI
+        if len(self._gains) < self.period:
+            return None 
 
         if not self._initialized_smoothing:
             if len(self._gains) == self.period: 
@@ -128,6 +121,7 @@ class RSIIndicator(BaseComponent):
         else:
             rs = self._avg_gain / self._avg_loss
             self._current_value = 100.0 - (100.0 / (1.0 + rs))
+        
         
         return self._current_value
 
@@ -160,13 +154,17 @@ class RSIIndicator(BaseComponent):
         return True
 
     def reset_state(self):
-        self._prices.clear()
-        self._gains.clear()
-        self._losses.clear()
+        # Recreate deques with current period
+        self._prices: deque[float] = deque(maxlen=self.period + 10) 
+        self._gains: deque[float] = deque(maxlen=self.period)
+        self._losses: deque[float] = deque(maxlen=self.period)
         self._avg_gain = None
         self._avg_loss = None
         self._current_value = None
         self._initialized_smoothing = False
+        # Remove the debug flag for first value logging
+        if hasattr(self, '_first_value_logged'):
+            delattr(self, '_first_value_logged')
         # self.logger.debug(f"RSIIndicator '{self.name}' state reset.")
     
     def reset(self):

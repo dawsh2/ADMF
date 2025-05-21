@@ -1,5 +1,5 @@
 {
-  "timestamp": "2025-05-20T19:24:36.351901",
+  "timestamp": "2025-05-20T20:53:38.308383",
   "overall_best_parameters": {
     "short_window": 5,
     "long_window": 20,
@@ -33,17 +33,17 @@
     },
     "trending_down": {
       "parameters": {
-        "short_window": 10,
+        "short_window": 5,
         "long_window": 20,
         "rsi_indicator.period": 14,
         "rsi_rule.oversold_threshold": 30.0,
         "rsi_rule.overbought_threshold": 60.0,
-        "rsi_rule.weight": 0.4,
+        "rsi_rule.weight": 0.6,
         "ma_rule.weight": 0.4
       },
       "metric": {
         "name": "sharpe_ratio",
-        "value": 12.086705790480579,
+        "value": 14.514592150767562,
         "higher_is_better": true
       }
     },
@@ -97,18 +97,18 @@
     }
   },
   "regimes_encountered": [
-    "default",
     "trending_up_volatile",
-    "trending_down",
+    "default",
+    "trending_up_low_vol",
     "ranging_low_vol",
-    "trending_up_low_vol"
+    "trending_down"
   ],
   "min_trades_per_regime": 5,
   "test_results": [
     {
       "rank": 1,
       "parameters": {
-        "short_window": 5,
+        "short_window": 10,
         "long_window": 20,
         "rsi_indicator.period": 14,
         "rsi_rule.oversold_threshold": 30.0,
@@ -116,8 +116,8 @@
         "rsi_rule.weight": 0.4,
         "ma_rule.weight": 0.4
       },
-      "train_metric": 100797.35999999994,
-      "test_metric": 99821.23999999998
+      "train_metric": 100782.72499999989,
+      "test_metric": 99917.03999999998
     },
     {
       "rank": 2,
@@ -128,7 +128,7 @@
         "rsi_rule.oversold_threshold": 30.0,
         "rsi_rule.overbought_threshold": 60.0,
         "rsi_rule.weight": 0.4,
-        "ma_rule.weight": 0.6
+        "ma_rule.weight": 0.4
       },
       "train_metric": 100797.35999999994,
       "test_metric": 99821.23999999998
@@ -142,7 +142,7 @@
         "rsi_rule.oversold_threshold": 30.0,
         "rsi_rule.overbought_threshold": 60.0,
         "rsi_rule.weight": 0.6,
-        "ma_rule.weight": 0.4
+        "ma_rule.weight": 0.6
       },
       "train_metric": 100797.35999999994,
       "test_metric": 99821.23999999998

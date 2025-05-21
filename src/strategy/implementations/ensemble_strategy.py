@@ -257,33 +257,54 @@ class EnsembleSignalStrategy(MAStrategy): # Inheriting MAStrategy for quick demo
         if rsi_triggered:
             rsi_signal_type_int = int(rsi_strength) # 1 for BUY, -1 for SELL
 
-        # 3. Combine Signals (Simple Weighted Logic Example)
-        # This is a placeholder for more sophisticated signal combination
+        # 3. Combine Signals Using Voting Weights System
         final_signal_type_int: Optional[int] = None
         
-        # DEBUG: Uncomment below to log parameter values during signal generation
-        # self.logger.warning(
-        #     f"BAR_PARAMS_CHECK | TS: {bar_timestamp} | "
-        #     f"MA_SW: {self._short_window}, MA_LW: {self._long_window}, MA_W: {self.ma_weight:.2f} | "
-        #     f"RSI_P: {self.rsi_indicator.period}, RSI_OS: {self.rsi_rule.oversold_threshold:.1f}, "
-        #     f"RSI_OB: {self.rsi_rule.overbought_threshold:.1f}, RSI_W: {self.rsi_rule.weight:.2f} | "
-        #     f"MA_Sig: {ma_signal_type_int}, RSI_Sig: {rsi_signal_type_int}"
-        # )
+        # Calculate normalized voting influences
+        total_weight = self.ma_weight + self.rsi_rule.weight
+        if total_weight == 0:
+            ma_influence = 0.5
+            rsi_influence = 0.5
+        else:
+            ma_influence = self.ma_weight / total_weight
+            rsi_influence = self.rsi_rule.weight / total_weight
         
-        # Example: If both agree, take signal. If they conflict, could be neutral or prioritize one.
-        # Or weighted sum:
-        combined_strength = (ma_signal_type_int * self.ma_weight) + \
-                              (rsi_signal_type_int * self.rsi_rule.weight)
-        
-        self.logger.info(f"MA Signal: {ma_signal_type_int}, RSI Signal: {rsi_signal_type_int}, Combined: {combined_strength:.2f}, Weights: MA={self.ma_weight}, RSI={self.rsi_rule.weight}")
-        self.logger.info(f"Current parameters - short_window: {self._short_window}, long_window: {self._long_window}, RSI period: {self.rsi_indicator.period}, RSI thresholds: oversold={self.rsi_rule.oversold_threshold}, overbought={self.rsi_rule.overbought_threshold}")
-
-        # Relax the thresholds to generate more signals during optimization
+        # Voting-based signal selection
         current_signal_to_publish = 0
-        if combined_strength > 0.2: # Lower threshold to generate more BUY signals
-            current_signal_to_publish = 1
-        elif combined_strength < -0.2: # Lower threshold to generate more SELL signals
-            current_signal_to_publish = -1
+        
+        # Both signals agree - always publish
+        if ma_signal_type_int != 0 and rsi_signal_type_int != 0 and ma_signal_type_int == rsi_signal_type_int:
+            current_signal_to_publish = ma_signal_type_int
+            signal_reason = f"Agreement(MA={ma_signal_type_int}, RSI={rsi_signal_type_int})"
+        
+        # Only one signal active - use weighted probability
+        elif ma_signal_type_int != 0 and rsi_signal_type_int == 0:
+            # MA signal only - publish if MA has sufficient influence
+            if ma_influence >= 0.5:  # Require majority influence for single component
+                current_signal_to_publish = ma_signal_type_int
+                signal_reason = f"MA_only(sig={ma_signal_type_int}, influence={ma_influence:.2f})"
+            else:
+                signal_reason = f"MA_blocked(sig={ma_signal_type_int}, influence={ma_influence:.2f})"
+        
+        elif rsi_signal_type_int != 0 and ma_signal_type_int == 0:
+            # RSI signal only - publish if RSI has sufficient influence  
+            if rsi_influence >= 0.5:  # Require majority influence for single component
+                current_signal_to_publish = rsi_signal_type_int
+                signal_reason = f"RSI_only(sig={rsi_signal_type_int}, influence={rsi_influence:.2f})"
+            else:
+                signal_reason = f"RSI_blocked(sig={rsi_signal_type_int}, influence={rsi_influence:.2f})"
+        
+        # Conflicting signals - use weighted priority
+        elif ma_signal_type_int != 0 and rsi_signal_type_int != 0 and ma_signal_type_int != rsi_signal_type_int:
+            if ma_influence > rsi_influence:
+                current_signal_to_publish = ma_signal_type_int
+                signal_reason = f"MA_priority(MA={ma_signal_type_int}, RSI={rsi_signal_type_int}, MA_inf={ma_influence:.2f})"
+            else:
+                current_signal_to_publish = rsi_signal_type_int  
+                signal_reason = f"RSI_priority(MA={ma_signal_type_int}, RSI={rsi_signal_type_int}, RSI_inf={rsi_influence:.2f})"
+        else:
+            signal_reason = "No_signals"
+            
 
         if current_signal_to_publish != 0 and self._current_signal_state != current_signal_to_publish:
             final_signal_type_int = current_signal_to_publish
@@ -295,7 +316,7 @@ class EnsembleSignalStrategy(MAStrategy): # Inheriting MAStrategy for quick demo
                 "signal_type": final_signal_type_int,
                 "price_at_signal": close_price,
                 "strategy_id": self.name,
-                "reason": f"Ensemble (MA: {ma_signal_type_int}, RSI: {rsi_signal_type_int}, Regime: {self._current_regime})"
+                "reason": f"Ensemble_Voting({signal_reason}, Regime: {self._current_regime})"
             }
             signal_event = Event(EventType.SIGNAL, signal_payload)
             self._event_bus.publish(signal_event)
@@ -347,7 +368,16 @@ class EnsembleSignalStrategy(MAStrategy): # Inheriting MAStrategy for quick demo
             self.ma_weight = params['ma_rule.weight']
             self.logger.info(f"'{self.name}' storing extended parameter: ma_rule.weight={self.ma_weight}")
             
-        self.logger.info(f"EnsembleSignalStrategy '{self.name}' parameters updated and components re-setup.")
+        # CRITICAL FIX: Reset signal states when parameters change during optimization
+        # This ensures each parameter combination gets a fresh start
+        self._current_signal_state = 0
+        # Also reset MA strategy signal state from parent class
+        if hasattr(self, '_prev_short_ma'):
+            self._prev_short_ma = None
+        if hasattr(self, '_prev_long_ma'):
+            self._prev_long_ma = None
+            
+        self.logger.info(f"EnsembleSignalStrategy '{self.name}' parameters updated, components re-setup, and signal states reset.")
         return True 
 
 # src/strategy/implementations/ensemble_strategy.py

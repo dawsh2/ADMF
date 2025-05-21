@@ -87,6 +87,7 @@ def main():
 
     # If we're optimizing, use the regular strategy
     if run_optimization_mode:
+        print(f"MAIN_DEBUG | Entering optimization mode, registering EnsembleSignalStrategy")
         ensemble_strat_args = {
             "instance_name": "SPY_Ensemble_Strategy",
             "config_loader": config_loader,
