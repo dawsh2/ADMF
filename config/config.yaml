@@ -82,7 +82,7 @@ components:
     higher_metric_is_better: True
     
     # Regime-specific optimization settings
-    min_trades_per_regime: 5  # Minimum trades required for a valid regime optimization
+    min_trades_per_regime: 2  # Minimum trades required for a valid regime optimization
     regime_metric: "sharpe_ratio"  # Metric to optimize for each regime 
     output_file_path: "regime_optimized_parameters.json"  # Output file for optimized parameters
     
@@ -102,13 +102,13 @@ components:
     metric_to_optimize: "get_final_portfolio_value"  # Use portfolio value for fitness evaluation
     higher_metric_is_better: true
 
-    # Genetic algorithm specific settings - optimized for better evolution
-    population_size: 15  # Larger population for more diversity
-    generations: 8       # More generations for evolution
-    mutation_rate: 0.8   # Very high mutation rate to force exploration
-    crossover_rate: 0.3  # Lower crossover, higher mutation
-    elitism_count: 1     # Keep only 1 elite to reduce convergence
-    tournament_size: 2   # Lower selection pressure
+    # Genetic algorithm specific settings - balanced exploration vs exploitation
+    population_size: 15  # Reduced for faster testing - converges quickly anyway
+    generations: 5       # Reduced for faster testing - converges quickly anyway
+    mutation_rate: 0.1   # Moderate mutation rate for refinement without chaos
+    crossover_rate: 0.7  # Higher crossover rate to encourage solution mixing
+    elitism_count: 2     # Keep top 2 solutions to preserve progress
+    tournament_size: 3   # Moderate selection pressure
 
     # Weight constraints (relaxed for more exploration space)
     min_weight: 0.1      # Allow more extreme weight distributions

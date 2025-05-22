@@ -313,7 +313,7 @@ class EnsembleSignalStrategy(MAStrategy): # Inheriting MAStrategy for quick demo
         interference with parameter testing. But during adaptive TEST phase, we WANT 
         parameters to change with regimes.
         """
-        # Check if we're in adaptive mode with in-memory parameters
+        # Check if we're in adaptive mode with in-memory parameters  
         if self._adaptive_mode_enabled and self._regime_best_parameters:
             # Only log regime changes, not every parameter check
             if regime != getattr(self, '_last_logged_regime', None):
@@ -324,11 +324,16 @@ class EnsembleSignalStrategy(MAStrategy): # Inheriting MAStrategy for quick demo
                 params = self._regime_best_parameters[regime]
                 # Only log when regime actually changes, not on every bar
                 if regime != getattr(self, '_last_applied_regime', None):
-                    self.logger.info(f"ADAPTIVE TEST: Applying regime-specific parameters for '{regime}': {params}")
+                    self.logger.debug(f"ADAPTIVE TEST: Applying regime-specific parameters for '{regime}': {params}")
                     self._last_applied_regime = regime
                 
                 # Apply the parameters (quietly)
                 self.set_parameters(params)
+                
+                # Log all parameters after applying regime-specific parameters
+                current_params = self.get_parameters()
+                self.logger.debug(f"📊 WEIGHTS AFTER REGIME PARAMETER APPLICATION: MA={self._ma_weight:.4f}, RSI={self._rsi_weight:.4f}")
+                self.logger.debug(f"📋 ALL PARAMETERS AFTER APPLICATION: {current_params}")
                 return
             else:
                 # Only log this once per regime

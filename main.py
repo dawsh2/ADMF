@@ -57,6 +57,9 @@ def main():
         "--genetic-optimize", action="store_true", help="Run genetic algorithm to optimize rule weights after grid search."
     )
     parser.add_argument(
+        "--random-search", action="store_true", help="Run random search baseline to compare with genetic algorithm."
+    )
+    parser.add_argument(
         "--log-level", type=str, choices=['DEBUG', 'INFO', 'WARNING', 'ERROR', 'CRITICAL'],
         help="Override the log level defined in the config file."
     )
@@ -75,6 +78,7 @@ def main():
     run_optimize_seq = args.optimize_seq
     run_optimize_joint = args.optimize_joint
     run_genetic_optimization = args.genetic_optimize
+    run_random_search = args.random_search
     
     # If any optimization is enabled, also set general optimization flag
     if run_optimize_ma or run_optimize_rsi or run_optimize_seq or run_optimize_joint:
@@ -200,7 +204,7 @@ def main():
         logger.info("EnhancedOptimizer registered as 'optimizer_service'.")
         
         # Register genetic optimizer if needed
-        if run_genetic_optimization:
+        if run_genetic_optimization or run_random_search:
             genetic_optimizer_args = {"instance_name": "GeneticOptimizer", "config_loader": config_loader,
                                      "event_bus": event_bus, "component_config_key": "components.genetic_optimizer",
                                      "container": container}
@@ -238,8 +242,45 @@ def main():
                     # Detailed results already logged by optimizer._log_optimization_results, no need to duplicate here
                     logger.debug("Optimization complete. See summary for results.")
                     
+                    # If random search is requested, run complete per-regime random search optimization
+                    if run_random_search:
+                        logger.info("--- Starting Per-Regime Random Search Weight Optimization ---")
+                        print("\n=== PER-REGIME RANDOM SEARCH OPTIMIZATION ===\n")
+                        try:
+                            # Run per-regime random search optimization (same as GA but with random search)
+                            optimization_results = optimizer.run_per_regime_random_search_optimization(optimization_results)
+                            
+                            # Log results
+                            if "best_weights_per_regime" in optimization_results:
+                                regimes_with_weights = list(optimization_results["best_weights_per_regime"].keys())
+                                logger.info(f"Random search optimization complete for {len(regimes_with_weights)} regimes: {regimes_with_weights}")
+                                
+                                # Print summary
+                                print(f"\nOptimized weights for {len(regimes_with_weights)} regimes:")
+                                for regime, weight_data in optimization_results["best_weights_per_regime"].items():
+                                    weights = weight_data.get("weights", {})
+                                    fitness = weight_data.get("fitness", "N/A")
+                                    ma_weight = weights.get("ma_rule.weight", 0.5)
+                                    rsi_weight = weights.get("rsi_rule.weight", 0.5)
+                                    print(f"  {regime}: MA={ma_weight:.3f}, RSI={rsi_weight:.3f} (fitness: {fitness:.2f})")
+                            else:
+                                logger.warning("No per-regime random search optimization results found")
+                                
+                        except Exception as e:
+                            logger.error(f"Error during per-regime random search optimization: {e}", exc_info=True)
+                            
+                        # Now run adaptive test AFTER random search optimization
+                        try:
+                            if hasattr(optimizer, 'run_adaptive_test'):
+                                optimizer.run_adaptive_test(optimization_results)
+                                logger.info("Completed adaptive test after random search optimization")
+                            else:
+                                logger.error("Optimizer does not have run_adaptive_test method")
+                        except Exception as e:
+                            logger.error(f"Error running adaptive test after random search optimization: {e}", exc_info=True)
+                    
                     # If genetic optimization is requested, run per-regime genetic optimization FIRST
-                    if run_genetic_optimization:
+                    elif run_genetic_optimization:
                         logger.info("--- Starting Per-Regime Genetic Weight Optimization ---")
                         print("\n=== PER-REGIME GENETIC OPTIMIZATION ===\n")
                         try:
@@ -266,7 +307,6 @@ def main():
                             logger.error(f"Error during per-regime genetic optimization: {e}", exc_info=True)
                             
                         # Now run adaptive test AFTER genetic optimization
-                        logger.info("\n\n!!! RUNNING ADAPTIVE TEST AFTER GENETIC OPTIMIZATION !!!\n\n")
                         try:
                             if hasattr(optimizer, 'run_adaptive_test'):
                                 optimizer.run_adaptive_test(optimization_results)

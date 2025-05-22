@@ -562,6 +562,94 @@ class EnhancedOptimizer(BasicOptimizer):
         self.logger.info(f"Per-regime genetic optimization complete. Optimized weights for {len(results_summary['best_weights_per_regime'])} regimes.")
         return results_summary
 
+    def run_per_regime_random_search_optimization(self, results_summary: Dict[str, Any]) -> Dict[str, Any]:
+        """
+        Run random search optimization for each regime that has sufficient data.
+        This is a simpler alternative to genetic algorithm optimization.
+        
+        Args:
+            results_summary: Results from grid search containing best parameters per regime
+            
+        Returns:
+            Updated results_summary with per-regime weights added
+        """
+        self.logger.info("--- Starting Per-Regime Random Search Weight Optimization ---")
+        
+        if "best_parameters_per_regime" not in results_summary or not results_summary["best_parameters_per_regime"]:
+            self.logger.warning("No regime-specific parameters found. Skipping per-regime random search optimization.")
+            return results_summary
+        
+        try:
+            # Get genetic optimizer (it contains the random search method)
+            genetic_optimizer = self._container.resolve("genetic_optimizer_service")
+        except Exception as e:
+            self.logger.warning(f"Genetic optimizer not available: {e}. Skipping per-regime weight optimization.")
+            return results_summary
+        
+        # Initialize storage for per-regime weights
+        results_summary["best_weights_per_regime"] = {}
+        
+        # Process each regime that has optimized parameters
+        for regime, regime_data in results_summary["best_parameters_per_regime"].items():
+            self.logger.info(f"Running random search optimization for regime: {regime}")
+            
+            # Extract parameters for this regime (same logic as genetic version)
+            if 'parameters' in regime_data:
+                if 'parameters' in regime_data['parameters']:
+                    regime_params = regime_data['parameters']['parameters']
+                else:
+                    regime_params = regime_data['parameters']
+            else:
+                self.logger.warning(f"No parameters found for regime {regime}. Skipping.")
+                continue
+            
+            # Get the best metric value for this regime
+            best_metric = regime_data.get('metric', 0)
+            
+            try:
+                # Set regime-specific parameters in the genetic optimizer
+                strategy = self._container.resolve(self._strategy_service_name)
+                
+                # Filter out weight parameters from regime params
+                regime_params_no_weights = {k: v for k, v in regime_params.items() if not k.endswith('.weight')}
+                
+                # Apply regime-specific parameters (excluding weights)
+                strategy.set_parameters(regime_params_no_weights)
+                self.logger.debug(f"Applied regime parameters for {regime}: {regime_params_no_weights}")
+                
+                # Setup and start genetic optimizer for this regime
+                genetic_optimizer.setup()
+                if genetic_optimizer.get_state() == genetic_optimizer.STATE_INITIALIZED:
+                    genetic_optimizer.start()
+                    
+                    # Run random search optimization with regime identification
+                    self.logger.info(f"=== STARTING RANDOM SEARCH FOR REGIME: {regime.upper()} ===")
+                    random_results = genetic_optimizer.run_random_search(regime_name=regime)
+                    
+                    # Store results
+                    results_summary["best_weights_per_regime"][regime] = {
+                        "weights": random_results["best_individual"],
+                        "fitness": random_results["best_fitness"],
+                        "test_fitness": random_results["test_fitness"],
+                        "num_evaluations": random_results["num_evaluations"]
+                    }
+                    
+                    self.logger.info(f"Random search complete for {regime}: "
+                                   f"MA={random_results['best_individual']['ma_rule.weight']:.4f}, "
+                                   f"RSI={random_results['best_individual']['rsi_rule.weight']:.4f}, "
+                                   f"Fitness={random_results['best_fitness']:.4f}")
+                    
+                    genetic_optimizer.stop()
+                else:
+                    self.logger.error(f"Failed to start genetic optimizer for regime {regime}")
+                    
+            except Exception as e:
+                self.logger.error(f"Error during random search for regime {regime}: {e}", exc_info=True)
+                continue
+        
+        self.logger.info(f"Random search optimization completed for {len(results_summary['best_weights_per_regime'])} regimes")
+        return results_summary
+
     def run_adaptive_test(self, results_summary: Dict[str, Any]) -> Dict[str, Any]:
         """
         Run the adaptive test portion separately, allowing for genetic optimization in between.
@@ -573,6 +661,9 @@ class EnhancedOptimizer(BasicOptimizer):
             Updated results_summary with adaptive test results
         """
         self.logger.info("Running regime-adaptive test explicitly after grid search")
+        
+        # CRITICAL FIX: Setup adaptive mode BEFORE running the test
+        self._setup_adaptive_mode(results_summary)
         
         # Make sure we have a valid data handler
         data_handler_instance = self._container.resolve(self._data_handler_service_name)
@@ -728,7 +819,6 @@ class EnhancedOptimizer(BasicOptimizer):
         # Check if adaptive results are available
         if 'regime_adaptive_test_results' not in results:
             return
-            
         # Use direct print to ensure our formatted output is visible
         print("\n================ ADAPTIVE GA ENSEMBLE STRATEGY TEST RESULTS ================")
             
@@ -864,9 +954,81 @@ class EnhancedOptimizer(BasicOptimizer):
         if not results['best_parameters_per_regime']:
             self.logger.debug("No regime-specific optimization results available.")
     
-    def run_adaptive_test(self, results: Dict[str, Any]) -> None:
+    def _setup_adaptive_mode(self, results: Dict[str, Any]) -> None:
         """
-        Public method to run the regime-adaptive test on the test set.
+        Setup adaptive mode with regime-specific parameters.
+        This must be called before running the adaptive test.
+        """
+        try:
+            # Get the strategy instance
+            strategy_to_optimize = self._container.resolve(self._strategy_service_name)
+            
+            # Check if the strategy supports adaptive mode
+            has_adaptive_mode = (hasattr(strategy_to_optimize, "enable_adaptive_mode") and 
+                                 callable(getattr(strategy_to_optimize, "enable_adaptive_mode")))
+            
+            if not has_adaptive_mode:
+                self.logger.warning("Strategy does not support adaptive mode - skipping setup")
+                return
+                
+            # Set up regime-specific parameters for adaptive testing
+            regime_parameters = {}
+            
+            # Extract parameters for each regime and merge with GA weights if available
+            for regime, regime_data in results['best_parameters_per_regime'].items():
+                if 'parameters' in regime_data:
+                    regime_parameters[regime] = regime_data['parameters'].copy()
+                    self.logger.info(f"Extracted optimized parameters for regime '{regime}': {regime_parameters[regime]}")
+                else:
+                    # Legacy format compatibility
+                    regime_parameters[regime] = regime_data.copy()
+                    self.logger.info(f"Using legacy parameter format for regime '{regime}': {regime_parameters[regime]}")
+                
+                # CRITICAL FIX: Merge GA-optimized weights if available
+                if 'best_weights_per_regime' in results and regime in results['best_weights_per_regime']:
+                    ga_weights = results['best_weights_per_regime'][regime].get('weights', {})
+                    if ga_weights:
+                        regime_parameters[regime].update(ga_weights)
+                        self.logger.debug(f"Merged GA weights for regime '{regime}': {ga_weights}")
+                        self.logger.debug(f"Final combined parameters for regime '{regime}': {regime_parameters[regime]}")
+                    else:
+                        self.logger.debug(f"No GA weights found for regime '{regime}' in weights structure")
+                else:
+                    self.logger.debug(f"No GA weights available for regime '{regime}' - using grid search parameters only")
+            
+            # Enable adaptive mode with the regime parameters
+            print("\n")
+            print("=" * 80) 
+            print("!!! ENABLING ADAPTIVE MODE - REGIME-SPECIFIC PARAMETERS WILL BE APPLIED !!!")
+            print(f"Available regimes: {list(regime_parameters.keys())}")
+            print("This will allow the strategy to switch parameters during regime changes")
+            print("=" * 80)
+            
+            self.logger.warning("!!! ENABLING ADAPTIVE MODE - REGIME-SPECIFIC PARAMETERS WILL BE APPLIED !!!")
+            self.logger.warning(f"Available regimes: {list(regime_parameters.keys())}")
+            
+            # Enable adaptive mode with the regime parameters
+            strategy_to_optimize.enable_adaptive_mode(regime_parameters)
+            
+            # CRITICAL FIX: Store the configured strategy instance for adaptive test
+            self._adaptive_strategy_instance = strategy_to_optimize
+            self.logger.debug(f"Stored adaptive strategy instance: {strategy_to_optimize.name if hasattr(strategy_to_optimize, 'name') else 'unknown'}")
+            
+            # Verify adaptive mode is enabled by calling the status check
+            if hasattr(strategy_to_optimize, "get_adaptive_mode_status") and callable(getattr(strategy_to_optimize, "get_adaptive_mode_status")):
+                print("\n=== VERIFYING ADAPTIVE MODE STATUS ===")
+                status = strategy_to_optimize.get_adaptive_mode_status()
+                print(f"Adaptive mode enabled: {status['adaptive_mode_enabled']}")
+                print(f"Parameters loaded for regimes: {status['available_regimes']}")
+                print(f"Starting regime: {status['current_regime']}")
+                print("=" * 80)
+                
+        except Exception as e:
+            self.logger.error(f"Error setting up adaptive mode: {e}", exc_info=True)
+    
+    def run_adaptive_test_only(self, results: Dict[str, Any]) -> None:
+        """
+        Public method to run the regime-adaptive test on the test set without logging.
         
         Args:
             results: The optimization results dictionary containing regime-specific parameters
@@ -921,7 +1083,18 @@ class EnhancedOptimizer(BasicOptimizer):
             portfolio_manager = self._container.resolve(self._portfolio_service_name)
             self.logger.debug(f"Resolved portfolio manager: {portfolio_manager.name if hasattr(portfolio_manager, 'name') else 'unknown'}")
             
-            strategy_to_optimize = self._container.resolve(self._strategy_service_name)
+            # CRITICAL FIX: Use the stored adaptive strategy instance instead of resolving a new one
+            self.logger.debug(f"🔍 DEBUG: hasattr(self, '_adaptive_strategy_instance'): {hasattr(self, '_adaptive_strategy_instance')}")
+            if hasattr(self, '_adaptive_strategy_instance'):
+                self.logger.debug(f"🔍 DEBUG: self._adaptive_strategy_instance: {self._adaptive_strategy_instance}")
+            
+            if hasattr(self, '_adaptive_strategy_instance') and self._adaptive_strategy_instance:
+                strategy_to_optimize = self._adaptive_strategy_instance
+                self.logger.debug(f"🔧 USING STORED ADAPTIVE STRATEGY INSTANCE: {strategy_to_optimize.name if hasattr(strategy_to_optimize, 'name') else 'unknown'}")
+            else:
+                strategy_to_optimize = self._container.resolve(self._strategy_service_name)
+                self.logger.debug(f"⚠️ FALLBACK: Using freshly resolved strategy (adaptive mode may not work): {strategy_to_optimize.name if hasattr(strategy_to_optimize, 'name') else 'unknown'}")
+            
             self.logger.debug(f"Resolved strategy: {strategy_to_optimize.name if hasattr(strategy_to_optimize, 'name') else 'unknown'}")
             
             risk_manager = None
@@ -1378,12 +1551,12 @@ class EnhancedOptimizer(BasicOptimizer):
                     ga_weights = results['best_weights_per_regime'][regime].get('weights', {})
                     if ga_weights:
                         regime_parameters[regime].update(ga_weights)
-                        self.logger.info(f"Merged GA weights for regime '{regime}': {ga_weights}")
-                        self.logger.info(f"Final combined parameters for regime '{regime}': {regime_parameters[regime]}")
+                        self.logger.debug(f"Merged GA weights for regime '{regime}': {ga_weights}")
+                        self.logger.debug(f"Final combined parameters for regime '{regime}': {regime_parameters[regime]}")
                     else:
-                        self.logger.warning(f"No GA weights found for regime '{regime}' in weights structure")
+                        self.logger.debug(f"No GA weights found for regime '{regime}' in weights structure")
                 else:
-                    self.logger.info(f"No GA weights available for regime '{regime}' - using grid search parameters only")
+                    self.logger.debug(f"No GA weights available for regime '{regime}' - using grid search parameters only")
             
             # Use best overall parameters as fallback for any unoptimized regimes
             fallback_params = results["best_parameters_on_train"]
@@ -1404,6 +1577,10 @@ class EnhancedOptimizer(BasicOptimizer):
                 
                 # Enable adaptive mode with the regime parameters
                 strategy_to_optimize.enable_adaptive_mode(regime_parameters)
+                
+                # CRITICAL FIX: Store the configured strategy instance for adaptive test
+                self._adaptive_strategy_instance = strategy_to_optimize
+                self.logger.debug(f"🔧 STORED ADAPTIVE STRATEGY INSTANCE: {strategy_to_optimize.name if hasattr(strategy_to_optimize, 'name') else 'unknown'}")
                 
                 # Verify adaptive mode is enabled by calling the status check
                 if hasattr(strategy_to_optimize, "get_adaptive_mode_status") and callable(getattr(strategy_to_optimize, "get_adaptive_mode_status")):
