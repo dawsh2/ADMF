@@ -130,10 +130,13 @@ class GeneticOptimizer(BasicOptimizer):
         ma_weight_val = combined_params.get('ma_rule.weight', 0.5)  
         rsi_weight_val = combined_params.get('rsi_rule.weight', 0.5)
         
-        # Create a continuous adjustment based on exact weight values
+        # Create a NEUTRAL continuous adjustment based on exact weight values
         # This ensures no two weight combinations can have identical fitness
-        # Using larger multiplier to ensure uniqueness even with large fitness values
-        weight_diversity_bonus = (ma_weight_val * 7.0 + rsi_weight_val * 11.0) * 1.0  # Significantly increased magnitude
+        # Using a hash-like function that doesn't bias toward any particular weight distribution
+        import hashlib
+        weight_str = f"{ma_weight_val:.6f}_{rsi_weight_val:.6f}"
+        weight_hash = int(hashlib.md5(weight_str.encode()).hexdigest()[:8], 16)
+        weight_diversity_bonus = (weight_hash % 10000) / 10000.0  # Normalized to 0-1 range
         
         # Apply the bonus (this creates unique fitness for every weight combination)
         adjusted_fitness = metric_value + weight_diversity_bonus
