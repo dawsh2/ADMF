@@ -67,37 +67,36 @@ class RSIRule(BaseComponent):
         else:
             self._debug_count = 1
             
-        # Log every 50th RSI value to see the range
-        if self._debug_count % 50 == 0:
-            self.logger.info(f"🔍 RSI DEBUG: RSI={rsi_value:.2f}, thresholds=({self.oversold_threshold}, {self.overbought_threshold})")
-            
-        # Log when RSI crosses or approaches thresholds
-        if rsi_value <= self.oversold_threshold + 5 or rsi_value >= self.overbought_threshold - 5:
-            self.logger.info(f"🔍 RSI NEAR/AT THRESHOLD: RSI={rsi_value:.2f}, thresholds=({self.oversold_threshold}, {self.overbought_threshold})")
+        # Debug logging removed for cleaner output
 
         signal_strength = 0.0
         triggered = False
         signal_type_str = None 
 
-        # RSI crossing logic
-        if self._last_rsi_value is not None:
-            # Check oversold crossing (BUY signal)
-            oversold_cross = self._last_rsi_value <= self.oversold_threshold and rsi_value > self.oversold_threshold
-            # Check overbought crossing (SELL signal)  
-            overbought_cross = self._last_rsi_value >= self.overbought_threshold and rsi_value < self.overbought_threshold
-            
-            if oversold_cross:
-                if self._current_signal_state != 1:
-                    signal_strength = 1.0 
-                    triggered = True
-                    self._current_signal_state = 1
-                    signal_type_str = "BUY"
-            elif overbought_cross:
-                if self._current_signal_state != -1:
-                    signal_strength = -1.0
-                    triggered = True
-                    self._current_signal_state = -1
-                    signal_type_str = "SELL"
+        # RSI sustained signal logic - maintains signal while RSI stays in extreme zones
+        # BUY signal: RSI is oversold (≤ threshold)
+        if rsi_value <= self.oversold_threshold:
+            if self._current_signal_state != 1:
+                signal_strength = 1.0
+                triggered = True
+                self._current_signal_state = 1
+                signal_type_str = "BUY"
+                # RSI sustained BUY signal activated
+        
+        # SELL signal: RSI is overbought (≥ threshold)  
+        elif rsi_value >= self.overbought_threshold:
+            if self._current_signal_state != -1:
+                signal_strength = -1.0
+                triggered = True
+                self._current_signal_state = -1
+                signal_type_str = "SELL"
+                # RSI sustained SELL signal activated
+        
+        # NEUTRAL: RSI is in middle range - clear signal state
+        else:
+            if self._current_signal_state != 0:
+                self._current_signal_state = 0
+                self.logger.debug(f"RSI NEUTRAL: RSI={rsi_value:.2f} in normal range")
         
         self._last_rsi_value = rsi_value
         return triggered, signal_strength, signal_type_str

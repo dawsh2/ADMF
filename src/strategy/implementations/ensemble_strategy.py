@@ -210,8 +210,8 @@ class EnsembleSignalStrategy(MAStrategy): # Inheriting MAStrategy for quick demo
         # BUGFIX: Skip file-based parameter loading during optimization training phase
         # During optimization's training phase, we're testing specific parameter combinations
         import sys
-        if '--optimize' in sys.argv and not self._adaptive_mode_enabled:
-            self.logger.debug(f"Skipping regime parameter loading for '{regime}' during optimization training (--optimize mode detected)")
+        if any(opt in sys.argv for opt in ['--optimize', '--optimize-rsi', '--optimize-ma', '--optimize-seq', '--optimize-joint']) and not self._adaptive_mode_enabled:
+            self.logger.debug(f"Skipping regime parameter loading for '{regime}' during optimization training")
             return
         
         # Default parameters file path
@@ -287,9 +287,7 @@ class EnsembleSignalStrategy(MAStrategy): # Inheriting MAStrategy for quick demo
         else:
             self._bar_count = 1
             
-        # Log every 1000th bar during optimization to track progress
-        if self._bar_count % 1000 == 0:
-            self.logger.warning(f"🔍 OPTIMIZATION DEBUG: Processing bar {self._bar_count}, RSI thresholds: {getattr(self.rsi_rule, 'oversold_threshold', 'N/A')}/{getattr(self.rsi_rule, 'overbought_threshold', 'N/A')}")
+        # Progress tracking removed for cleaner output
         
         bar_data: Dict[str, Any] = event.payload
         close_price_val = bar_data.get("close")
@@ -357,10 +355,7 @@ class EnsembleSignalStrategy(MAStrategy): # Inheriting MAStrategy for quick demo
         
         rsi_triggered, rsi_strength, rsi_signal_type_str = self.rsi_rule.evaluate(bar_data)
         
-        # Log RSI signal generation details
-        if rsi_triggered:
-            self.logger.warning(f"🔍 RSI SIGNAL GENERATED: Bar {self._bar_count}, RSI={current_rsi:.2f}, thresholds=({oversold}, {overbought}), " +
-                           f"signal={rsi_signal_type_str}, strength={rsi_strength}, params_hash={hash(str(oversold)+str(overbought))}")
+        # RSI signal logging removed for cleaner output
         
         rsi_signal_type_int = 0
         if rsi_triggered:
@@ -435,9 +430,7 @@ class EnsembleSignalStrategy(MAStrategy): # Inheriting MAStrategy for quick demo
             }
             signal_event = Event(EventType.SIGNAL, signal_payload)
             self._event_bus.publish(signal_event)
-            self.logger.warning(
-                f"🔍 ENSEMBLE SIGNAL PUBLISHED: Bar {self._bar_count}, Type={final_signal_type_int}, Symbol={self._symbol}, Price={close_price:.2f}, Regime={self._current_regime}, Reason={signal_reason}"
-            )
+            self.logger.info(f"Signal: {final_signal_type_int} at {close_price:.2f} ({signal_reason})")
         elif current_signal_to_publish == 0 and self._current_signal_state != 0:
             # Optional: Generate a FLAT signal if combined strength is neutral and previously in a state
             # self._current_signal_state = 0
@@ -485,15 +478,21 @@ class EnsembleSignalStrategy(MAStrategy): # Inheriting MAStrategy for quick demo
         return self._rsi_weight
         
     def set_parameters(self, params: Dict[str, Any]):
-        self.logger.debug(f"EnsembleSignalStrategy.set_parameters called with: {params}")
-        super().set_parameters(params) # For MAStrategy part (this stores extended params with underscores)
+        
+        # BUGFIX: Handle nested parameter format from enhanced optimizer
+        if 'parameters' in params and isinstance(params['parameters'], dict):
+            actual_params = params['parameters']
+        else:
+            actual_params = params
+            
+        super().set_parameters(actual_params) # For MAStrategy part (this stores extended params with underscores)
         
         # Detect which rule is being optimized based on parameter presence
-        ma_params = any(k.startswith(('short_window', 'long_window')) for k in params.keys())
-        rsi_params = any(k.startswith(('rsi_indicator.', 'rsi_rule.')) for k in params.keys())
+        ma_params = any(k.startswith(('short_window', 'long_window')) for k in actual_params.keys())
+        rsi_params = any(k.startswith(('rsi_indicator.', 'rsi_rule.')) for k in actual_params.keys())
         
         # Only adjust weights if we're optimizing individual rules (not during genetic optimization)
-        weight_params = any(k.endswith('.weight') for k in params.keys())
+        weight_params = any(k.endswith('.weight') for k in actual_params.keys())
         
         if not weight_params:  # Only adjust when NOT doing weight optimization (i.e., during grid search)
             if ma_params and not rsi_params:
@@ -515,18 +514,18 @@ class EnsembleSignalStrategy(MAStrategy): # Inheriting MAStrategy for quick demo
                 self._current_optimization_rule = None
         
         # CRITICAL FIX: Update ensemble strategy's own parameter copies
-        if "short_window" in params:
-            self._short_window = params["short_window"]
-        if "long_window" in params:
-            self._long_window = params["long_window"]
+        if "short_window" in actual_params:
+            self._short_window = actual_params["short_window"]
+        if "long_window" in actual_params:
+            self._long_window = actual_params["long_window"]
         
         # Track if weights have changed
         weights_changed = False
         
         # BUGFIX: Properly handle ma_rule.weight parameter 
-        if 'ma_rule.weight' in params:
+        if 'ma_rule.weight' in actual_params:
             old_ma_weight = self._ma_weight
-            new_ma_weight = float(params['ma_rule.weight'])
+            new_ma_weight = float(actual_params['ma_rule.weight'])
             # Ensure weight is within reasonable range
             if new_ma_weight <= 0:
                 new_ma_weight = 0.1  # Minimum sensible value
@@ -536,9 +535,9 @@ class EnsembleSignalStrategy(MAStrategy): # Inheriting MAStrategy for quick demo
             weights_changed = True
             
         # Handle rsi_rule.weight directly at the strategy level
-        if 'rsi_rule.weight' in params:
+        if 'rsi_rule.weight' in actual_params:
             old_rsi_weight = self._rsi_weight
-            new_rsi_weight = float(params['rsi_rule.weight'])
+            new_rsi_weight = float(actual_params['rsi_rule.weight'])
             # Ensure weight is within reasonable range
             if new_rsi_weight <= 0:
                 new_rsi_weight = 0.1  # Minimum sensible value
@@ -568,27 +567,27 @@ class EnsembleSignalStrategy(MAStrategy): # Inheriting MAStrategy for quick demo
         self.logger.info(f"Parameters updated for regime: {current_regime}, adaptive_mode: {adaptive_mode}")
         
         # Parameters for RSI components might be prefixed, e.g., "rsi_indicator.period"
-        rsi_indicator_params = {k.split('.', 1)[1]: v for k, v in params.items() if k.startswith("rsi_indicator.")}
+        rsi_indicator_params = {k.split('.', 1)[1]: v for k, v in actual_params.items() if k.startswith("rsi_indicator.")}
         if rsi_indicator_params:
-            self.logger.debug(f"'{self.name}' updating RSI indicator parameters: {rsi_indicator_params}")
+            self.logger.debug(f"Applying RSI indicator parameters: {rsi_indicator_params}")
             self.rsi_indicator.set_parameters(rsi_indicator_params)
             # CRITICAL FIX: Reset RSI indicator state when parameters change during optimization
             # This ensures each parameter combination starts with clean RSI calculation state
             if hasattr(self.rsi_indicator, 'reset_state'):
                 self.rsi_indicator.reset_state()
-                self.logger.debug(f"Reset RSI indicator state after parameter update")
+                self.logger.debug(f"RSI indicator state reset after parameter update")
 
         # Extract RSI rule parameters except for weight (handled directly above)
-        rsi_rule_params = {k.split('.', 1)[1]: v for k, v in params.items() 
+        rsi_rule_params = {k.split('.', 1)[1]: v for k, v in actual_params.items() 
                            if k.startswith("rsi_rule.") and k != "rsi_rule.weight"}
         if rsi_rule_params:
-            self.logger.debug(f"Updating RSI rule parameters: {rsi_rule_params}")
+            self.logger.debug(f"Applying RSI rule parameters: {rsi_rule_params}")
             self.rsi_rule.set_parameters(rsi_rule_params)
             
             # Verify parameters were applied
             applied_oversold = getattr(self.rsi_rule, 'oversold_threshold', 'not_set')
             applied_overbought = getattr(self.rsi_rule, 'overbought_threshold', 'not_set')
-            self.logger.debug(f"RSI rule updated: oversold={applied_oversold}, overbought={applied_overbought}")
+            self.logger.debug(f"RSI rule verified: oversold={applied_oversold}, overbought={applied_overbought}")
             # Note: Not calling setup() to preserve rule state during regime changes
             
         # Preserve signal states during all parameter changes, regardless of adaptive mode
@@ -597,9 +596,7 @@ class EnsembleSignalStrategy(MAStrategy): # Inheriting MAStrategy for quick demo
         # Reset bar count for each optimization run
         self._bar_count = 0
         
-        # Add instance tracking for debugging
-        instance_id = id(self)
-        self.logger.warning(f"🔍 PARAMS SET: Instance {instance_id} - MA weight: {self._ma_weight}, RSI weight: {self._rsi_weight}, RSI thresholds: {getattr(self.rsi_rule, 'oversold_threshold', 'N/A')}/{getattr(self.rsi_rule, 'overbought_threshold', 'N/A')}")
+        # Parameter tracking removed for cleaner output
         return True 
         
     def enable_adaptive_mode(self, regime_parameters: Dict[str, Dict[str, Any]]):
@@ -801,6 +798,7 @@ class EnsembleSignalStrategy(MAStrategy): # Inheriting MAStrategy for quick demo
         self._current_optimization_rule = rule_name
         
         # Note: Weights are always optimized separately by the genetic optimizer
+        self.logger.debug(f"Parameter space for {rule_name}: {space}")
         self.logger.info(f"Final parameter space for {rule_name} rule grid search: {list(space.keys())}")
         return space
 

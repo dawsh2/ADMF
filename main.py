@@ -238,6 +238,22 @@ def main():
                     # Detailed results already logged by optimizer._log_optimization_results, no need to duplicate here
                     logger.debug("Optimization complete. See summary for results.")
                     
+                    # Run adaptive test with regime-specific parameters
+                    logger.info("--- Running Regime-Adaptive Test on Test Set ---")
+                    try:
+                        if hasattr(optimizer, 'run_adaptive_test'):
+                            optimizer.run_adaptive_test(optimization_results)
+                            logger.info("Completed regime-adaptive test")
+                            
+                            # Log final results including adaptive test
+                            if hasattr(optimizer, '_log_optimization_results'):
+                                optimizer._log_optimization_results(optimization_results)
+                            
+                        else:
+                            logger.error("Optimizer does not have run_adaptive_test method")
+                    except Exception as e:
+                        logger.error(f"Error running regime-adaptive test: {e}", exc_info=True)
+                    
                     # If genetic optimization is requested, run per-regime genetic optimization
                     if run_genetic_optimization:
                         logger.info("--- Starting Per-Regime Genetic Weight Optimization ---")

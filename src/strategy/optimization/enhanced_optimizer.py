@@ -276,6 +276,7 @@ class EnhancedOptimizer(BasicOptimizer):
                 param_combinations = [current_strategy_params] if current_strategy_params else [{}]
             else:
                 param_combinations = self._generate_parameter_combinations(param_space)
+                self.logger.debug(f"Generated {len(param_combinations)} parameter combinations")
                 
             if not param_combinations:
                 self.logger.warning("No parameter combinations to test (parameter space might be empty or produced no combinations).")
@@ -299,6 +300,7 @@ class EnhancedOptimizer(BasicOptimizer):
                 
                 # Debug parameter application
                 print(f"Testing {i+1}/{total_combinations} {param_str}...", end="", flush=True)
+                self.logger.debug(f"Testing combination {i+1}: {params}")
                 
                 # Run backtest and get both overall and regime-specific metrics
                 training_metric_value, regime_performance = self._perform_single_backtest_run(params, dataset_type="train")
@@ -850,6 +852,15 @@ class EnhancedOptimizer(BasicOptimizer):
         # No verbose regime-specific results to avoid clutter
         if not results['best_parameters_per_regime']:
             self.logger.debug("No regime-specific optimization results available.")
+    
+    def run_adaptive_test(self, results: Dict[str, Any]) -> None:
+        """
+        Public method to run the regime-adaptive test on the test set.
+        
+        Args:
+            results: The optimization results dictionary containing regime-specific parameters
+        """
+        self._run_regime_adaptive_test(results)
     
     def _run_regime_adaptive_test(self, results: Dict[str, Any]) -> None:
         """
