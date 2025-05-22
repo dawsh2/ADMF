@@ -61,6 +61,20 @@ class RSIRule(BaseComponent):
         if rsi_value is None:
             return False, 0.0, None
 
+        # DEBUG: Log RSI values to understand the range and threshold interaction
+        if hasattr(self, '_debug_count'):
+            self._debug_count += 1
+        else:
+            self._debug_count = 1
+            
+        # Log every 50th RSI value to see the range
+        if self._debug_count % 50 == 0:
+            self.logger.info(f"🔍 RSI DEBUG: RSI={rsi_value:.2f}, thresholds=({self.oversold_threshold}, {self.overbought_threshold})")
+            
+        # Log when RSI crosses or approaches thresholds
+        if rsi_value <= self.oversold_threshold + 5 or rsi_value >= self.overbought_threshold - 5:
+            self.logger.info(f"🔍 RSI NEAR/AT THRESHOLD: RSI={rsi_value:.2f}, thresholds=({self.oversold_threshold}, {self.overbought_threshold})")
+
         signal_strength = 0.0
         triggered = False
         signal_type_str = None 

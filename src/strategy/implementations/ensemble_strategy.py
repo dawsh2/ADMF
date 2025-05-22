@@ -280,6 +280,16 @@ class EnsembleSignalStrategy(MAStrategy): # Inheriting MAStrategy for quick demo
             event_symbol = event.payload.get("symbol") if hasattr(event, 'payload') else 'N/A'
             self.logger.debug(f"{self.name} ignoring event - type: {event.event_type}, symbol: {event_symbol}, expected: {self._symbol}")
             return
+            
+        # DEBUG: Add optimization run tracking
+        if hasattr(self, '_bar_count'):
+            self._bar_count += 1
+        else:
+            self._bar_count = 1
+            
+        # Log every 1000th bar during optimization to track progress
+        if self._bar_count % 1000 == 0:
+            self.logger.warning(f"🔍 OPTIMIZATION DEBUG: Processing bar {self._bar_count}, RSI thresholds: {getattr(self.rsi_rule, 'oversold_threshold', 'N/A')}/{getattr(self.rsi_rule, 'overbought_threshold', 'N/A')}")
         
         bar_data: Dict[str, Any] = event.payload
         close_price_val = bar_data.get("close")
@@ -335,18 +345,21 @@ class EnsembleSignalStrategy(MAStrategy): # Inheriting MAStrategy for quick demo
         
         # Get current RSI value for logging
         current_rsi = getattr(self.rsi_indicator, '_current_value', None)
-        self.logger.debug(f"Current RSI value: {current_rsi}")
         
         # Get RSI thresholds for logging
         oversold = getattr(self.rsi_rule, 'oversold_threshold', 'N/A')
         overbought = getattr(self.rsi_rule, 'overbought_threshold', 'N/A')
-        self.logger.debug(f"RSI thresholds - oversold: {oversold}, overbought: {overbought}")
+        
+        # DEBUG: Log RSI values that approach thresholds to see if they're being hit
+        if current_rsi is not None and isinstance(oversold, (int, float)) and isinstance(overbought, (int, float)):
+            if current_rsi <= oversold + 5 or current_rsi >= overbought - 5:
+                self.logger.info(f"🔍 RSI NEAR THRESHOLD: RSI={current_rsi:.2f}, thresholds=({oversold}, {overbought})")
         
         rsi_triggered, rsi_strength, rsi_signal_type_str = self.rsi_rule.evaluate(bar_data)
         
         # Log RSI signal generation details
         if rsi_triggered:
-            self.logger.info(f"🔍 RSI SIGNAL: RSI={current_rsi:.2f}, thresholds=({oversold}, {overbought}), " +
+            self.logger.warning(f"🔍 RSI SIGNAL GENERATED: Bar {self._bar_count}, RSI={current_rsi:.2f}, thresholds=({oversold}, {overbought}), " +
                            f"signal={rsi_signal_type_str}, strength={rsi_strength}, params_hash={hash(str(oversold)+str(overbought))}")
         
         rsi_signal_type_int = 0
@@ -422,8 +435,8 @@ class EnsembleSignalStrategy(MAStrategy): # Inheriting MAStrategy for quick demo
             }
             signal_event = Event(EventType.SIGNAL, signal_payload)
             self._event_bus.publish(signal_event)
-            self.logger.info(
-                f"Ensemble Published SIGNAL: Type={final_signal_type_int}, Symbol={self._symbol}, Price={close_price:.2f}, Regime={self._current_regime}"
+            self.logger.warning(
+                f"🔍 ENSEMBLE SIGNAL PUBLISHED: Bar {self._bar_count}, Type={final_signal_type_int}, Symbol={self._symbol}, Price={close_price:.2f}, Regime={self._current_regime}, Reason={signal_reason}"
             )
         elif current_signal_to_publish == 0 and self._current_signal_state != 0:
             # Optional: Generate a FLAT signal if combined strength is neutral and previously in a state
@@ -559,7 +572,11 @@ class EnsembleSignalStrategy(MAStrategy): # Inheriting MAStrategy for quick demo
         if rsi_indicator_params:
             self.logger.debug(f"'{self.name}' updating RSI indicator parameters: {rsi_indicator_params}")
             self.rsi_indicator.set_parameters(rsi_indicator_params)
-            # Note: Not calling setup() to preserve indicator state during regime changes
+            # CRITICAL FIX: Reset RSI indicator state when parameters change during optimization
+            # This ensures each parameter combination starts with clean RSI calculation state
+            if hasattr(self.rsi_indicator, 'reset_state'):
+                self.rsi_indicator.reset_state()
+                self.logger.debug(f"Reset RSI indicator state after parameter update")
 
         # Extract RSI rule parameters except for weight (handled directly above)
         rsi_rule_params = {k.split('.', 1)[1]: v for k, v in params.items() 
@@ -577,9 +594,12 @@ class EnsembleSignalStrategy(MAStrategy): # Inheriting MAStrategy for quick demo
         # Preserve signal states during all parameter changes, regardless of adaptive mode
         self.logger.info(f"Preserving signal states during parameter changes - current signal: {self._current_signal_state}")
             
+        # Reset bar count for each optimization run
+        self._bar_count = 0
+        
         # Add instance tracking for debugging
         instance_id = id(self)
-        self.logger.info(f"🔍 PARAMS SET: Instance {instance_id} - MA weight: {self._ma_weight}, RSI weight: {self._rsi_weight}, RSI thresholds: {getattr(self.rsi_rule, 'oversold_threshold', 'N/A')}/{getattr(self.rsi_rule, 'overbought_threshold', 'N/A')}")
+        self.logger.warning(f"🔍 PARAMS SET: Instance {instance_id} - MA weight: {self._ma_weight}, RSI weight: {self._rsi_weight}, RSI thresholds: {getattr(self.rsi_rule, 'oversold_threshold', 'N/A')}/{getattr(self.rsi_rule, 'overbought_threshold', 'N/A')}")
         return True 
         
     def enable_adaptive_mode(self, regime_parameters: Dict[str, Dict[str, Any]]):

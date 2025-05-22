@@ -1,0 +1,161 @@
+system:
+  name: "ADMF-Trader-MVP"
+  version: "0.1.0"
+
+logging:
+  level: "WARNING" # DEBUG, INFO, WARNING, ERROR, CRITICAL
+
+components:
+  dummy_service: # For SignalLogger and OrderLogger
+    some_setting: "Dummy setting"
+
+  # Configuration for the Ensemble Strategy (used during optimization)
+  ensemble_strategy:
+    # class_path: "src.strategy.implementations.ensemble_strategy.EnsembleSignalStrategy" # If using a factory
+    symbol: "SPY" # Symbol for the strategy
+    
+    # MA Crossover part (parameters for the parent MAStrategy logic)
+    short_window_default: 10
+    long_window_default: 20
+    ma_rule.weight: 0.6 # Weight for MA signals in ensemble
+
+    rsi_indicator: # This block corresponds to component_config_key 'components.ensemble_strategy.rsi_indicator'
+      period: 14
+      
+    rsi_rule: # This block corresponds to component_config_key 'components.ensemble_strategy.rsi_rule'
+      oversold_threshold: 30.0
+      overbought_threshold: 70.0
+      weight: 0.4
+      
+  # Configuration for the Regime-Adaptive Strategy (used for regular runs)
+  regime_adaptive_strategy:
+    symbol: "SPY"  # Symbol for the strategy
+    
+    # Default parameters (used when no regime-specific parameters are available)
+    short_window_default: 10
+    long_window_default: 20
+    ma_rule.weight: 0.6
+    
+    # Regime adaptation settings
+    regime_detector_service_name: "MyPrimaryRegimeDetector"
+    regime_params_file_path: "regime_optimized_parameters.json"
+    fallback_to_overall_best: true
+
+  # Data Handler
+  data_handler_csv:
+    csv_file_path: "data/SPY_1min.csv"
+    symbol: "SPY"
+    timestamp_column: "timestamp"
+    train_test_split_ratio: 0.8
+    open_column: "Open"
+    high_column: "High"
+    low_column: "Low"
+    close_column: "Close"
+    volume_column: "Volume"
+
+  # Portfolio Manager
+  basic_portfolio:
+    initial_cash: 100000.00
+
+  # Risk Manager
+  basic_risk_manager:
+    target_trade_quantity: 100 # Example, might be overridden by strategy signals
+
+  # Execution Handler
+  simulated_execution_handler:
+    default_quantity: 100 # Fallback if order has no quantity
+    commission_per_trade: 0.005
+    commission_type: "per_share"
+    passthrough: false
+    fill_price_logic: "signal_price"
+
+  # Optimizer - Enhanced for regime-specific optimization
+  optimizer:
+    strategy_service_name: "strategy" # Must match the DI key for your strategy
+    portfolio_service_name: "portfolio_manager"
+    data_handler_service_name: "data_handler"
+    risk_manager_service_name: "risk_manager"
+    execution_handler_service_name: "execution_handler"
+    
+    # Core optimization metrics
+    metric_to_optimize: "get_final_portfolio_value"
+    higher_metric_is_better: True
+    
+    # Regime-specific optimization settings
+    min_trades_per_regime: 5  # Minimum trades required for a valid regime optimization
+    regime_metric: "sharpe_ratio"  # Metric to optimize for each regime 
+    output_file_path: "regime_optimized_parameters.json"  # Output file for optimized parameters
+    
+    # Performance and memory settings
+    top_n_to_test: 3  # Test the top N performers from training on the test set
+    clear_regime_performance: true  # Clear regime performance data after processing to save memory
+    
+  # Genetic Optimizer for Rule Weight Optimization
+  # This optimizer runs after grid search has found optimal rule parameters.
+  # It specifically focuses on finding the optimal balance between MA and RSI rules.
+  genetic_optimizer:
+    strategy_service_name: "strategy"
+    portfolio_service_name: "portfolio_manager"
+    data_handler_service_name: "data_handler"
+    risk_manager_service_name: "risk_manager"
+    execution_handler_service_name: "execution_handler"
+    metric_to_optimize: "get_final_portfolio_value"  # Use portfolio value for fitness evaluation
+    higher_metric_is_better: true
+
+    # Genetic algorithm specific settings - reduced for faster per-regime optimization
+    population_size: 10  # Smaller population for faster per-regime optimization
+    generations: 5       # Fewer generations since we're running multiple times
+    mutation_rate: 0.4   # Higher mutation rate for exploration
+    crossover_rate: 0.6  # Slightly lower crossover rate, balanced with mutation
+    elitism_count: 1     # Reduced elitism to allow more exploration
+    tournament_size: 2   # Smaller tournament size for less selection pressure
+
+    # Weight constraints (relaxed for more exploration space)
+    min_weight: 0.1      # Allow more extreme weight distributions
+    max_weight: 0.9      # Allow more extreme weight distributions
+
+  # Configuration for the RegimeDetector instance registered as 'MyPrimaryRegimeDetector'
+  MyPrimaryRegimeDetector: 
+    min_regime_duration: 2 # Reduced from 3 to 2 for more responsive regime detection
+    
+    # Logging optimization parameters
+    verbose_logging: false  # Set to true for detailed debug output
+    summary_interval: 50    # Report summary statistics every 50 bars
+    
+    indicators:
+      # 'rsi_14', 'atr_20', 'trend_10_30' are arbitrary names you give to these indicator instances.
+      # They will be used as keys in the regime_thresholds section.
+      rsi_14: 
+        type: "rsi" # This string must match a case in _get_indicator_class
+        parameters: {"period": 14}
+      atr_20:
+        type: "atr"
+        parameters: {"period": 10}  # Reduced from 20 to be more responsive
+      trend_10_30:
+        type: "simple_ma_trend"
+        parameters: {"short_period": 5, "long_period": 20}  # Modified to be more responsive
+    
+    regime_thresholds:
+      # Define your regimes here. The keys are the regime names.
+      # The inner keys must match the instance names defined in the 'indicators' section above.
+      trending_up_volatile:
+        trend_10_30: {"min": 0.02}   # Adjusted based on observed values
+        atr_20: {"min": 0.15}       # Adjusted based on observed values
+      
+      trending_up_low_vol:
+        trend_10_30: {"min": 0.02}   # Adjusted based on observed values
+        atr_20: {"max": 0.15}       # Adjusted based on observed values
+        
+      ranging_low_vol:
+        trend_10_30: {"min": -0.01, "max": 0.01} # Tightened based on observed values
+        atr_20: {"max": 0.12}       # Adjusted based on observed values
+        
+      trending_down:
+        trend_10_30: {"max": -0.01}  # Adjusted based on observed values
+        
+      oversold_in_uptrend: # Example combining different indicator types
+        rsi_14: {"max": 40}        # Keeping at 40
+        trend_10_30: {"min": 0.01}   # Adjusted based on observed values
+
+# Note: The 'my_regime_detector_config:' block that was previously at the top level has been moved
+# and renamed to 'MyPrimaryRegimeDetector:' under the 'components:' section.
