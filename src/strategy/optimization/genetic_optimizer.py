@@ -335,15 +335,20 @@ class GeneticOptimizer(BasicOptimizer):
         """
         import random
         
-        num_evaluations = self._population_size * self._generations  # Same total evals as GA
+        # Use 50 evaluations for thorough overnight search
+        num_evaluations = 50
+        min_weight = self._min_weight  
+        max_weight = self._max_weight
+            
         print(f"🎯 REGIME [{regime_name.upper()}] - Starting random search with {num_evaluations} evaluations...")
+        print(f"🔧 RANDOM SEARCH CONFIG: evaluations={num_evaluations}, weight_range=({min_weight:.1f}, {max_weight:.1f})")
         
         best_individual = None
         best_fitness = float('-inf') if self._higher_metric_is_better else float('inf')
         
         for i in range(num_evaluations):
-            # Generate random weight combination
-            ma_weight = random.uniform(self._min_weight, self._max_weight)
+            # Generate random weight combination using config-specific weights
+            ma_weight = random.uniform(min_weight, max_weight)
             individual = {
                 "ma_rule.weight": ma_weight,
                 "rsi_rule.weight": 1.0 - ma_weight

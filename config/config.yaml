@@ -102,9 +102,9 @@ components:
     metric_to_optimize: "get_final_portfolio_value"  # Use portfolio value for fitness evaluation
     higher_metric_is_better: true
 
-    # Genetic algorithm specific settings - balanced exploration vs exploitation
-    population_size: 15  # Reduced for faster testing - converges quickly anyway
-    generations: 5       # Reduced for faster testing - converges quickly anyway
+    # Genetic algorithm specific settings - REDUCED FOR MEMORY MANAGEMENT
+    population_size: 8   # Reduced from 15 for memory management
+    generations: 3       # Reduced from 5 for memory management  
     mutation_rate: 0.1   # Moderate mutation rate for refinement without chaos
     crossover_rate: 0.7  # Higher crossover rate to encourage solution mixing
     elitism_count: 2     # Keep top 2 solutions to preserve progress
@@ -113,6 +113,12 @@ components:
     # Weight constraints (relaxed for more exploration space)
     min_weight: 0.1      # Allow more extreme weight distributions
     max_weight: 0.9      # Allow more extreme weight distributions
+
+  # Random Search Configuration (independent of GA)
+  random_search:
+    num_evaluations: 50  # Thorough overnight search
+    min_weight: 0.1      # Same weight constraints as GA
+    max_weight: 0.9
 
   # Configuration for the RegimeDetector instance registered as 'MyPrimaryRegimeDetector'
   MyPrimaryRegimeDetector: 
