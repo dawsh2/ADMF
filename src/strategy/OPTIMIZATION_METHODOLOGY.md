@@ -34,52 +34,113 @@ For weight optimization, we can safely train on regime-specific data subsets bec
 4. **More efficient** - smaller datasets, faster optimization
 5. **More accurate** - direct optimization on regime-specific performance
 
-### Proposed Implementation
+### Proposed Implementation: Signal-Based Weight Optimization
 
-#### Step 1: Extract Regime-Specific Trade Data
+**Key Insight**: Work with **signal history** rather than trade lists to avoid circular dependency issues. Signals are the pure output of parameter-optimized strategies and are independent of weight combinations.
+
+#### Step 1: Extract Regime-Specific Signal History
 ```python
-def extract_regime_trades(regime: str, parameter_set: Dict) -> List[Trade]:
+def extract_regime_signals(regime: str, optimal_params: Dict) -> List[Dict]:
     """
-    Extract all trades that occurred during a specific regime
-    using the optimal parameter set for that regime.
+    Extract pre-computed signals for a specific regime using optimal parameters.
     
-    This avoids temporal splicing by working with completed trades
-    rather than raw bar data.
+    This leverages our bar/classifier/signal architecture:
+    - Bar data: Raw market data
+    - Classifier data: Regime boundaries and periods  
+    - Signal data: MA/RSI signals from parameter-optimized strategy
     """
-    # Get trade log from portfolio manager after running with optimal params
-    trade_log = portfolio_manager.get_trade_log()
+    regime_signals = []
     
-    # Filter trades that occurred during this regime
-    regime_trades = [
-        trade for trade in trade_log 
-        if trade['regime'] == regime
-    ]
+    # Get classifier events for this regime
+    regime_periods = classifier_history.get_periods_for_regime(regime)
     
-    return regime_trades
+    for start_time, end_time in regime_periods:
+        # Get signal events within this period (massive data reduction)
+        period_signals = signal_history.get_signals_in_period(start_time, end_time)
+        regime_signals.extend(period_signals)
+    
+    return regime_signals
+    
+    # Result: ~30% of original dataset for typical regime
+    # No circular dependency - signals already computed with optimal parameters
 ```
 
-#### Step 2: Weight Optimization on Regime Trades
+#### Step 2: Lightweight Weight Optimization on Signals
 ```python
-def optimize_weights_for_regime(regime: str, regime_trades: List[Trade]) -> Dict[str, float]:
+def optimize_weights_for_regime(regime: str, regime_signals: List[Dict]) -> Dict[str, float]:
     """
-    Optimize weights using only trades from a specific regime.
+    Optimize weights using regime-specific signals through fast simulation.
     
-    This is safe because:
-    - Parameters are fixed (already optimized)
-    - No temporal boundaries being crossed
-    - Working with actual trade outcomes, not raw data
+    Advantages:
+    - No indicator recalculation needed (signals pre-computed)
+    - No circular dependency (weights don't affect historical signals)
+    - Real trade generation (not mathematical modeling)
+    - Works within existing architecture
     """
     
-    for weight_combination in weight_search_space:
-        # Replay trades with different weight combinations
-        # Calculate regime-specific performance
-        performance = calculate_weighted_performance(regime_trades, weight_combination)
+    best_weights = None
+    best_performance = float('-inf')
+    
+    for weight_combo in generate_weight_combinations():  # 200 combinations
+        ma_weight, rsi_weight = weight_combo
         
-        # Track best weights for this regime
-        if performance > best_regime_performance[regime]:
-            best_weights[regime] = weight_combination
+        # Fast simulation: combine signals with weights and generate trades
+        performance = simulate_trading_on_signals(
+            signals=regime_signals,
+            ma_weight=ma_weight,
+            rsi_weight=rsi_weight
+        )
+        
+        if performance > best_performance:
+            best_performance = performance
+            best_weights = weight_combo
     
-    return best_weights[regime]
+    return best_weights
+```
+
+#### Step 3: Fast Signal-Based Trading Simulation
+```python
+def simulate_trading_on_signals(signals: List[Dict], ma_weight: float, rsi_weight: float) -> float:
+    """
+    Generate actual trades from weighted signal combinations.
+    Uses same logic as live system but on pre-filtered regime data.
+    """
+    
+    portfolio_value = 100000
+    position = 0
+    trades = []
+    
+    for signal_data in signals:
+        # Apply weights to historical signals (core optimization)
+        combined_strength = (
+            signal_data['ma_signal'] * ma_weight + 
+            signal_data['rsi_signal'] * rsi_weight
+        )
+        
+        # Use same trade logic as live system
+        if combined_strength > threshold and position <= 0:
+            position = portfolio_value / signal_data['price']
+            portfolio_value = 0
+            
+        elif combined_strength < -threshold and position > 0:
+            portfolio_value = position * signal_data['price']
+            position = 0
+    
+    return calculate_performance_metric(trades)
+```
+
+#### Data Efficiency Analysis
+```python
+# Current Approach:
+# 200 weight combinations × 10,000 bars = 2,000,000 processing events
+
+# Proposed Approach:
+# Bull regime: 200 combinations × 3,000 signals = 600,000 events  
+# Bear regime: 200 combinations × 2,000 signals = 400,000 events
+# Sideways regime: 200 combinations × 2,500 signals = 500,000 events
+# Total: 1,500,000 events vs 2,000,000 = 25% efficiency gain
+
+# Plus: Parallel regime optimization possible = additional speedup
 ```
 
 #### Step 3: Benefits of Regime-Specific Training
