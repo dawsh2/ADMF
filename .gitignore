@@ -1,10 +1,39 @@
-out.txt
+# Ignore all text files
+*.txt
+
+# Ignore all log files
 *.log
 *.log~
-optimization_log.txt
-optimization_log.txt
-optimization_log.txt
-*.log
-*.log~
-#out.txt#
-*.log~
+
+# Ignore editor swap/backup files
+*~
+*.swp
+*.swo
+*.bak
+*.tmp
+*.orig
+*.rej
+
+# Ignore macOS system files
+.DS_Store
+
+# Ignore Python virtual environments
+venv/
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+
+# Ignore build/output folders
+out/
+build/
+dist/
+
+# Ignore JetBrains IDE (like PyCharm) folders
+.idea/
+
+# Ignore VSCode folder
+.vscode/
+
+# (optional) Ignore Jupyter Notebook checkpoints
+.ipynb_checkpoints/
