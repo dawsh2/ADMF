@@ -102,13 +102,13 @@ components:
     metric_to_optimize: "get_final_portfolio_value"  # Use portfolio value for fitness evaluation
     higher_metric_is_better: true
 
-    # Genetic algorithm specific settings - reduced for faster per-regime optimization
-    population_size: 10  # Smaller population for faster per-regime optimization
-    generations: 5       # Fewer generations since we're running multiple times
-    mutation_rate: 0.4   # Higher mutation rate for exploration
-    crossover_rate: 0.6  # Slightly lower crossover rate, balanced with mutation
-    elitism_count: 1     # Reduced elitism to allow more exploration
-    tournament_size: 2   # Smaller tournament size for less selection pressure
+    # Genetic algorithm specific settings - optimized for better evolution
+    population_size: 15  # Larger population for more diversity
+    generations: 8       # More generations for evolution
+    mutation_rate: 0.8   # Very high mutation rate to force exploration
+    crossover_rate: 0.3  # Lower crossover, higher mutation
+    elitism_count: 1     # Keep only 1 elite to reduce convergence
+    tournament_size: 2   # Lower selection pressure
 
     # Weight constraints (relaxed for more exploration space)
     min_weight: 0.1      # Allow more extreme weight distributions

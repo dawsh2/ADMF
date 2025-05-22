@@ -503,11 +503,22 @@ class EnhancedOptimizer(BasicOptimizer):
                 
             self.logger.info(f"Using parameters for regime '{regime}': {regime_params}")
             
-            # Get strategy and set regime-specific parameters
+            # Get strategy and set regime-specific parameters (EXCLUDING weights which will be optimized)
             strategy = self._container.resolve(self._strategy_service_name)
-            if not strategy.set_parameters(regime_params):
+            
+            # Filter out weight parameters - genetic algorithm will optimize these
+            regime_params_no_weights = {k: v for k, v in regime_params.items() 
+                                      if not k.endswith('.weight')}
+            
+            self.logger.info(f"Setting regime parameters (excluding weights) for '{regime}': {regime_params_no_weights}")
+            
+            if not strategy.set_parameters(regime_params_no_weights):
                 self.logger.error(f"Failed to set parameters for regime {regime}. Skipping genetic optimization.")
                 continue
+            
+            # Verify parameters were set correctly
+            current_strategy_params = strategy.get_parameters() if hasattr(strategy, 'get_parameters') else {}
+            self.logger.info(f"Strategy parameters after setting for regime '{regime}': {current_strategy_params}")
             
             # Run genetic optimization for this regime
             self.logger.info(f"Starting genetic optimization for regime '{regime}' with parameters: {regime_params}")
@@ -1352,15 +1363,27 @@ class EnhancedOptimizer(BasicOptimizer):
             # Set up regime-specific parameters for adaptive testing
             regime_parameters = {}
             
-            # Extract parameters for each regime
+            # Extract parameters for each regime and merge with GA weights if available
             for regime, regime_data in results['best_parameters_per_regime'].items():
                 if 'parameters' in regime_data:
-                    regime_parameters[regime] = regime_data['parameters']
+                    regime_parameters[regime] = regime_data['parameters'].copy()
                     self.logger.info(f"Extracted optimized parameters for regime '{regime}': {regime_parameters[regime]}")
                 else:
                     # Legacy format compatibility
-                    regime_parameters[regime] = regime_data
+                    regime_parameters[regime] = regime_data.copy()
                     self.logger.info(f"Using legacy parameter format for regime '{regime}': {regime_parameters[regime]}")
+                
+                # CRITICAL FIX: Merge GA-optimized weights if available
+                if 'best_weights_per_regime' in results and regime in results['best_weights_per_regime']:
+                    ga_weights = results['best_weights_per_regime'][regime].get('weights', {})
+                    if ga_weights:
+                        regime_parameters[regime].update(ga_weights)
+                        self.logger.info(f"Merged GA weights for regime '{regime}': {ga_weights}")
+                        self.logger.info(f"Final combined parameters for regime '{regime}': {regime_parameters[regime]}")
+                    else:
+                        self.logger.warning(f"No GA weights found for regime '{regime}' in weights structure")
+                else:
+                    self.logger.info(f"No GA weights available for regime '{regime}' - using grid search parameters only")
             
             # Use best overall parameters as fallback for any unoptimized regimes
             fallback_params = results["best_parameters_on_train"]

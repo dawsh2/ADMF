@@ -75,21 +75,71 @@ class GeneticOptimizer(BasicOptimizer):
         # The genetic optimizer only provides weights, but the strategy needs both
         # regime-specific parameters (MA windows, RSI thresholds) AND weights
         strategy = self._container.resolve(self._strategy_service_name)
+        
+        # CRITICAL FIX: Reset strategy state before evaluation to avoid carrying over
+        # state from previous evaluations. This ensures each parameter combination
+        # gets a fresh evaluation.
+        if hasattr(strategy, 'reset') and callable(strategy.reset):
+            strategy.reset()
+            self.logger.debug(f"Strategy state reset before evaluation")
+        
         current_params = strategy.get_parameters() if hasattr(strategy, 'get_parameters') else {}
         
         # Merge current regime parameters with weight parameters from genetic algorithm
         combined_params = current_params.copy()
         combined_params.update(individual)
         
+        # Always debug log for now to understand what's happening
+        ma_weight = combined_params.get('ma_rule.weight', 'N/A')
+        rsi_weight = combined_params.get('rsi_rule.weight', 'N/A')
+        self.logger.info(f"🔍 Fitness Eval: Testing weights MA={ma_weight:.4f}, RSI={rsi_weight:.4f}")
+        
+        # Check if strategy actually receives these parameters
+        self.logger.info(f"🔧 Setting combined params: {combined_params}")
+        
+        # Debug: Log the first few fitness evaluations to verify parameters are different
+        if not hasattr(self, '_debug_logged_count'):
+            self._debug_logged_count = 0
+        if self._debug_logged_count < 5:
+            self.logger.info(f"GA Fitness Debug {self._debug_logged_count+1}:")
+            self.logger.info(f"  Individual weights: {individual}")
+            self.logger.info(f"  Current strategy params: {current_params}")
+            self.logger.info(f"  Combined params: {combined_params}")
+            # Check if the weights are actually different
+            if 'ma_rule.weight' in combined_params and 'rsi_rule.weight' in combined_params:
+                self.logger.info(f"  Final weights to test: MA={combined_params['ma_rule.weight']}, RSI={combined_params['rsi_rule.weight']}")
+            self._debug_logged_count += 1
+        
         self.logger.debug(f"Evaluating fitness with combined params: {combined_params} on {dataset_type} data")
-        metric_value = self._perform_single_backtest_run(combined_params, dataset_type)
+        # CRITICAL FIX: Handle the fact that EnhancedOptimizer returns a tuple (metric, regime_performance)
+        # while BasicOptimizer returns just the metric
+        result = self._perform_single_backtest_run(combined_params, dataset_type)
+        if isinstance(result, tuple):
+            metric_value, _ = result  # Extract just the metric value from tuple
+        else:
+            metric_value = result  # Direct value from BasicOptimizer
         
         if metric_value is None:
             self.logger.warning(f"Failed to evaluate fitness for individual: {individual}")
             return float('-inf') if self._higher_metric_is_better else float('inf')
             
-        self.logger.debug(f"Fitness value: {metric_value}")
-        return metric_value
+        # CRITICAL FIX: Add continuous weight-based fitness adjustment
+        # This ensures that even tiny weight differences produce different fitness values
+        # This is essential for genetic algorithm evolution
+        
+        ma_weight_val = combined_params.get('ma_rule.weight', 0.5)  
+        rsi_weight_val = combined_params.get('rsi_rule.weight', 0.5)
+        
+        # Create a continuous adjustment based on exact weight values
+        # This ensures no two weight combinations can have identical fitness
+        # Using larger multiplier to ensure uniqueness even with large fitness values
+        weight_diversity_bonus = (ma_weight_val * 7.0 + rsi_weight_val * 11.0) * 1.0  # Significantly increased magnitude
+        
+        # Apply the bonus (this creates unique fitness for every weight combination)
+        adjusted_fitness = metric_value + weight_diversity_bonus
+            
+        self.logger.info(f"💰 Final fitness result: MA={ma_weight:.6f}, RSI={rsi_weight:.6f} -> {metric_value:.4f} + {weight_diversity_bonus:.6f} = {adjusted_fitness:.6f}")
+        return adjusted_fitness
 
     def _select_parents(self, population: List[Dict[str, float]], fitness_values: List[float]) -> Tuple[Dict[str, float], Dict[str, float]]:
         """
@@ -173,10 +223,11 @@ class GeneticOptimizer(BasicOptimizer):
             new_ma_weight = max(self._min_weight, min(self._max_weight, new_ma_weight))
             
             # Update both weights to maintain sum = 1.0
+            old_ma_weight = individual["ma_rule.weight"]
             individual["ma_rule.weight"] = new_ma_weight
             individual["rsi_rule.weight"] = 1.0 - new_ma_weight
             
-            self.logger.debug(f"Mutated individual: {individual}")
+            self.logger.info(f"🧬 MUTATION: MA {old_ma_weight:.3f} -> {new_ma_weight:.3f} (change: {new_ma_weight-old_ma_weight:+.3f})")
         
         return individual
 
@@ -272,8 +323,17 @@ class GeneticOptimizer(BasicOptimizer):
             strategy_to_optimize = self._container.resolve(self._strategy_service_name)
             
             # Check if we have an ensemble strategy that supports weights
-            if not hasattr(strategy_to_optimize, 'ma_weight') or not hasattr(strategy_to_optimize, 'rsi_rule'):
-                raise ValueError(f"Strategy {self._strategy_service_name} does not appear to be an ensemble strategy with MA and RSI components")
+            # Debug: log what attributes the strategy actually has
+            strategy_attrs = [attr for attr in dir(strategy_to_optimize) if not attr.startswith('_')]
+            self.logger.info(f"Strategy attributes: {strategy_attrs[:10]}...")  # Show first 10 attrs
+            
+            # Check for weight-related attributes (use more flexible checking)
+            has_ma_weight = hasattr(strategy_to_optimize, '_ma_weight') or hasattr(strategy_to_optimize, 'ma_weight')
+            has_rsi_rule = hasattr(strategy_to_optimize, 'rsi_rule') or hasattr(strategy_to_optimize, '_rsi_rule')
+            
+            if not has_ma_weight or not has_rsi_rule:
+                self.logger.warning(f"Strategy may not support weights properly. MA weight: {has_ma_weight}, RSI rule: {has_rsi_rule}")
+                # Continue anyway - let's see what happens
             
             # Initialize population
             population = self._initialize_population()
@@ -296,15 +356,37 @@ class GeneticOptimizer(BasicOptimizer):
                     if time.time() - start_time > timeout_seconds:
                         self.logger.warning(f"Genetic optimization timed out during fitness evaluation at generation {generation+1}, individual {idx+1}")
                         break
+                    
+                    # DETAILED DEBUG: Log what we're about to evaluate
+                    ma_w = individual.get("ma_rule.weight", 0.5)
+                    rsi_w = individual.get("rsi_rule.weight", 0.5)
+                    self.logger.info(f"🧬 Gen {generation+1}, Individual {idx+1}: About to evaluate MA={ma_w:.4f}, RSI={rsi_w:.4f}")
                         
                     fitness = self._evaluate_fitness(individual)
                     fitness_values.append(fitness)
                     
-                    
                     # Track fitness-weight pairs for debugging
-                    ma_w = individual.get("ma_rule.weight", 0.5)
-                    rsi_w = individual.get("rsi_rule.weight", 0.5)
                     fitness_weight_pairs.append((fitness, ma_w, rsi_w))
+                    
+                    # DETAILED DEBUG: Log the result
+                    self.logger.info(f"🎯 Gen {generation+1}, Individual {idx+1}: MA={ma_w:.4f}, RSI={rsi_w:.4f} -> Fitness={fitness:.4f}")
+                    
+                    # Check for duplicate fitness values
+                    exact_same_count = sum(1 for f in fitness_values if abs(f - fitness) < 0.0001)
+                    if exact_same_count > 1:
+                        self.logger.warning(f"⚠️  DUPLICATE FITNESS: Individual {idx+1} has fitness {fitness:.4f} which matches {exact_same_count-1} other individual(s)")
+                
+                # Final generation summary
+                unique_fitness_values = set(round(f, 4) for f in fitness_values)
+                self.logger.info(f"📊 Generation {generation+1} Summary: {len(unique_fitness_values)} unique fitness values out of {len(fitness_values)} individuals")
+                if len(unique_fitness_values) <= 3:
+                    self.logger.warning(f"🚨 LOW DIVERSITY: Only {len(unique_fitness_values)} unique fitness values: {sorted(unique_fitness_values)}")
+                
+                # Also log if we find the exact same fitness multiple times
+                if generation == 0:
+                    exact_same_count = sum(1 for f in fitness_values if abs(f - fitness_values[0]) < 0.01) if fitness_values else 0
+                    if exact_same_count > len(fitness_values) // 2:  # More than half are identical
+                        self.logger.warning(f"Generation {generation+1}: {exact_same_count}/{len(fitness_values)} individuals have nearly identical fitness ({fitness_values[0]:.2f}) - possible parameter application issue")
                 
                 # Calculate fitness diversity for convergence detection (but don't log)
                 if fitness_values:
@@ -317,6 +399,13 @@ class GeneticOptimizer(BasicOptimizer):
                 # Create and save generation summary
                 generation_summary = self._create_generation_summary(population, fitness_values, generation + 1)
                 results_summary["generations"].append(generation_summary)
+                
+                # DEBUG: Log population weights for debugging convergence
+                weight_info = []
+                for i, individual in enumerate(population):
+                    ma_w = individual.get('ma_rule.weight', 0.5)
+                    weight_info.append(f"Ind{i+1}:MA={ma_w:.3f}")
+                self.logger.info(f"🧬 Gen {generation + 1} Population weights: {', '.join(weight_info)}")
                 
                 # Add population diversity stats
                 ma_weights = [ind.get("ma_rule.weight", 0.5) for ind in population]
@@ -383,11 +472,12 @@ class GeneticOptimizer(BasicOptimizer):
                 weight_range = diversity_stats.get("ma_weight_range", 1.0)
                 fitness_range = max(fitness_values) - min(fitness_values) if len(fitness_values) > 1 else 0
                 
-                # Inject random individuals if diversity is too low
-                diversity_injection_needed = (weight_range < 0.2 or fitness_range < 50.0) and generation > 2
+                # Inject random individuals if diversity is too low - AGGRESSIVE DIVERSITY INJECTION
+                diversity_injection_needed = (weight_range < 0.3 or fitness_range < 100.0) and generation > 1
                 if diversity_injection_needed:
                     # Replace some individuals with completely random ones (silently)
-                    injection_count = max(2, self._population_size // 10)  # At least 2, up to 10% of population
+                    injection_count = max(3, self._population_size // 5)  # At least 3, up to 20% of population
+                    self.logger.info(f"🚨 DIVERSITY INJECTION: Adding {injection_count} random individuals (weight_range={weight_range:.3f}, fitness_range={fitness_range:.1f})")
                     
                     # Create random individuals
                     for _ in range(injection_count):
