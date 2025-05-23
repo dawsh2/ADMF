@@ -3,11 +3,34 @@ import logging
 import sys
 import os
 
+# Define custom log levels
+TRADE_LEVEL = 25  # Between INFO (20) and WARNING (30)
+SIGNAL_LEVEL = 15  # Between DEBUG (10) and INFO (20)
+
+# Add custom levels to logging
+logging.addLevelName(TRADE_LEVEL, "TRADE")
+logging.addLevelName(SIGNAL_LEVEL, "SIGNAL")
+
+# Add convenience methods to Logger class
+def trade(self, message, *args, **kwargs):
+    if self.isEnabledFor(TRADE_LEVEL):
+        self._log(TRADE_LEVEL, message, args, **kwargs)
+
+def signal(self, message, *args, **kwargs):
+    if self.isEnabledFor(SIGNAL_LEVEL):
+        self._log(SIGNAL_LEVEL, message, args, **kwargs)
+
+# Attach methods to Logger class
+logging.Logger.trade = trade
+logging.Logger.signal = signal
+
 LOG_LEVEL_STRINGS = {
     'CRITICAL': logging.CRITICAL,
     'ERROR': logging.ERROR,
     'WARNING': logging.WARNING,
+    'TRADE': TRADE_LEVEL,
     'INFO': logging.INFO,
+    'SIGNAL': SIGNAL_LEVEL,
     'DEBUG': logging.DEBUG,
     'NOTSET': logging.NOTSET,
 }

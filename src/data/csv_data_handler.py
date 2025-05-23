@@ -87,12 +87,22 @@ class CSVDataHandler(BaseComponent):
 
             # Step 1: Apply --bars limit to the initially loaded data
             self._data_for_run = df_loaded # Start with the full loaded data
-            if self._cli_max_bars is not None and self._cli_max_bars > 0:
-                if len(self._data_for_run) > self._cli_max_bars:
-                    self.logger.info(f"Applying --bars limit: Using first {self._cli_max_bars} bars from loaded data (was {len(self._data_for_run)}).")
-                    self._data_for_run = self._data_for_run.head(self._cli_max_bars)
+            if self._cli_max_bars is not None and self._cli_max_bars != 0:
+                if self._cli_max_bars > 0:
+                    # Positive value: take first N bars
+                    if len(self._data_for_run) > self._cli_max_bars:
+                        self.logger.info(f"Applying --bars limit: Using first {self._cli_max_bars} bars from loaded data (was {len(self._data_for_run)}).")
+                        self._data_for_run = self._data_for_run.head(self._cli_max_bars)
+                    else:
+                        self.logger.info(f"Dataset length ({len(self._data_for_run)}) is within or equal to --bars limit ({self._cli_max_bars}). Using all {len(self._data_for_run)} bars.")
                 else:
-                    self.logger.info(f"Dataset length ({len(self._data_for_run)}) is within or equal to --bars limit ({self._cli_max_bars}). Using all {len(self._data_for_run)} bars.")
+                    # Negative value: take last N bars
+                    abs_bars = abs(self._cli_max_bars)
+                    if len(self._data_for_run) > abs_bars:
+                        self.logger.info(f"Applying --bars limit: Using last {abs_bars} bars from loaded data (was {len(self._data_for_run)}).")
+                        self._data_for_run = self._data_for_run.tail(abs_bars)
+                    else:
+                        self.logger.info(f"Dataset length ({len(self._data_for_run)}) is within or equal to --bars limit ({abs_bars}). Using all {len(self._data_for_run)} bars.")
             
             # Step 2: Optional Regime Filtering (applies to the now --bars limited self._data_for_run)
             if self._regime_column_to_filter and self._target_regime_value:
@@ -116,6 +126,13 @@ class CSVDataHandler(BaseComponent):
                 split_point = int(len(self._data_for_run) * self._train_test_split_ratio)
                 self._train_df = self._data_for_run.iloc[:split_point].copy()
                 self._test_df = self._data_for_run.iloc[split_point:].copy()
+                
+                # DEBUG: Log split details to trace the 74% vs 80% issue
+                self.logger.warning(f"SPLIT_DEBUG: Using ratio {self._train_test_split_ratio}, split_point={split_point}")
+                if not self._test_df.empty:
+                    first_test_date = self._test_df.iloc[0]['timestamp'] if 'timestamp' in self._test_df.columns else 'unknown'
+                    self.logger.warning(f"SPLIT_DEBUG: First test timestamp: {first_test_date}")
+                
                 self.logger.info(f"Current dataset (size {len(self._data_for_run)}) split into: Train ({len(self._train_df)} bars), Test ({len(self._test_df)} bars).")
             else: 
                 self._train_df = self._data_for_run.copy() if self._data_for_run is not None else pd.DataFrame()
@@ -147,7 +164,7 @@ class CSVDataHandler(BaseComponent):
         """
         Sets the active dataset for iteration from the pre-processed and pre-split DataFrames.
         """
-        self.logger.debug(f"Setting active dataset to: '{dataset_type}'")
+        self.logger.info(f"=== SWITCHING TO {dataset_type.upper()} DATASET ===")
         
         # DEBUG: Log all available dataset sizes
         self.logger.debug(f"Available datasets - train: {len(self._train_df) if self._train_df is not None else 'None'}, test: {len(self._test_df) if self._test_df is not None else 'None'}")

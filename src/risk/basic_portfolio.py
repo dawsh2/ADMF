@@ -205,6 +205,10 @@ class BasicPortfolio(BaseComponent):
         self.current_cash -= commission
         self.logger.debug(f"Commission deducted: {commission:.2f}, Cash before fill: {pre_fill_cash:.2f}, Cash after commission: {self.current_cash:.2f}")
         
+        # Log trade for debugging train/test performance
+        side = "BUY" if fill_direction_is_buy else "SELL"
+        self.logger.info(f"TRADE: {side} {quantity_filled} {symbol} @ ${fill_price:.2f}, Portfolio Value: ${self.current_total_value:.2f}")
+        
         active_regime = self._get_current_regime()
 
         pos = self.open_positions.get(symbol)
@@ -286,13 +290,15 @@ class BasicPortfolio(BaseComponent):
         
         if fill_direction_is_buy:
             pos['quantity'] += quantity_filled
+            # Always deduct full cost when buying (whether opening long or closing short)
             self.current_cash -= quantity_filled * fill_price
-            self.logger.debug(f"BUY - Cash impact: -{quantity_filled * fill_price:.2f}, Cash before: {pre_update_cash:.2f}, Cash after: {self.current_cash:.2f}")
+            self.logger.debug(f"BUY - Cash impact: -{quantity_filled * fill_price:.2f} (on {quantity_filled} shares, {qty_closed} shares closed existing short), Cash before: {pre_update_cash:.2f}, Cash after: {self.current_cash:.2f}")
             self.logger.debug(f"BUY - Quantity impact: +{quantity_filled:.2f}, Quantity before: {pre_update_quantity:.2f}, Quantity after: {pos['quantity']:.2f}")
         else: # SELL
             pos['quantity'] -= quantity_filled
+            # Always add full proceeds when selling (whether opening short or closing long)
             self.current_cash += quantity_filled * fill_price
-            self.logger.debug(f"SELL - Cash impact: +{quantity_filled * fill_price:.2f}, Cash before: {pre_update_cash:.2f}, Cash after: {self.current_cash:.2f}")
+            self.logger.debug(f"SELL - Cash impact: +{quantity_filled * fill_price:.2f} (on {quantity_filled} shares, {qty_closed} shares closed existing long), Cash before: {pre_update_cash:.2f}, Cash after: {self.current_cash:.2f}")
             self.logger.debug(f"SELL - Quantity impact: -{quantity_filled:.2f}, Quantity before: {pre_update_quantity:.2f}, Quantity after: {pos['quantity']:.2f}")
 
         # Handle position state changes (new, flipped, modified average price)

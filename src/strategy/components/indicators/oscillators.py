@@ -147,10 +147,13 @@ class RSIIndicator(BaseComponent):
         # Update period
         self.period = new_period_val
         
-        # BUGFIX: Always reset state during parameter setting to ensure clean slate for optimization runs
-        # Previously only reset if period changed, which caused state persistence across optimization runs
-        self.logger.info(f"RSIIndicator '{self.name}' parameters updated: period={self.period}. Resetting state.")
-        self.reset_state() # Important: reset internal deques and averages for fresh calculation
+        # Only reset state if period actually changed
+        if old_period != new_period_val:
+            self.logger.info(f"RSIIndicator '{self.name}' period changed from {old_period} to {self.period}. Resetting state.")
+            self.reset_state() # Reset internal deques and averages for new period
+        else:
+            self.logger.debug(f"RSIIndicator '{self.name}' period unchanged at {self.period}. Preserving state.")
+        
         return True
 
     def reset_state(self):

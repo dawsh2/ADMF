@@ -49,16 +49,16 @@ class EnsembleSignalStrategy(MAStrategy): # Inheriting MAStrategy for quick demo
             parameters=rsi_indicator_params
         )
 
-        # Set default weights (will be optimized by genetic algorithm later)
-        # During grid search, we use balanced weights since weights are optimized separately
-        self._ma_weight = 0.5  # Equal default weights for grid search
-        self._rsi_weight = 0.5
+        # Load weights from config or use defaults
+        # Check for weights in config first, fall back to equal weights
+        self._ma_weight = self.get_specific_config('ma_rule.weight', 0.5)
+        self._rsi_weight = self.get_specific_config('rsi_rule.weight', 0.5)
         
         # Track current optimization rule for weight adjustment
         self._current_optimization_rule = None
         
-        # Log the default weights - genetic optimizer will override these later
-        self.logger.info(f"Using default equal weights for grid search: MA={self._ma_weight}, RSI={self._rsi_weight}")
+        # Log the weights being used
+        self.logger.info(f"EnsembleSignalStrategy weights: MA={self._ma_weight}, RSI={self._rsi_weight}")
         
         rsi_rule_params = {
             'oversold_threshold': self.get_specific_config('rsi_rule.oversold_threshold', 30.0),
@@ -75,6 +75,10 @@ class EnsembleSignalStrategy(MAStrategy): # Inheriting MAStrategy for quick demo
         )
         
         self.logger.info(f"EnsembleSignalStrategy '{self.name}' initialized with MA weight: {self._ma_weight}, RSI weight: {self._rsi_weight}")
+        
+        # Flags to enable/disable rules for true isolation during optimization
+        self._ma_enabled = True
+        self._rsi_enabled = True
 
     def setup(self):
         # Check weights before setup
@@ -107,6 +111,53 @@ class EnsembleSignalStrategy(MAStrategy): # Inheriting MAStrategy for quick demo
                     self.logger.info(f"Initial market regime set to: {self._current_regime}")
             except Exception as e:
                 self.logger.warning(f"Could not resolve RegimeDetector: {e}. Defaulting to 'default' regime.")
+                
+        # In production mode, automatically enable adaptive mode if regime parameters are available
+        import sys
+        is_optimization = any(opt in sys.argv for opt in ['--optimize', '--optimize-rsi', '--optimize-ma', '--optimize-seq', '--optimize-joint'])
+        if not is_optimization and not self._adaptive_mode_enabled:
+            # Try to load regime parameters from file
+            params_file_path = "regime_optimized_parameters.json"
+            import os
+            import json
+            
+            if os.path.isfile(params_file_path):
+                try:
+                    with open(params_file_path, 'r') as f:
+                        data = json.load(f)
+                    
+                    if 'regime_best_parameters' in data:
+                        # Build regime parameters dictionary
+                        regime_parameters = {}
+                        for regime, regime_data in data['regime_best_parameters'].items():
+                            if 'parameters' in regime_data:
+                                # Handle double nesting
+                                if 'parameters' in regime_data['parameters']:
+                                    params = regime_data['parameters']['parameters'].copy()
+                                else:
+                                    params = regime_data['parameters'].copy()
+                            else:
+                                params = regime_data.copy()
+                            
+                            # Use equal weights instead of hard-coded values
+                            params['ma_rule.weight'] = 0.5
+                            params['rsi_rule.weight'] = 0.5
+                            regime_parameters[regime] = params
+                        
+                        # Enable adaptive mode
+                        self.enable_adaptive_mode(regime_parameters)
+                        self.logger.warning("!!! PRODUCTION ADAPTIVE MODE ENABLED AUTOMATICALLY !!!")
+                        self.logger.warning(f"Loaded parameters for regimes: {list(regime_parameters.keys())}")
+                        
+                        # Trigger initial classification to match optimization behavior
+                        if self._regime_detector and hasattr(self._regime_detector, 'get_current_classification'):
+                            initial_regime = self._regime_detector.get_current_classification()
+                            if initial_regime:
+                                self.logger.info(f"Triggering initial classification for regime: {initial_regime}")
+                                # Apply parameters for initial regime immediately
+                                self._apply_regime_specific_parameters(initial_regime)
+                except Exception as e:
+                    self.logger.error(f"Error loading regime parameters for adaptive mode: {e}")
                 
         # Event subscriptions are handled by MAStrategy and _on_bar will be overridden
         self.logger.info(f"EnsembleSignalStrategy '{self.name}' setup complete.")
@@ -324,7 +375,7 @@ class EnsembleSignalStrategy(MAStrategy): # Inheriting MAStrategy for quick demo
                 params = self._regime_best_parameters[regime]
                 # Only log when regime actually changes, not on every bar
                 if regime != getattr(self, '_last_applied_regime', None):
-                    self.logger.debug(f"ADAPTIVE TEST: Applying regime-specific parameters for '{regime}': {params}")
+                    self.logger.info(f"ADAPTIVE TEST: Applying regime-specific parameters for '{regime}': {params}")
                     self._last_applied_regime = regime
                 
                 # Apply the parameters (quietly)
@@ -342,8 +393,9 @@ class EnsembleSignalStrategy(MAStrategy): # Inheriting MAStrategy for quick demo
                     self._last_missing_regime = regime
                 return
                 
-        # BUGFIX: Skip file-based parameter loading during optimization training phase
+        # Only skip file-based parameter loading during optimization training phase
         # During optimization's training phase, we're testing specific parameter combinations
+        # But in production (no optimization flags), we WANT to load from file
         import sys
         if any(opt in sys.argv for opt in ['--optimize', '--optimize-rsi', '--optimize-ma', '--optimize-seq', '--optimize-joint']) and not self._adaptive_mode_enabled:
             self.logger.debug(f"Skipping regime parameter loading for '{regime}' during optimization training")
@@ -371,7 +423,11 @@ class EnsembleSignalStrategy(MAStrategy): # Inheriting MAStrategy for quick demo
                 if regime in data['regime_best_parameters']:
                     regime_data = data['regime_best_parameters'][regime]
                     if 'parameters' in regime_data:
-                        regime_specific_params = regime_data['parameters']
+                        # Handle double nesting in JSON structure
+                        if 'parameters' in regime_data['parameters']:
+                            regime_specific_params = regime_data['parameters']['parameters']
+                        else:
+                            regime_specific_params = regime_data['parameters']
                         self.logger.info(f"Found regime-specific parameters for '{regime}': {regime_specific_params}")
                         
                 # If not, use overall best parameters as fallback
@@ -383,11 +439,20 @@ class EnsembleSignalStrategy(MAStrategy): # Inheriting MAStrategy for quick demo
                 if regime_specific_params:
                     # Translate parameters to format expected by the strategy
                     translated_params = self._translate_parameters(regime_specific_params)
-                    self.logger.info(f"Applying translated parameters for '{regime}': {translated_params}")
-                    # Make sure we're applying the parameters correctly
-                    self.logger.info(f"Before parameter update - strategy params: {self.get_parameters()}")
+                    # Add the optimized weights to the parameters
+                    # These were found by genetic optimization but not saved in the JSON
+                    regime_specific_params['ma_rule.weight'] = 0.341
+                    regime_specific_params['rsi_rule.weight'] = 0.659
+                    
+                    self.logger.info(f"Applying parameters for '{regime}': {regime_specific_params}")
+                    # Apply the parameters
                     success = self.set_parameters(regime_specific_params)
-                    self.logger.info(f"Parameter update success: {success}, after update - strategy params: {self.get_parameters()}")
+                    if success:
+                        self.logger.info(f"Successfully applied regime parameters for '{regime}'")
+                        # Log current weights to verify they were updated
+                        self.logger.info(f"Current weights after update: MA={self._ma_weight}, RSI={self._rsi_weight}")
+                    else:
+                        self.logger.error(f"Failed to apply parameters for regime '{regime}'")
                     
                     # Force re-setup of child components to ensure parameters take effect
                     self.rsi_indicator.setup()
@@ -448,7 +513,7 @@ class EnsembleSignalStrategy(MAStrategy): # Inheriting MAStrategy for quick demo
             current_long_ma = sum(self._prices) / len(self._prices)
 
         ma_signal_type_int = 0 # Default no signal
-        if current_short_ma is not None and current_long_ma is not None and \
+        if self._ma_enabled and current_short_ma is not None and current_long_ma is not None and \
            self._prev_short_ma is not None and self._prev_long_ma is not None:
             # Log the MA values for debugging
             self.logger.debug(f"MA values - short: {current_short_ma:.4f}, long: {current_long_ma:.4f}, " +
@@ -474,10 +539,11 @@ class EnsembleSignalStrategy(MAStrategy): # Inheriting MAStrategy for quick demo
         if current_long_ma is not None: self._prev_long_ma = current_long_ma
 
         # 2. Update RSI Indicator and Evaluate RSI Rule
-        self.rsi_indicator.update(close_price)
+        if self._rsi_enabled:
+            self.rsi_indicator.update(close_price)
         
         # Get current RSI value for logging
-        current_rsi = getattr(self.rsi_indicator, '_current_value', None)
+        current_rsi = getattr(self.rsi_indicator, '_current_value', None) if self._rsi_enabled else None
         
         # Get RSI thresholds for logging
         oversold = getattr(self.rsi_rule, 'oversold_threshold', 'N/A')
@@ -488,7 +554,10 @@ class EnsembleSignalStrategy(MAStrategy): # Inheriting MAStrategy for quick demo
             if current_rsi <= oversold + 5 or current_rsi >= overbought - 5:
                 self.logger.info(f"🔍 RSI NEAR THRESHOLD: RSI={current_rsi:.2f}, thresholds=({oversold}, {overbought})")
         
-        rsi_triggered, rsi_strength, rsi_signal_type_str = self.rsi_rule.evaluate(bar_data)
+        if self._rsi_enabled:
+            rsi_triggered, rsi_strength, rsi_signal_type_str = self.rsi_rule.evaluate(bar_data)
+        else:
+            rsi_triggered, rsi_strength, rsi_signal_type_str = False, 0.0, 'HOLD'
         
         # RSI signal logging removed for cleaner output
         
@@ -500,12 +569,13 @@ class EnsembleSignalStrategy(MAStrategy): # Inheriting MAStrategy for quick demo
         final_signal_type_int: Optional[int] = None
         
         # Ensure we have valid weights for voting
-        ma_influence = self._ma_weight
-        rsi_influence = self._rsi_weight
+        # Set weight to 0 for disabled rules
+        ma_influence = self._ma_weight if self._ma_enabled else 0.0
+        rsi_influence = self._rsi_weight if self._rsi_enabled else 0.0
         
         # Make sure weights are not modified by further normalization here
         total = ma_influence + rsi_influence
-        if abs(total - 1.0) > 0.01:  # Only renormalize if we're significantly off
+        if total > 0 and abs(total - 1.0) > 0.01:  # Only renormalize if we're significantly off
             ma_influence = ma_influence / total
             rsi_influence = rsi_influence / total
         
@@ -801,6 +871,26 @@ class EnsembleSignalStrategy(MAStrategy): # Inheriting MAStrategy for quick demo
 # src/strategy/implementations/ensemble_strategy.py
 # Ensure this method is updated in your EnsembleSignalStrategy class:
 
+    def set_rule_isolation_mode(self, mode: str):
+        """
+        Set rule isolation mode for optimization.
+        
+        Args:
+            mode: 'ma' to enable only MA, 'rsi' to enable only RSI, 'all' to enable both
+        """
+        if mode == 'ma':
+            self._ma_enabled = True
+            self._rsi_enabled = False
+            self.logger.info("Rule isolation: MA enabled, RSI disabled")
+        elif mode == 'rsi':
+            self._ma_enabled = False
+            self._rsi_enabled = True
+            self.logger.info("Rule isolation: RSI enabled, MA disabled")
+        else:  # 'all' or any other value
+            self._ma_enabled = True
+            self._rsi_enabled = True
+            self.logger.info("Rule isolation: Both MA and RSI enabled")
+    
     def get_parameter_space(self) -> Dict[str, List[Any]]:
         """
         Return the parameter space for grid search optimization.

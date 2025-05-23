@@ -114,10 +114,15 @@ class EnhancedOptimizer(BasicOptimizer):
             self.logger.error(f"Error getting regime performance metrics: {e}", exc_info=True)
             return overall_metric, None
     
-    def _process_regime_performance(self, params: Dict[str, Any], regime_performance: Dict[str, Dict[str, Any]]) -> None:
+    def _process_regime_performance(self, params: Dict[str, Any], regime_performance: Dict[str, Dict[str, Any]], rule_type: str = None) -> None:
         """
         Process regime-specific performance metrics and update best parameters per regime.
         Takes into account boundary trades and their impact on performance.
+        
+        Args:
+            params: Parameter dictionary
+            regime_performance: Performance metrics per regime
+            rule_type: Optional rule type ('MA' or 'RSI') for rulewise optimization
         """
         if not regime_performance:
             self.logger.warning(f"No regime performance data available for parameters: {params}")
@@ -186,11 +191,47 @@ class EnhancedOptimizer(BasicOptimizer):
             portfolio_value = metrics.get('final_portfolio_value', metrics.get('portfolio_value'))
                 
             # Check if this is the best metric value for this regime so far
-            if (regime not in self._best_metric_per_regime or 
-                (self._higher_metric_is_better and metric_value > self._best_metric_per_regime[regime]) or
-                (not self._higher_metric_is_better and metric_value < self._best_metric_per_regime[regime])):
-                
-                self._best_metric_per_regime[regime] = metric_value
+            # Handle rulewise optimization differently
+            if rule_type in ['MA', 'RSI']:
+                # Track MA and RSI parameters separately
+                if rule_type == 'MA':
+                    if (regime not in self._best_ma_metric_per_regime or 
+                        (self._higher_metric_is_better and metric_value > self._best_ma_metric_per_regime[regime]) or
+                        (not self._higher_metric_is_better and metric_value < self._best_ma_metric_per_regime[regime])):
+                        
+                        self._best_ma_metric_per_regime[regime] = metric_value
+                        self._best_ma_params_per_regime[regime] = {
+                            'parameters': copy.deepcopy(params),
+                            'metric': {
+                                'name': self._regime_metric,
+                                'value': metric_value
+                            },
+                            'portfolio_value': portfolio_value
+                        }
+                        self.logger.info(f"New best MA parameters for regime '{regime}': {params} with {self._regime_metric}={metric_value:.4f}")
+                        
+                elif rule_type == 'RSI':
+                    if (regime not in self._best_rsi_metric_per_regime or 
+                        (self._higher_metric_is_better and metric_value > self._best_rsi_metric_per_regime[regime]) or
+                        (not self._higher_metric_is_better and metric_value < self._best_rsi_metric_per_regime[regime])):
+                        
+                        self._best_rsi_metric_per_regime[regime] = metric_value
+                        self._best_rsi_params_per_regime[regime] = {
+                            'parameters': copy.deepcopy(params),
+                            'metric': {
+                                'name': self._regime_metric,
+                                'value': metric_value
+                            },
+                            'portfolio_value': portfolio_value
+                        }
+                        self.logger.info(f"New best RSI parameters for regime '{regime}': {params} with {self._regime_metric}={metric_value:.4f}")
+            else:
+                # Standard processing for non-rulewise optimization
+                if (regime not in self._best_metric_per_regime or 
+                    (self._higher_metric_is_better and metric_value > self._best_metric_per_regime[regime]) or
+                    (not self._higher_metric_is_better and metric_value < self._best_metric_per_regime[regime])):
+                    
+                    self._best_metric_per_regime[regime] = metric_value
                 
                 # Store parameters and portfolio value for reporting
                 self._best_params_per_regime[regime] = {
@@ -213,6 +254,9 @@ class EnhancedOptimizer(BasicOptimizer):
         Overridden to perform regime-specific optimization.
         Uses a component-agnostic approach with loose coupling.
         """
+        # Reset the logging flag for a new optimization run
+        self._results_already_logged = False
+        
         # Import here to avoid circular imports
         from src.core.logging_setup import create_optimization_logger
         
@@ -230,6 +274,12 @@ class EnhancedOptimizer(BasicOptimizer):
         self._best_params_per_regime = {}
         self._best_metric_per_regime = {}
         self._regimes_encountered = set()
+        
+        # For rulewise optimization, track MA and RSI separately
+        self._best_ma_params_per_regime = {}
+        self._best_ma_metric_per_regime = {}
+        self._best_rsi_params_per_regime = {}
+        self._best_rsi_metric_per_regime = {}
         
         results_summary = {
             "best_parameters_on_train": None,
@@ -560,6 +610,10 @@ class EnhancedOptimizer(BasicOptimizer):
                 self.logger.error(f"Error during genetic optimization for regime '{regime}': {e}", exc_info=True)
         
         self.logger.info(f"Per-regime genetic optimization complete. Optimized weights for {len(results_summary['best_weights_per_regime'])} regimes.")
+        
+        # Save results after genetic optimization
+        self._save_results_to_file(results_summary)
+        
         return results_summary
 
     def run_per_regime_random_search_optimization(self, results_summary: Dict[str, Any]) -> Dict[str, Any]:
@@ -685,10 +739,13 @@ class EnhancedOptimizer(BasicOptimizer):
                     self.logger.info("Cleared adaptive test flag - grid search calls re-enabled")
         else:
             self.logger.warning("No test data available. Skipping regime-adaptive strategy test.")
-            
-        # Log final results including adaptive test
+        
+        # Log optimization results only once at the end
         self._log_optimization_results(results_summary)
         
+        # Save final results after adaptive test
+        self._save_results_to_file(results_summary)
+            
         return results_summary
     
     def _get_top_n_performers(self, training_results: List[Dict[str, Any]], n: int, higher_is_better: bool) -> List[Tuple[Dict[str, Any], float]]:
@@ -730,6 +787,12 @@ class EnhancedOptimizer(BasicOptimizer):
         
         DEBUG: Added extensive logging to troubleshoot missing regime-adaptive results.
         """
+        # Prevent duplicate logging
+        if hasattr(self, '_results_already_logged') and self._results_already_logged:
+            self.logger.debug("DEBUG: Skipping duplicate _log_optimization_results call")
+            return
+        self._results_already_logged = True
+        
         # Import here to avoid circular imports
         from src.core.logging_setup import create_optimization_logger
         
@@ -816,9 +879,11 @@ class EnhancedOptimizer(BasicOptimizer):
             
         # Log regime-adaptive strategy test results if available
         # First log whether the key exists in the results dictionary
-        # Check if adaptive results are available
+        # Only print adaptive results if they are available
+        # The grid search results were already printed above
         if 'regime_adaptive_test_results' not in results:
             return
+            
         # Use direct print to ensure our formatted output is visible
         print("\n================ ADAPTIVE GA ENSEMBLE STRATEGY TEST RESULTS ================")
             
@@ -1830,14 +1895,28 @@ class EnhancedOptimizer(BasicOptimizer):
         
         DEBUG: Ensure we're saving the regime-adaptive test results.
         """
+        self.logger.info(f"DEBUG: _save_results_to_file called with output path: {self._output_file_path}")
         try:
             # Create a simplified version of the results for saving
+            # Use the best TEST parameters, not training parameters, for production
+            best_test_params = results["best_parameters_on_train"]  # fallback
+            best_test_metric = results["best_training_metric_value"]  # fallback
+            
+            # If we have test results, use the best test performer instead
+            if "top_n_test_results" in results and results["top_n_test_results"]:
+                best_test_result = results["top_n_test_results"][0]  # First is best
+                best_test_params = best_test_result["parameters"] 
+                best_test_metric = best_test_result["test_metric"]
+                self.logger.info(f"Using best TEST parameters for production: {best_test_params}")
+            else:
+                self.logger.warning("No test results available, using training parameters as fallback")
+            
             save_data = {
                 "timestamp": datetime.datetime.now().isoformat(),
-                "overall_best_parameters": results["best_parameters_on_train"],
+                "overall_best_parameters": best_test_params,
                 "overall_best_metric": {
                     "name": self._metric_to_optimize,
-                    "value": results["best_training_metric_value"],
+                    "value": best_test_metric,
                     "higher_is_better": self._higher_metric_is_better
                 },
                 "regime_best_parameters": {
@@ -1878,6 +1957,7 @@ class EnhancedOptimizer(BasicOptimizer):
                 json.dump(save_data, f, indent=2)
                 
             self.logger.info(f"Optimization results saved to {self._output_file_path}")
+            print(f"\n✅ Optimization results saved to {self._output_file_path}\n")
             
         except Exception as e:
             self.logger.error(f"Error saving optimization results to file: {e}", exc_info=True)
@@ -1909,10 +1989,15 @@ class EnhancedOptimizer(BasicOptimizer):
             
             # Get MA parameter space
             strategy_to_optimize = self._container.resolve(self._strategy_service_name)
+            
+            # Set rule isolation mode for MA-only optimization
+            if hasattr(strategy_to_optimize, 'set_rule_isolation_mode'):
+                strategy_to_optimize.set_rule_isolation_mode('ma')
+            
             ma_param_space = strategy_to_optimize.get_parameter_space()
             ma_combinations = self._generate_parameter_combinations(ma_param_space)
             
-            self.logger.info(f"MA optimization: {len(ma_combinations)} parameter combinations")
+            self.logger.info(f"MA optimization: {len(ma_combinations)} parameter combinations in ISOLATION mode")
             
             # Run MA optimization
             ma_results = []
@@ -1932,20 +2017,24 @@ class EnhancedOptimizer(BasicOptimizer):
                     "regime_performance": regime_performance
                 })
                 
-                # Process regime performance
+                # Process regime performance with MA rule type
                 if regime_performance:
-                    self._process_regime_performance(params, regime_performance)
+                    self._process_regime_performance(params, regime_performance, rule_type='MA')
             
             # Phase 2: Optimize RSI rule parameters (12 combinations)  
-            self.logger.info("Phase 2: Optimizing RSI rule parameters with default MA parameters")
+            self.logger.info("Phase 2: Optimizing RSI rule parameters in ISOLATION (MA disabled)")
             sys.argv = [arg for arg in original_argv if arg not in ['--optimize', '--optimize-seq', '--optimize-joint', '--optimize-ma']]
             sys.argv.append('--optimize-rsi')
+            
+            # Set rule isolation mode for RSI-only optimization
+            if hasattr(strategy_to_optimize, 'set_rule_isolation_mode'):
+                strategy_to_optimize.set_rule_isolation_mode('rsi')
             
             # Get RSI parameter space
             rsi_param_space = strategy_to_optimize.get_parameter_space()
             rsi_combinations = self._generate_parameter_combinations(rsi_param_space)
             
-            self.logger.info(f"RSI optimization: {len(rsi_combinations)} parameter combinations")
+            self.logger.info(f"RSI optimization: {len(rsi_combinations)} parameter combinations in ISOLATION mode")
             
             # Run RSI optimization
             rsi_results = []
@@ -1965,9 +2054,9 @@ class EnhancedOptimizer(BasicOptimizer):
                     "regime_performance": regime_performance
                 })
                 
-                # Process regime performance
+                # Process regime performance with RSI rule type
                 if regime_performance:
-                    self._process_regime_performance(params, regime_performance)
+                    self._process_regime_performance(params, regime_performance, rule_type='RSI')
             
             # Combine results
             all_results = ma_results + rsi_results
@@ -1980,6 +2069,13 @@ class EnhancedOptimizer(BasicOptimizer):
                 self._best_params_from_train = best_params
                 self._best_training_metric_value = best_metric
                 
+            # Reset strategy to normal mode (both rules enabled)
+            if hasattr(strategy_to_optimize, 'set_rule_isolation_mode'):
+                strategy_to_optimize.set_rule_isolation_mode('all')
+            
+            # Combine best MA and RSI parameters for each regime
+            self._combine_rulewise_parameters()
+            
             # Update results summary
             results_summary["all_training_results"] = all_results
             results_summary["best_parameters_on_train"] = self._best_params_from_train
@@ -2039,3 +2135,82 @@ class EnhancedOptimizer(BasicOptimizer):
         finally:
             # Restore original argv
             sys.argv = original_argv
+    
+    def _combine_rulewise_parameters(self):
+        """
+        Combine the best MA and RSI parameters for each regime after rulewise optimization.
+        """
+        self.logger.info("Combining best MA and RSI parameters for each regime")
+        
+        # Get all regimes that have either MA or RSI parameters
+        all_regimes = set(list(self._best_ma_params_per_regime.keys()) + list(self._best_rsi_params_per_regime.keys()))
+        
+        for regime in all_regimes:
+            # Get best MA parameters for this regime
+            ma_params = {}
+            ma_metric = None
+            if regime in self._best_ma_params_per_regime:
+                ma_data = self._best_ma_params_per_regime[regime]
+                ma_params = ma_data['parameters']
+                ma_metric = ma_data['metric']['value']
+                self.logger.info(f"Regime '{regime}' - Best MA params: {ma_params} (metric: {ma_metric:.4f})")
+            
+            # Get best RSI parameters for this regime
+            rsi_params = {}
+            rsi_metric = None
+            if regime in self._best_rsi_params_per_regime:
+                rsi_data = self._best_rsi_params_per_regime[regime]
+                rsi_params = rsi_data['parameters']
+                rsi_metric = rsi_data['metric']['value']
+                self.logger.info(f"Regime '{regime}' - Best RSI params: {rsi_params} (metric: {rsi_metric:.4f})")
+            
+            # Combine parameters
+            combined_params = {}
+            combined_params.update(ma_params)
+            combined_params.update(rsi_params)
+            
+            # Use the average of the two metrics as the combined metric
+            # (or could use the min/max depending on optimization goal)
+            if ma_metric is not None and rsi_metric is not None:
+                combined_metric = (ma_metric + rsi_metric) / 2
+            elif ma_metric is not None:
+                combined_metric = ma_metric
+            elif rsi_metric is not None:
+                combined_metric = rsi_metric
+            else:
+                combined_metric = 0
+            
+            # Store combined parameters
+            self._best_params_per_regime[regime] = {
+                'parameters': combined_params,
+                'metric': {
+                    'name': self._regime_metric,
+                    'value': combined_metric
+                },
+                'portfolio_value': None  # Not available for combined params
+            }
+            self._best_metric_per_regime[regime] = combined_metric
+            
+            self.logger.info(f"Regime '{regime}' - Combined params: {combined_params}")
+        
+        # Also update the overall best parameters if they contain only MA or RSI
+        if self._best_params_from_train:
+            # Check if we have MA-only or RSI-only parameters
+            is_ma_only = 'short_window' in self._best_params_from_train and 'rsi_indicator.period' not in self._best_params_from_train
+            is_rsi_only = 'rsi_indicator.period' in self._best_params_from_train and 'short_window' not in self._best_params_from_train
+            
+            if is_ma_only or is_rsi_only:
+                # Find the best combined parameters from all regimes
+                best_combined_metric = -float('inf') if self._higher_metric_is_better else float('inf')
+                best_combined_params = None
+                
+                for regime, data in self._best_params_per_regime.items():
+                    metric = data['metric']['value']
+                    if ((self._higher_metric_is_better and metric > best_combined_metric) or
+                        (not self._higher_metric_is_better and metric < best_combined_metric)):
+                        best_combined_metric = metric
+                        best_combined_params = data['parameters']
+                
+                if best_combined_params:
+                    self._best_params_from_train = best_combined_params
+                    self.logger.info(f"Updated overall best parameters to combined: {best_combined_params}")

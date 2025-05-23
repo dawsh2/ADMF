@@ -189,3 +189,8 @@ This document outlines the key development and refactoring initiatives planned f
 ## 5. Conclusion
 
 Successfully completing these initiatives will significantly enhance the ADMF-Trader system's capabilities, robustness, maintainability, and extensibility. It will pave the way for more advanced strategy development, optimization techniques, and in-depth performance analysis.
+
+## 6. Additional Items
+
+- Explore how indicators are reset during regime change, in particular when changed, ensure they are retrieving previous bar data rather than waiting for period_len bars until valid
+- Implement indicator price history preservation: indicators should maintain price history equal to the maximum period length in the parameter space (e.g., if RSI periods range from 9-21, always keep 21+ prices) to ensure valid readings immediately after parameter changes

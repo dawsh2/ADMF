@@ -129,16 +129,29 @@ def main():
         container.register_type("strategy", EnsembleSignalStrategy, True, constructor_kwargs=ensemble_strat_args)
         logger.info("EnsembleSignalStrategy registered as 'strategy' for optimization mode.")
     else:
-        # For regular runs, use the RegimeAdaptiveStrategy
-        adaptive_strat_args = {
-            "instance_name": "RegimeAdaptiveStrategy",
-            "config_loader": config_loader,
-            "event_bus": event_bus,
-            "container": container,
-            "component_config_key": "components.regime_adaptive_strategy"
-        }
-        container.register_type("strategy", RegimeAdaptiveStrategy, True, constructor_kwargs=adaptive_strat_args)
-        logger.info("RegimeAdaptiveStrategy registered as 'strategy' for regular mode.")
+        # For regular runs, check if ensemble_strategy is configured
+        if config_loader.get("components.ensemble_strategy"):
+            # Use ensemble strategy if configured
+            ensemble_strat_args = {
+                "instance_name": "SPY_Ensemble_Strategy",
+                "config_loader": config_loader,
+                "event_bus": event_bus,
+                "component_config_key": "components.ensemble_strategy",
+                "container": container
+            }
+            container.register_type("strategy", EnsembleSignalStrategy, True, constructor_kwargs=ensemble_strat_args)
+            logger.info("EnsembleSignalStrategy registered as 'strategy' for regular mode.")
+        else:
+            # Fall back to RegimeAdaptiveStrategy
+            adaptive_strat_args = {
+                "instance_name": "RegimeAdaptiveStrategy",
+                "config_loader": config_loader,
+                "event_bus": event_bus,
+                "container": container,
+                "component_config_key": "components.regime_adaptive_strategy"
+            }
+            container.register_type("strategy", RegimeAdaptiveStrategy, True, constructor_kwargs=adaptive_strat_args)
+            logger.info("RegimeAdaptiveStrategy registered as 'strategy' for regular mode.")
 
     regime_detector_service_name = "MyPrimaryRegimeDetector"
     regime_detector_instance_name = "MyPrimaryRegimeDetector_Instance"
@@ -409,8 +422,13 @@ def run_application_logic(app_container: Container):
                 logger.warning(f"Item {type(comp).__name__} is not a BaseComponent, skipping setup for it directly.")
 
         if data_handler and isinstance(data_handler, CSVDataHandler) and hasattr(data_handler, "set_active_dataset"):
-            logger.info("Standard run: Setting active dataset to 'full' in DataHandler (respects --bars if provided).")
-            data_handler.set_active_dataset("full")
+            # Check if we have train/test split configured and data handler has test data
+            if hasattr(data_handler, 'test_df_exists_and_is_not_empty') and data_handler.test_df_exists_and_is_not_empty:
+                logger.info("Production validation: Setting active dataset to 'test' (same as optimization test set).")
+                data_handler.set_active_dataset("test")
+            else:
+                logger.info("Standard run: Setting active dataset to 'full' in DataHandler (respects --bars if provided).")
+                data_handler.set_active_dataset("full")
 
         for comp in components_to_manage:
              if isinstance(comp, BaseComponent):
