@@ -1,0 +1,96 @@
+# Adaptive Production configuration - uses FULL dataset instead of test set
+system:
+  name: "ADMF-Adaptive-Production-Full"
+  version: "0.1.0"
+
+logging:
+  level: "INFO"
+
+components:
+  # Configuration for the Regime-Adaptive Strategy
+  regime_adaptive_strategy:
+    symbol: "SPY"
+    
+    # Default parameters (matching optimization)
+    short_window_default: 10
+    long_window_default: 20
+    ma_rule.weight: 0.5  # Equal weighting
+    
+    # RSI defaults
+    rsi_indicator:
+      period: 14
+      
+    rsi_rule:
+      oversold_threshold: 30.0
+      overbought_threshold: 70.0
+      weight: 0.5  # Equal weighting
+    
+    # Regime adaptation settings
+    regime_detector_service_name: "MyPrimaryRegimeDetector"
+    regime_params_file_path: "regime_optimized_parameters.json"
+    fallback_to_overall_best: true
+
+  # Data Handler - NO TRAIN/TEST SPLIT
+  data_handler_csv:
+    csv_file_path: "data/SPY_1min.csv"
+    symbol: "SPY"
+    timestamp_column: "timestamp"
+    # train_test_split_ratio: 0.8  # COMMENTED OUT - use full dataset
+    open_column: "Open"
+    high_column: "High"
+    low_column: "Low"
+    close_column: "Close"
+    volume_column: "Volume"
+
+  # Portfolio Manager
+  basic_portfolio:
+    initial_cash: 100000.00
+
+  # Risk Manager
+  basic_risk_manager:
+    target_trade_quantity: 100
+
+  # Execution Handler
+  simulated_execution_handler:
+    default_quantity: 100
+    commission_per_trade: 0.005
+    commission_type: "per_share"
+    passthrough: false
+    fill_price_logic: "signal_price"
+
+  # Configuration for the RegimeDetector instance
+  MyPrimaryRegimeDetector: 
+    min_regime_duration: 2
+    verbose_logging: false
+    summary_interval: 50
+    
+    indicators:
+      rsi_14: 
+        type: "rsi"
+        parameters: {"period": 14}
+      atr_20:
+        type: "atr"
+        parameters: {"period": 10}
+      trend_10_30:
+        type: "simple_ma_trend"
+        parameters: {"short_period": 5, "long_period": 20}
+    
+    regime_thresholds:
+      trending_up_volatile:
+        trend_10_30: {"min": 0.02}
+        atr_20: {"min": 0.15}
+      
+      trending_up_low_vol:
+        trend_10_30: {"min": 0.02}
+        atr_20: {"max": 0.15}
+        
+      ranging_low_vol:
+        trend_10_30: {"min": -0.01, "max": 0.01}
+        atr_20: {"max": 0.12}
+        
+      trending_down:
+        trend_10_30: {"max": -0.01}
+        
+      oversold_in_uptrend:
+        rsi_14: {"max": 40}
+        trend_10_30: {"min": 0.01}
