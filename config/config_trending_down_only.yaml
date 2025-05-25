@@ -1,0 +1,91 @@
+# Production configuration using ONLY trending_down parameters (to match optimization bug)
+system:
+  name: "ADMF-TrendingDown-Only"
+  version: "0.1.0"
+
+logging:
+  level: "INFO"
+
+components:
+  # Configuration for the Ensemble Strategy with FIXED trending_down parameters
+  ensemble_strategy:
+    symbol: "SPY"
+    
+    # FIXED parameters from trending_down regime in optimization
+    short_window_default: 5    # From trending_down
+    long_window_default: 20    # From trending_down
+    ma_rule.weight: 0.2        # Same weights as optimization adaptive test
+    
+    rsi_indicator:
+      period: 21               # From trending_down
+      
+    rsi_rule:
+      oversold_threshold: 20.0 # From trending_down
+      overbought_threshold: 60.0 # From trending_down
+      weight: 0.8              # Same weights as optimization adaptive test
+
+  # Data Handler - Same configuration as optimization
+  data_handler_csv:
+    csv_file_path: "data/SPY_1min.csv"
+    symbol: "SPY"
+    timestamp_column: "timestamp"
+    train_test_split_ratio: 0.8  # Keep split to use test data
+    open_column: "Open"
+    high_column: "High"
+    low_column: "Low"
+    close_column: "Close"
+    volume_column: "Volume"
+
+  # Portfolio Manager
+  basic_portfolio:
+    initial_cash: 100000.00
+
+  # Risk Manager
+  basic_risk_manager:
+    target_trade_quantity: 100
+
+  # Execution Handler
+  simulated_execution_handler:
+    default_quantity: 100
+    commission_per_trade: 0.005
+    commission_type: "per_share"
+    passthrough: false
+    fill_price_logic: "signal_price"
+
+  # Configuration for the RegimeDetector instance
+  # Keep it configured but it won't affect the strategy since we're using fixed params
+  MyPrimaryRegimeDetector: 
+    min_regime_duration: 2
+    verbose_logging: false
+    summary_interval: 50
+    
+    indicators:
+      rsi_14: 
+        type: "rsi"
+        parameters: {"period": 14}
+      atr_20:
+        type: "atr"
+        parameters: {"period": 10}
+      trend_10_30:
+        type: "simple_ma_trend"
+        parameters: {"short_period": 5, "long_period": 20}
+    
+    regime_thresholds:
+      trending_up_volatile:
+        trend_10_30: {"min": 0.02}
+        atr_20: {"min": 0.15}
+      
+      trending_up_low_vol:
+        trend_10_30: {"min": 0.02}
+        atr_20: {"max": 0.15}
+        
+      ranging_low_vol:
+        trend_10_30: {"min": -0.01, "max": 0.01}
+        atr_20: {"max": 0.12}
+        
+      trending_down:
+        trend_10_30: {"max": -0.01}
+        
+      oversold_in_uptrend:
+        rsi_14: {"max": 40}
+        trend_10_30: {"min": 0.01}

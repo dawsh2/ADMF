@@ -397,13 +397,15 @@ def run_application_logic(app_container: Container):
         
         logger.info("DataHandler, Strategy, RegimeDetector, PortfolioManager, RiskManager, ExecutionHandler, and Loggers resolved.")
 
+        # Match optimizer's component order for consistent event processing
+        # This ensures RegimeDetector subscribes to BAR events before Strategy
         components_to_manage = [
-            data_handler, 
-            strategy, 
-            regime_detector, 
-            portfolio_manager, 
+            regime_detector,     # FIRST - process regime changes before strategy
+            execution_handler,   # Handles ORDER events from risk manager
             risk_manager, 
-            execution_handler, 
+            strategy,           # AFTER regime detector for consistent signals
+            portfolio_manager, 
+            data_handler,       # LAST - publishes events after all consumers ready
             signal_logger_comp, 
             order_logger_comp   
         ]

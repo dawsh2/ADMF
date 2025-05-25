@@ -1,0 +1,44 @@
+# Production configuration with FIXED trending_down parameters (no adaptive loading)
+system:
+  name: "ADMF-Fixed-TrendingDown"
+  version: "0.1.0"
+
+logging:
+  level: "INFO"
+
+components:
+  # Use the basic MA strategy instead of ensemble to avoid adaptive mode
+  ma_strategy:
+    symbol: "SPY"
+    
+    # FIXED parameters from trending_down regime
+    short_window: 5    # From trending_down
+    long_window: 20    # From trending_down
+    
+  # Data Handler - Same configuration as optimization
+  data_handler_csv:
+    csv_file_path: "data/SPY_1min.csv"
+    symbol: "SPY"
+    timestamp_column: "timestamp"
+    train_test_split_ratio: 0.8  # Keep split to use test data
+    open_column: "Open"
+    high_column: "High"
+    low_column: "Low"
+    close_column: "Close"
+    volume_column: "Volume"
+
+  # Portfolio Manager
+  basic_portfolio:
+    initial_cash: 100000.00
+
+  # Risk Manager
+  basic_risk_manager:
+    target_trade_quantity: 100
+
+  # Execution Handler
+  simulated_execution_handler:
+    default_quantity: 100
+    commission_per_trade: 0.005
+    commission_type: "per_share"
+    passthrough: false
+    fill_price_logic: "signal_price"

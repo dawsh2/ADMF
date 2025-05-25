@@ -52,7 +52,9 @@ class EnsembleSignalStrategy(MAStrategy): # Inheriting MAStrategy for quick demo
         # Load weights from config or use defaults
         # Check for weights in config first, fall back to equal weights
         self._ma_weight = self.get_specific_config('ma_rule.weight', 0.5)
-        self._rsi_weight = self.get_specific_config('rsi_rule.weight', 0.5)
+        # Get RSI weight from nested config structure
+        rsi_config = self.get_specific_config('rsi_rule', {})
+        self._rsi_weight = rsi_config.get('weight', 0.5) if isinstance(rsi_config, dict) else 0.5
         
         # Track current optimization rule for weight adjustment
         self._current_optimization_rule = None
@@ -139,9 +141,8 @@ class EnsembleSignalStrategy(MAStrategy): # Inheriting MAStrategy for quick demo
                             else:
                                 params = regime_data.copy()
                             
-                            # Use equal weights instead of hard-coded values
-                            params['ma_rule.weight'] = 0.5
-                            params['rsi_rule.weight'] = 0.5
+                            # Let weights come from JSON file or config
+                            # Remove hardcoded weight assignments to allow JSON weights to take effect
                             regime_parameters[regime] = params
                         
                         # Enable adaptive mode
@@ -375,11 +376,19 @@ class EnsembleSignalStrategy(MAStrategy): # Inheriting MAStrategy for quick demo
                 params = self._regime_best_parameters[regime]
                 # Only log when regime actually changes, not on every bar
                 if regime != getattr(self, '_last_applied_regime', None):
-                    self.logger.info(f"ADAPTIVE TEST: Applying regime-specific parameters for '{regime}': {params}")
+                    self.logger.info(f"🔄 REGIME PARAMETER UPDATE: '{regime}' applying: {params}")
                     self._last_applied_regime = regime
                 
-                # Apply the parameters (quietly)
+                # Apply the parameters and log the before/after state
+                old_weights = (getattr(self, '_ma_weight', None), getattr(self, '_rsi_weight', None))
+                old_thresholds = (getattr(self.rsi_rule, 'oversold_threshold', None), getattr(self.rsi_rule, 'overbought_threshold', None))
+                
                 self.set_parameters(params)
+                
+                new_weights = (getattr(self, '_ma_weight', None), getattr(self, '_rsi_weight', None))
+                new_thresholds = (getattr(self.rsi_rule, 'oversold_threshold', None), getattr(self.rsi_rule, 'overbought_threshold', None))
+                
+                self.logger.info(f"🔄 PARAMETER CHANGE APPLIED: Weights {old_weights} → {new_weights}, RSI_thresholds {old_thresholds} → {new_thresholds}")
                 
                 # Log all parameters after applying regime-specific parameters
                 current_params = self.get_parameters()
@@ -425,9 +434,15 @@ class EnsembleSignalStrategy(MAStrategy): # Inheriting MAStrategy for quick demo
                     if 'parameters' in regime_data:
                         # Handle double nesting in JSON structure
                         if 'parameters' in regime_data['parameters']:
-                            regime_specific_params = regime_data['parameters']['parameters']
+                            regime_specific_params = regime_data['parameters']['parameters'].copy()
                         else:
-                            regime_specific_params = regime_data['parameters']
+                            regime_specific_params = regime_data['parameters'].copy()
+                        
+                        # CRITICAL FIX: Also load weights from the regime data
+                        if 'weights' in regime_data and regime_data['weights']:
+                            regime_specific_params.update(regime_data['weights'])
+                            self.logger.info(f"Added regime weights to parameters: {regime_data['weights']}")
+                        
                         self.logger.info(f"Found regime-specific parameters for '{regime}': {regime_specific_params}")
                         
                 # If not, use overall best parameters as fallback
@@ -439,14 +454,22 @@ class EnsembleSignalStrategy(MAStrategy): # Inheriting MAStrategy for quick demo
                 if regime_specific_params:
                     # Translate parameters to format expected by the strategy
                     translated_params = self._translate_parameters(regime_specific_params)
-                    # Add the optimized weights to the parameters
-                    # These were found by genetic optimization but not saved in the JSON
-                    regime_specific_params['ma_rule.weight'] = 0.341
-                    regime_specific_params['rsi_rule.weight'] = 0.659
+                    # Let weights come from JSON file - no hardcoded overrides
+                    # The optimized weights are now saved in the JSON file
                     
-                    self.logger.info(f"Applying parameters for '{regime}': {regime_specific_params}")
+                    self.logger.info(f"🔄 FILE-BASED REGIME PARAMETER UPDATE: '{regime}' applying: {regime_specific_params}")
+                    
+                    # Log before/after state for file-based parameters too
+                    old_weights = (getattr(self, '_ma_weight', None), getattr(self, '_rsi_weight', None))
+                    old_thresholds = (getattr(self.rsi_rule, 'oversold_threshold', None), getattr(self.rsi_rule, 'overbought_threshold', None))
+                    
                     # Apply the parameters
                     success = self.set_parameters(regime_specific_params)
+                    
+                    new_weights = (getattr(self, '_ma_weight', None), getattr(self, '_rsi_weight', None))
+                    new_thresholds = (getattr(self.rsi_rule, 'oversold_threshold', None), getattr(self.rsi_rule, 'overbought_threshold', None))
+                    
+                    self.logger.info(f"🔄 FILE-BASED PARAMETER CHANGE: Weights {old_weights} → {new_weights}, RSI_thresholds {old_thresholds} → {new_thresholds}")
                     if success:
                         self.logger.info(f"Successfully applied regime parameters for '{regime}'")
                         # Log current weights to verify they were updated
@@ -549,6 +572,22 @@ class EnsembleSignalStrategy(MAStrategy): # Inheriting MAStrategy for quick demo
         oversold = getattr(self.rsi_rule, 'oversold_threshold', 'N/A')
         overbought = getattr(self.rsi_rule, 'overbought_threshold', 'N/A')
         
+        # COMPREHENSIVE INDICATOR LOGGING FOR DEBUGGING SIGNAL DIFFERENCES
+        # Log every bar's indicator values to compare optimizer vs standalone
+        if hasattr(self, '_bar_count') and self._bar_count <= 50:  # First 50 bars only
+            ma_short_str = f"{current_short_ma:.4f}" if current_short_ma is not None else "N/A"
+            ma_long_str = f"{current_long_ma:.4f}" if current_long_ma is not None else "N/A"
+            rsi_str = f"{current_rsi:.2f}" if current_rsi is not None else "N/A"
+            
+            self.logger.info(f"📊 BAR_{self._bar_count:03d} [{bar_timestamp}] INDICATORS: " +
+                           f"Price={close_price:.4f}, " +
+                           f"MA_short={ma_short_str}, " +
+                           f"MA_long={ma_long_str}, " +
+                           f"RSI={rsi_str}, " +
+                           f"RSI_thresholds=({oversold},{overbought}), " +
+                           f"Regime={self._current_regime}, " +
+                           f"Weights=(MA:{self._ma_weight:.3f},RSI:{self._rsi_weight:.3f})")
+        
         # DEBUG: Log RSI values that approach thresholds to see if they're being hit
         if current_rsi is not None and isinstance(oversold, (int, float)) and isinstance(overbought, (int, float)):
             if current_rsi <= oversold + 5 or current_rsi >= overbought - 5:
@@ -635,6 +674,14 @@ class EnsembleSignalStrategy(MAStrategy): # Inheriting MAStrategy for quick demo
             final_signal_type_int = current_signal_to_publish
             self._current_signal_state = final_signal_type_int # Update strategy's overall state
             
+            # DETAILED SIGNAL LOGGING FOR DEBUGGING
+            self.logger.info(f"🚨 SIGNAL GENERATED #{self._bar_count}: " +
+                           f"Type={final_signal_type_int}, Price={close_price:.4f}, " +
+                           f"Regime={self._current_regime}, " +
+                           f"MA_signal={ma_signal_type_int}(w={ma_influence:.3f}), " +
+                           f"RSI_signal={rsi_signal_type_int}(w={rsi_influence:.3f}), " +
+                           f"Combined_strength={combined_signal_strength:.3f}, " +
+                           f"Final_multiplier={signal_strength_multiplier:.3f}")
             
             signal_payload: Dict[str, Any] = {
                 "symbol": self._symbol,

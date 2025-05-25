@@ -1,0 +1,98 @@
+# Adaptive Production configuration with SHIFTED SPLIT for warmup
+# This shifts the train/test split earlier to include ~30 warmup bars in the "test" period
+system:
+  name: "ADMF-Adaptive-Production-Shifted"
+  version: "0.1.0"
+
+logging:
+  level: "INFO"
+
+components:
+  # Configuration for the Ensemble Strategy
+  ensemble_strategy:
+    symbol: "SPY"
+    
+    # MA Crossover part
+    short_window_default: 10
+    long_window_default: 20
+    ma_rule.weight: 0.2
+
+    rsi_indicator:
+      period: 14
+      
+    rsi_rule:
+      oversold_threshold: 30.0
+      overbought_threshold: 70.0
+      weight: 0.8
+
+  # Data Handler - ADJUSTED SPLIT
+  data_handler_csv:
+    csv_file_path: "data/1000_1min.csv"
+    symbol: "SPY"
+    timestamp_column: "timestamp"
+    
+    # SHIFT THE SPLIT EARLIER TO INCLUDE WARMUP BARS
+    # Original: 0.8 (800 train, 200 test)
+    # New: 0.77 (770 train, 230 test) - adds 30 bars for warmup
+    train_test_split_ratio: 0.77
+    
+    open_column: "Open"
+    high_column: "High"
+    low_column: "Low"
+    close_column: "Close"
+    volume_column: "Volume"
+
+  # Portfolio Manager
+  basic_portfolio:
+    initial_cash: 100000.00
+
+  # Risk Manager
+  basic_risk_manager:
+    target_trade_quantity: 100
+
+  # Execution Handler
+  simulated_execution_handler:
+    default_quantity: 100
+    commission_per_trade: 0.005
+    commission_type: "per_share"
+    passthrough: false
+    fill_price_logic: "signal_price"
+
+  # Configuration for the RegimeDetector instance
+  MyPrimaryRegimeDetector: 
+    min_regime_duration: 2
+    
+    # Logging optimization parameters
+    verbose_logging: false
+    summary_interval: 50
+    
+    indicators:
+      rsi_14: 
+        type: "rsi"
+        parameters: {"period": 14}
+      atr_20:
+        type: "atr"
+        parameters: {"period": 10}
+      trend_10_30:
+        type: "simple_ma_trend"
+        parameters: {"short_period": 5, "long_period": 20}
+    
+    regime_thresholds:
+      trending_up_volatile:
+        trend_10_30: {"min": 0.02}
+        atr_20: {"min": 0.15}
+      
+      trending_up_low_vol:
+        trend_10_30: {"min": 0.02}
+        atr_20: {"max": 0.15}
+        
+      ranging_low_vol:
+        trend_10_30: {"min": -0.01, "max": 0.01}
+        atr_20: {"max": 0.12}
+        
+      trending_down:
+        trend_10_30: {"max": -0.01}
+        
+      oversold_in_uptrend:
+        rsi_14: {"max": 40}
+        trend_10_30: {"min": 0.01}

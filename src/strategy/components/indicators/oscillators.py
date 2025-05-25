@@ -122,6 +122,11 @@ class RSIIndicator(BaseComponent):
             rs = self._avg_gain / self._avg_loss
             self._current_value = 100.0 - (100.0 / (1.0 + rs))
         
+        # Log first valid RSI value for warm-up tracking
+        if not hasattr(self, '_first_value_logged') and self._current_value is not None:
+            self._first_value_logged = True
+            timestamp = data_or_price.get('timestamp', 'Unknown') if isinstance(data_or_price, dict) else 'Unknown'
+            self.logger.info(f"RSI '{self.name}' first valid value: {self._current_value:.2f} at {timestamp} after {len(self._prices)} bars (period={self.period})")
         
         return self._current_value
 

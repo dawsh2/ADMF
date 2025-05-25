@@ -236,6 +236,12 @@ class RegimeDetector(Classifier):
                 # Track regime counts for statistics
                 self._regime_counts[regime_name] = self._regime_counts.get(regime_name, 0) + 1
                 
+                # Log classification in a parseable format
+                trend_val = indicator_values.get('ma_trend', 'N/A')
+                vol_val = indicator_values.get('atr', 'N/A')
+                rsi_val = indicator_values.get('rsi', 'N/A')
+                self.logger.info(f"Regime classification: trend_strength={trend_val}, volatility={vol_val}, rsi_level={rsi_val} → regime={regime_name}")
+                
                 self.logger.info(f"RegimeDet '{self.name}' at {current_bar_timestamp}: Regime '{regime_name}' MATCHED. Indicator values: {indicator_values}")
                 if self._verbose_logging:
                     self.logger.debug(f"Full regime checks: {regime_check_results}")
@@ -257,6 +263,12 @@ class RegimeDetector(Classifier):
             self._no_match_count = 0
             self._checks_since_last_log = 0
             
+        # Log classification in a parseable format for default case
+        trend_val = indicator_values.get('ma_trend', 'N/A')
+        vol_val = indicator_values.get('atr', 'N/A')
+        rsi_val = indicator_values.get('rsi', 'N/A')
+        self.logger.info(f"Regime classification: trend_strength={trend_val}, volatility={vol_val}, rsi_level={rsi_val} → regime=default")
+        
         self.logger.debug(f"RegimeDet '{self.name}' at {current_bar_timestamp}: No specific regime matched. Defaulting. Indicator values: {indicator_values}")
         return "default"
 

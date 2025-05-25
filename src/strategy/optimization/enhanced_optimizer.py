@@ -1516,10 +1516,10 @@ class EnhancedOptimizer(BasicOptimizer):
                     except Exception as e:
                         self.logger.error(f"Failed to apply default parameters: {e}", exc_info=True)
                 else:
-                    self.logger.info(f"No specific parameters for {new_regime}, using best overall parameters")
+                    self.logger.info(f"No specific parameters for {new_regime}, using production-compatible fallback parameters")
                     try:
-                        strategy_to_optimize.set_parameters(results["best_parameters_on_train"])
-                        self.logger.debug("Successfully applied best overall parameters")
+                        strategy_to_optimize.set_parameters(fallback_params)
+                        self.logger.debug("Successfully applied production-compatible fallback parameters")
                     except Exception as e:
                         self.logger.error(f"Failed to apply best overall parameters: {e}", exc_info=True)
             
@@ -1623,9 +1623,18 @@ class EnhancedOptimizer(BasicOptimizer):
                 else:
                     self.logger.debug(f"No GA weights available for regime '{regime}' - using grid search parameters only")
             
-            # Use best overall parameters as fallback for any unoptimized regimes
-            fallback_params = results["best_parameters_on_train"]
-            self.logger.info(f"Using best overall parameters as fallback: {fallback_params}")
+            # CRITICAL FIX: Use production-compatible fallback parameters instead of training optimization parameters
+            # This ensures the adaptive test matches the standalone production run behavior
+            fallback_params = {
+                "short_window": 10,
+                "long_window": 20, 
+                "ma_rule.weight": 0.5,       # Equal weights like production config
+                "rsi_rule.weight": 0.5,      # Equal weights like production config
+                "rsi_indicator.period": 14,
+                "rsi_rule.oversold_threshold": 30.0,
+                "rsi_rule.overbought_threshold": 70.0
+            }
+            self.logger.info(f"Using production-compatible fallback parameters: {fallback_params}")
             
             # CRITICAL FIX: Enable adaptive mode if supported - use STDOUT print for visibility
             if has_adaptive_mode:
@@ -1664,7 +1673,7 @@ class EnhancedOptimizer(BasicOptimizer):
                 print("=" * 80)
                 
                 self.logger.warning("Strategy does not support adaptive mode - will use initial parameters only")
-                initial_params = results["best_parameters_per_regime"].get("default", results["best_parameters_on_train"])
+                initial_params = results["best_parameters_per_regime"].get("default", fallback_params)
                 if hasattr(strategy_to_optimize, "set_parameters") and callable(getattr(strategy_to_optimize, "set_parameters")):
                     self.logger.info(f"Setting initial parameters for adaptive strategy: {initial_params}")
                     strategy_to_optimize.set_parameters(initial_params)
