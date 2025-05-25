@@ -1,0 +1,70 @@
+# Example configuration for backtest mode using the new Bootstrap system
+# This demonstrates config-driven behavior
+
+system:
+  name: "ADMF-Trader"
+  version: "2.0.0"
+  
+  # This determines what mode the application runs in
+  # Not command line arguments!
+  application_mode: "backtest"
+  
+  # Entrypoint configuration for each mode
+  run_modes:
+    backtest:
+      entrypoint_component: "app_runner"
+      description: "Standard historical backtest"
+    optimization:
+      entrypoint_component: "app_runner"
+      description: "Parameter optimization"
+    production:
+      entrypoint_component: "app_runner"
+      description: "Live trading"
+    test:
+      entrypoint_component: "app_runner"
+      description: "Test mode with limited data"
+
+logging:
+  level: "INFO"
+  file: "logs/backtest_{timestamp}.log"
+
+# Component configurations
+components:
+  # AppRunner configuration (our new main application component)
+  app_runner:
+    # AppRunner uses context.metadata for CLI args
+    # No specific config needed
+    
+  # Data handler configuration
+  data_handler_csv:
+    csv_file_path: "data/SPY_1min.csv"
+    symbol: "SPY"
+    timestamp_column: "timestamp"
+    train_test_split_ratio: 0.8
+    max_bars: null  # Can be overridden by --bars CLI arg
+    
+  # Strategy configuration
+  regime_adaptive_strategy:
+    symbol: "SPY"
+    short_window_default: 10
+    long_window_default: 20
+    ma_rule.weight: 0.6
+    regime_detector_service_name: "MyPrimaryRegimeDetector"
+    regime_params_file_path: "regime_optimized_parameters.json"
+    fallback_to_overall_best: true
+    
+  # Portfolio configuration
+  basic_portfolio:
+    initial_cash: 100000.0
+    allow_short: false
+    max_position_size: 0.95
+    
+  # Risk manager configuration
+  basic_risk_manager:
+    max_position_size: 0.95
+    stop_loss_pct: 0.02
+    
+  # Execution handler configuration
+  simulated_execution_handler:
+    slippage_pct: 0.0001
+    commission_per_share: 0.01

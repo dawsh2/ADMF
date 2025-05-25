@@ -1,0 +1,89 @@
+# Example configuration for optimization mode
+# Shows how to configure the system for parameter optimization
+
+system:
+  name: "ADMF-Trader Optimizer"
+  version: "2.0.0"
+  
+  # Just change this to run optimization instead of backtest!
+  application_mode: "optimization"
+  
+  # All modes use app_runner as entrypoint
+  run_modes:
+    optimization:
+      entrypoint_component: "app_runner"
+      description: "Grid search and genetic optimization"
+
+logging:
+  level: "INFO"
+  file: "logs/optimization_{timestamp}.log"
+
+# Component configurations
+components:
+  # Data configuration for optimization
+  data_handler_csv:
+    csv_file_path: "data/SPY_1min.csv"
+    symbol: "SPY"
+    timestamp_column: "timestamp"
+    train_test_split_ratio: 0.8  # 80% train, 20% test
+    
+  # Optimizer configuration
+  optimizer:
+    metric_to_optimize: "get_total_return"
+    higher_is_better: true
+    
+    # Parameter search space
+    parameter_ranges:
+      ma_rule:
+        short_window: [5, 10, 15, 20]
+        long_window: [20, 30, 40, 50]
+      rsi_rule:
+        period: [10, 14, 20]
+        oversold_threshold: [20, 30, 40]
+        overbought_threshold: [60, 70, 80]
+        
+  # Genetic optimizer configuration
+  genetic_optimizer:
+    population_size: 50
+    generations: 100
+    crossover_rate: 0.8
+    mutation_rate: 0.2
+    elite_size: 5
+    tournament_size: 3
+    
+  # Strategy to optimize (using ensemble for optimization)
+  ensemble_strategy:
+    symbol: "SPY"
+    # Initial parameters (will be optimized)
+    short_window_default: 10
+    long_window_default: 20
+    ma_rule.weight: 0.5
+    
+    rsi_indicator:
+      period: 14
+      
+    rsi_rule:
+      oversold_threshold: 30.0
+      overbought_threshold: 70.0
+      weight: 0.5
+      
+  # Portfolio for backtesting during optimization
+  basic_portfolio:
+    initial_cash: 100000.0
+    allow_short: false
+    
+  # Risk manager
+  basic_risk_manager:
+    max_position_size: 0.95
+    
+# Optimization-specific settings
+optimization:
+  enabled: true  # Alternative way to trigger optimization mode
+  save_results: true
+  results_file: "optimization_results_{timestamp}.json"
+  
+  # Per-regime optimization settings
+  regime_optimization:
+    enabled: true
+    min_samples_per_regime: 100
+    regimes_to_optimize: ["Bullish", "Bearish", "Neutral"]

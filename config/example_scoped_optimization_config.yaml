@@ -1,0 +1,98 @@
+# Example configuration for optimization using scoped containers
+# This shows how to configure optimization for clean isolation between trials
+
+system:
+  name: "ADMF-Trader Scoped Optimizer"
+  version: "2.0.0"
+  application_mode: "optimization"
+  
+  # Enable scoped containers for optimization trials
+  optimization_settings:
+    use_scoped_containers: true
+    parallel_trials: false  # Set to true when ready for parallel execution
+    
+  run_modes:
+    optimization:
+      entrypoint_component: "app_runner"
+      # Could also use a specialized scoped optimizer component
+      # entrypoint_component: "scoped_optimizer"
+
+logging:
+  level: "INFO"
+  file: "logs/scoped_optimization_{timestamp}.log"
+  
+  # Per-trial logging configuration
+  trial_logging:
+    enabled: true
+    level: "DEBUG"
+    pattern: "logs/trials/trial_{trial_id}_{timestamp}.log"
+
+# Component configurations
+components:
+  # Optimizer configuration with scoped container support
+  optimizer:
+    metric_to_optimize: "get_sharpe_ratio"
+    higher_is_better: true
+    
+    # Enable scoped execution
+    execution_mode: "scoped"
+    
+    # Components to create fresh for each trial
+    scoped_components:
+      - "data_handler"
+      - "strategy" 
+      - "portfolio_manager"
+      - "risk_manager"
+      - "execution_handler"
+      
+    # Components to share across trials (from parent container)
+    shared_components:
+      - "config"
+      - "logger"
+      
+    # Parameter search configuration
+    parameter_ranges:
+      ma_rule:
+        short_window: [5, 10, 15]
+        long_window: [20, 30, 40]
+        
+  # Genetic optimizer with scoped trials
+  genetic_optimizer:
+    population_size: 30
+    generations: 50
+    
+    # Parallel evaluation of individuals (requires scoped containers)
+    parallel_evaluation: false  # Set true when ready
+    max_workers: 4
+    
+    # Each individual gets its own scoped context
+    use_scoped_contexts: true
+    
+  # Data handler (created fresh for each trial)
+  data_handler_csv:
+    csv_file_path: "data/SPY_1min.csv"
+    symbol: "SPY"
+    train_test_split_ratio: 0.8
+    
+  # Strategy (created fresh for each trial)
+  ensemble_strategy:
+    symbol: "SPY"
+    # Parameters will be set by optimizer for each trial
+    
+  # Portfolio (created fresh for each trial - no state pollution!)
+  basic_portfolio:
+    initial_cash: 100000.0
+    allow_short: false
+    
+# Scoped container configuration
+scoped_containers:
+  # What to log for each scope
+  scope_logging:
+    log_creation: true
+    log_destruction: true
+    log_component_count: true
+    
+  # Resource limits per scope (future enhancement)
+  resource_limits:
+    max_memory_mb: 512
+    max_execution_time_seconds: 300

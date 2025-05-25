@@ -1,0 +1,89 @@
+# Example configuration using dedicated runner components
+# This shows the proper separation of concerns
+
+system:
+  name: "ADMF-Trader"
+  version: "2.0.0"
+  
+  # Mode still determines behavior
+  application_mode: "backtest"  # or "optimization"
+  
+  # But now each mode uses its dedicated runner component!
+  run_modes:
+    backtest:
+      entrypoint_component: "backtest_runner"
+      description: "Dedicated backtest execution component"
+      
+    optimization:
+      entrypoint_component: "optimization_runner"  
+      description: "Dedicated optimization orchestration component"
+      
+    production:
+      entrypoint_component: "production_runner"
+      description: "Live trading component (TBD)"
+      
+    test:
+      entrypoint_component: "test_runner"
+      description: "Test execution component (TBD)"
+
+logging:
+  level: "INFO"
+
+# Component configurations
+components:
+  # Backtest runner configuration
+  backtest_runner:
+    use_test_dataset: false  # Use full dataset by default
+    close_positions_at_end: true
+    save_results: true
+    results_file: "backtest_results_{timestamp}.json"
+    
+  # Optimization runner configuration  
+  optimization_runner:
+    # Enable scoped containers for clean isolation!
+    use_scoped_containers: true
+    optimization_type: "grid_search"
+    
+    # Metric to optimize
+    metric: "sharpe_ratio"  # or "total_return", "max_drawdown", etc.
+    
+    # Components to create fresh for each trial
+    scoped_components:
+      - "data_handler"
+      - "strategy"
+      - "portfolio_manager"
+      - "risk_manager"
+      - "execution_handler"
+      
+    # Components to share across trials
+    shared_components:
+      - "config"
+      - "logger"
+    
+  # Standard optimizer configuration (used by optimization_runner)
+  optimizer:
+    metric_to_optimize: "get_sharpe_ratio"
+    higher_is_better: true
+    
+    parameter_ranges:
+      ma_rule:
+        short_window: [5, 10, 15]
+        long_window: [20, 30, 40]
+      rsi_rule:
+        period: [10, 14, 20]
+        
+  # Data handler configuration
+  data_handler_csv:
+    csv_file_path: "data/SPY_1min.csv"
+    symbol: "SPY"
+    train_test_split_ratio: 0.8
+    
+  # Strategy configuration
+  regime_adaptive_strategy:
+    symbol: "SPY"
+    # ... strategy params ...
+    
+  # Portfolio configuration
+  basic_portfolio:
+    initial_cash: 100000.0
+    allow_short: false

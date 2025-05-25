@@ -198,44 +198,58 @@ class Bootstrap:
             'class': 'CSVDataHandler',
             'module': 'data.csv_data_handler',
             'dependencies': ['event_bus'],
-            'config_key': 'data'
+            'config_key': 'components.data_handler_csv'
         },
         'execution_handler': {
             'class': 'SimulatedExecutionHandler',
             'module': 'execution.simulated_execution_handler',
-            'dependencies': ['event_bus', 'portfolio'],
-            'config_key': 'execution'
+            'dependencies': ['event_bus', 'portfolio_manager'],
+            'config_key': 'components.simulated_execution_handler'
         },
-        'portfolio': {
+        'portfolio_manager': {  # Note: using portfolio_manager to match existing code
             'class': 'BasicPortfolio',
             'module': 'risk.basic_portfolio',
-            'dependencies': ['event_bus'],
-            'config_key': 'portfolio'
+            'dependencies': ['event_bus', 'container'],
+            'config_key': 'components.basic_portfolio'
         },
         'risk_manager': {
             'class': 'BasicRiskManager',
             'module': 'risk.basic_risk_manager',
-            'dependencies': ['event_bus', 'portfolio'],
-            'config_key': 'risk'
+            'dependencies': ['event_bus', 'portfolio_manager', 'container'],
+            'config_key': 'components.basic_risk_manager'
         },
         'strategy': {
-            'class': 'MAStrategy',  # Default, can be overridden
-            'module': 'strategy.ma_strategy',
-            'dependencies': ['event_bus', 'data_handler'],
-            'config_key': 'strategy'
+            'class': 'RegimeAdaptiveStrategy',  # Default for production
+            'module': 'strategy.regime_adaptive_strategy',
+            'dependencies': ['event_bus', 'data_handler', 'container'],
+            'config_key': 'components.regime_adaptive_strategy'
         },
-        'regime_detector': {
+        'MyPrimaryRegimeDetector': {  # Using exact name from current code
             'class': 'RegimeDetector',
             'module': 'strategy.regime_detector',
             'dependencies': ['event_bus'],
-            'config_key': 'regime_detector',
-            'required': False  # Optional component
+            'config_key': 'components.MyPrimaryRegimeDetector',
+            'required': False
         },
         'optimizer': {
-            'class': 'BasicOptimizer',
-            'module': 'strategy.optimization.basic_optimizer',
+            'class': 'EnhancedOptimizerV3',
+            'module': 'strategy.optimization.enhanced_optimizer_v3',
+            'dependencies': ['event_bus', 'container'],
+            'config_key': 'components.optimizer',
+            'required': False
+        },
+        'signal_consumer': {
+            'class': 'DummyComponent',
+            'module': 'core.dummy_component',
             'dependencies': ['event_bus'],
-            'config_key': 'optimization',
+            'config_key': 'components.dummy_service',
+            'required': False
+        },
+        'order_consumer': {
+            'class': 'DummyComponent', 
+            'module': 'core.dummy_component',
+            'dependencies': ['event_bus'],
+            'config_key': 'components.dummy_service',
             'required': False
         }
     }
@@ -726,6 +740,75 @@ class Bootstrap:
     def get_context(self) -> Optional[SystemContext]:
         """Get current system context."""
         return self.context
+        
+    def create_scoped_context(self, 
+                            scope_name: str,
+                            shared_services: Optional[List[str]] = None) -> 'SystemContext':
+        """
+        Create a scoped context for isolated execution (e.g., backtest trials).
+        
+        This method creates a child context that inherits certain services from
+        the parent while providing isolation for stateful components.
+        
+        Args:
+            scope_name: Name for this scope (e.g., "trial_1", "backtest_2025-01-15")
+            shared_services: List of service names to inherit from parent
+                           Defaults to ['config', 'logger'] if not specified
+            
+        Returns:
+            A new SystemContext with a scoped container
+            
+        Raises:
+            RuntimeError: If system not initialized
+        """
+        if not self.context:
+            raise RuntimeError("System not initialized. Call initialize() first.")
+            
+        # Default shared services - typically stateless/system-wide
+        if shared_services is None:
+            shared_services = ['config', 'logger', 'context']
+            
+        # Create child container
+        scoped_container = Container(parent=self.context.container)
+        
+        # Create new event bus for complete event isolation
+        scoped_event_bus = EventBus()
+        
+        # Create scoped logger as child of main logger
+        scoped_logger = self.context.logger.getChild(scope_name)
+        
+        # Create scoped context
+        scoped_context = SystemContext(
+            config=self.context.config,  # Share config
+            container=scoped_container,
+            event_bus=scoped_event_bus,
+            logger=scoped_logger,
+            run_mode=self.context.run_mode,
+            metadata={
+                **self.context.metadata,
+                'scope': scope_name,
+                'parent_context': self.context,
+                'shared_services': shared_services
+            }
+        )
+        
+        # Register shared services in scoped container
+        # These will override parent lookups for explicit control
+        for service_name in shared_services:
+            try:
+                service = self.context.container.resolve(service_name)
+                scoped_container.register_instance(service_name, service)
+            except DependencyNotFoundError:
+                scoped_logger.warning(f"Shared service '{service_name}' not found in parent")
+                
+        # Always register the scoped context and event bus
+        scoped_container.register_instance('context', scoped_context)
+        scoped_container.register_instance('event_bus', scoped_event_bus)
+        scoped_container.register_instance('logger', scoped_logger)
+        
+        scoped_logger.info(f"Created scoped context '{scope_name}' with isolated container and event bus")
+        
+        return scoped_context
         
     def get_lifecycle_state(self, component_name: str) -> ComponentState:
         """Get current lifecycle state of a component."""

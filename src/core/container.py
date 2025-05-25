@@ -7,10 +7,11 @@ from .exceptions import DependencyNotFoundError
 logger = logging.getLogger(__name__)
 
 class Container:
-    def __init__(self):
+    def __init__(self, parent: Optional['Container'] = None):
         self._instances: Dict[str, Any] = {}
         self._providers: Dict[str, Dict[str, Any]] = {}
-        logger.info("DI Container initialized.")
+        self._parent = parent
+        logger.info(f"DI Container initialized{' (with parent)' if parent else ''}.")
 
     def register_instance(self, name: str, instance: Any):
         if name in self._instances or name in self._providers:
@@ -67,6 +68,7 @@ class Container:
         logger.debug(f"Factory '{factory.__name__}' registered for '{name}' (singleton={singleton}).")
     
     def resolve(self, name: str) -> Any:
+        # First, try to resolve locally
         if name in self._instances:
             logger.debug(f"Resolving '{name}' from cached instance.")
             return self._instances[name]
@@ -91,8 +93,43 @@ class Container:
             
             return instance
 
-        logger.error(f"No service or provider found for name '{name}'.")
-        raise DependencyNotFoundError(f"Service '{name}' not found in container.")
+        # If not found locally, try parent container
+        if self._parent:
+            logger.debug(f"Service '{name}' not found locally, checking parent container.")
+            try:
+                return self._parent.resolve(name)
+            except DependencyNotFoundError:
+                pass  # Continue to throw our own error below
 
-    def is_registered(self, name: str) -> bool:
-        return name in self._instances or name in self._providers
+        logger.error(f"No service or provider found for name '{name}'.")
+        raise DependencyNotFoundError(f"Service '{name}' not found in container or parent container.")
+
+    def is_registered(self, name: str, check_parent: bool = True) -> bool:
+        """Check if a service is registered in this container or parent."""
+        # Check local registration
+        if name in self._instances or name in self._providers:
+            return True
+            
+        # Check parent if requested
+        if check_parent and self._parent:
+            return self._parent.is_registered(name)
+            
+        return False
+    
+    def reset(self) -> None:
+        """Clear all registrations and instances from this container."""
+        self._instances.clear()
+        self._providers.clear()
+        logger.info("Container reset - all registrations cleared.")
+        
+    def register(self, name: str, service: Any, singleton: bool = True) -> None:
+        """
+        Convenience method to register either an instance or a type.
+        
+        If service is already an instance, use register_instance.
+        If service is a type, use register_type.
+        """
+        if isinstance(service, type):
+            self.register_type(name, service, singleton=singleton)
+        else:
+            self.register_instance(name, service)
