@@ -33,26 +33,26 @@ from datetime import datetime
 import logging
 
 # Import core system components
-from core.config import Config
-from core.container import Container
-from core.event_bus import EventBus
-from core.logging_setup import setup_logger
+from .config import SimpleConfigLoader
+from .container import Container
+from .event_bus import EventBus
+from .logging_setup import setup_logger
 
 # Import required components based on COMPONENT_ARCHITECTURE.md
-from data.csv_data_handler import CSVDataHandler
-from execution.simulated_execution_handler import SimulatedExecutionHandler
-from risk.basic_portfolio import BasicPortfolio
-from risk.basic_risk_manager import BasicRiskManager
-from strategy.ma_strategy import MAStrategy
-from strategy.regime_adaptive_strategy import RegimeAdaptiveStrategy
-from strategy.regime_detector import RegimeDetector
+from ..data.csv_data_handler import CSVDataHandler
+from ..execution.simulated_execution_handler import SimulatedExecutionHandler
+from ..risk.basic_portfolio import BasicPortfolio
+from ..risk.basic_risk_manager import BasicRiskManager
+from ..strategy.ma_strategy import MAStrategy
+from ..strategy.regime_adaptive_strategy import RegimeAdaptiveStrategy
+from ..strategy.regime_detector import RegimeDetector
 
 # Import optimization components
-from strategy.optimization.basic_optimizer import BasicOptimizer
-from strategy.optimization.genetic_optimizer import GeneticOptimizer
+from ..strategy.optimization.basic_optimizer import BasicOptimizer
+from ..strategy.optimization.genetic_optimizer import GeneticOptimizer
 
 # Import dependency graph for validation
-from core.dependency_graph import DependencyGraph
+from .dependency_graph import DependencyGraph
 
 
 class RunMode(Enum):
@@ -78,7 +78,7 @@ class SystemContext:
     System-wide context available to all components.
     Based on INTERFACE_DESIGN.md context pattern.
     """
-    config: Config
+    config: SimpleConfigLoader
     container: Container
     event_bus: EventBus
     logger: logging.Logger
@@ -302,7 +302,7 @@ class Bootstrap:
                     self.context.logger.error(f"Hook {hook_name} failed: {e}")
                     
     def initialize(self, 
-                  config: Config,
+                  config: SimpleConfigLoader,
                   run_mode: RunMode = RunMode.PRODUCTION,
                   container: Optional[Container] = None,
                   metadata: Optional[Dict[str, Any]] = None) -> SystemContext:

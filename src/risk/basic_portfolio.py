@@ -4,22 +4,20 @@ import datetime
 from typing import Dict, Any, Optional, List, Tuple 
 import uuid
 
-from ..core.component import BaseComponent
+from ..core.component_base import ComponentBase
 from ..core.event import Event, EventType
 from ..core.exceptions import ComponentError, DependencyNotFoundError 
 
-class BasicPortfolio(BaseComponent):
-    def __init__(self, 
-                 instance_name: str, 
-                 config_loader, 
-                 event_bus, 
-                 container, 
-                 component_config_key: Optional[str] = None):
-        super().__init__(instance_name, config_loader, component_config_key)
-        self._event_bus = event_bus
-        self._container = container 
-        self.initial_cash: float = self.get_specific_config('initial_cash', 100000.0)
-        self.current_cash: float = self.initial_cash
+class BasicPortfolio(ComponentBase):
+    def __init__(self, instance_name: str, config_key: Optional[str] = None):
+        """Minimal constructor following ComponentBase pattern."""
+        super().__init__(instance_name, config_key)
+        
+        # Initialize internal state (no external dependencies)
+        
+        # Configuration parameters (will be set in initialize)
+        self.initial_cash: float = 100000.0
+        self.current_cash: float = 100000.0
         
         # Stores open positions:
         # {symbol: {
@@ -41,33 +39,48 @@ class BasicPortfolio(BaseComponent):
         self.current_total_value: float = self.initial_cash
         self._last_bar_prices: Dict[str, float] = {}
 
-        self._regime_detector: Optional[Any] = None 
-        self.regime_detector_key: str = self.get_specific_config('regime_detector_service_name', "MyPrimaryRegimeDetector")
-        self._current_market_regime: Optional[str] = "default" 
+        self._regime_detector: Optional[Any] = None
+        self.regime_detector_key: str = "MyPrimaryRegimeDetector"
+        self._current_market_regime: Optional[str] = "default"
 
         self._portfolio_value_history: List[Tuple[Optional[datetime.datetime], float]] = []
+    
+    def _initialize(self):
+        """Component-specific initialization logic."""
+        # Load configuration
+        self.initial_cash = self.get_specific_config('initial_cash', 100000.0)
+        self.current_cash = self.initial_cash
+        self.regime_detector_key = self.get_specific_config('regime_detector_service_name', "MyPrimaryRegimeDetector")
         
-        self.logger.info(f"BasicPortfolio '{self.name}' initialized with initial cash: {self.initial_cash:.2f}")
+        self.logger.info(f"BasicPortfolio '{self.instance_name}' initialized with initial cash: {self.initial_cash:.2f}")
+    
+    def get_specific_config(self, key: str, default=None):
+        """Helper method to get configuration values."""
+        if not self.config_loader:
+            return default
+        config_key = self.config_key or self.instance_name
+        config = self.config_loader.get_component_config(config_key)
+        return config.get(key, default) if config else default
         
     def reset(self):
         """Reset the portfolio to its initial state for a fresh backtest run."""
         trade_count_before = len(self._trade_log) if hasattr(self, '_trade_log') else 0
-        self.logger.debug(f"Resetting portfolio '{self.name}' - had {trade_count_before} trades")
+        self.logger.debug(f"Resetting portfolio '{self.instance_name}' - had {trade_count_before} trades")
         
         # DEBUG: Add stack trace to identify what's calling reset
         import traceback
         stack_trace = ''.join(traceback.format_stack()[-5:])  # Last 5 stack frames
         self.logger.debug(f"Portfolio reset called from: {stack_trace.split()[-1] if stack_trace else 'unknown'}")
         
-        self.logger.info(f"Resetting portfolio '{self.name}' to initial state")
+        self.logger.info(f"Resetting portfolio '{self.instance_name}' to initial state")
         
         # Unsubscribe from events first to prevent duplicate subscriptions
-        if self._event_bus:
+        if self.event_bus:
             try:
-                self._event_bus.unsubscribe(EventType.FILL, self.on_fill)
-                self._event_bus.unsubscribe(EventType.BAR, self.on_bar)
-                self._event_bus.unsubscribe(EventType.CLASSIFICATION, self.on_classification_change)
-                self.logger.debug(f"'{self.name}' unsubscribed from events during reset.")
+                self.event_bus.unsubscribe(EventType.FILL, self.on_fill)
+                self.event_bus.unsubscribe(EventType.BAR, self.on_bar)
+                self.event_bus.unsubscribe(EventType.CLASSIFICATION, self.on_classification_change)
+                self.logger.debug(f"'{self.instance_name}' unsubscribed from events during reset.")
             except Exception as e:
                 self.logger.warning(f"Error unsubscribing from events during reset: {e}")
         
@@ -96,23 +109,23 @@ class BasicPortfolio(BaseComponent):
         # Reset market regime to default
         self._current_market_regime = "default"
         
-        self.logger.info(f"Portfolio '{self.name}' reset successfully. Cash: {self.current_cash:.2f}, Total Value: {self.current_total_value:.2f}")
+        self.logger.info(f"Portfolio '{self.instance_name}' reset successfully. Cash: {self.current_cash:.2f}, Total Value: {self.current_total_value:.2f}")
 
     def setup(self):
         super().setup() 
-        self.logger.info(f"Setting up BasicPortfolio '{self.name}'...")
-        if self._event_bus:
-            self._event_bus.subscribe(EventType.FILL, self.on_fill)
-            self._event_bus.subscribe(EventType.BAR, self.on_bar)
-            self._event_bus.subscribe(EventType.CLASSIFICATION, self.on_classification_change)
-            self.logger.info(f"'{self.name}' subscribed to FILL, BAR, and CLASSIFICATION events.")
+        self.logger.info(f"Setting up BasicPortfolio '{self.instance_name}'...")
+        if self.event_bus:
+            self.event_bus.subscribe(EventType.FILL, self.on_fill)
+            self.event_bus.subscribe(EventType.BAR, self.on_bar)
+            self.event_bus.subscribe(EventType.CLASSIFICATION, self.on_classification_change)
+            self.logger.info(f"'{self.instance_name}' subscribed to FILL, BAR, and CLASSIFICATION events.")
         else:
-            self.logger.error(f"Event bus not available for '{self.name}'. Cannot subscribe to events.")
-            self.state = BaseComponent.STATE_FAILED
+            self.logger.error(f"Event bus not available for '{self.instance_name}'. Cannot subscribe to events.")
+            # Mark as failed
             return
 
         try:
-            self._regime_detector = self._container.resolve(self.regime_detector_key)
+            self._regime_detector = self.container.resolve(self.regime_detector_key)
             if self._regime_detector and hasattr(self._regime_detector, 'get_current_classification') and callable(getattr(self._regime_detector, 'get_current_classification')):
                 self.logger.info(f"Successfully resolved and linked RegimeDetector: {self._regime_detector.name}")
                 initial_regime = self._regime_detector.get_current_classification()
@@ -128,46 +141,41 @@ class BasicPortfolio(BaseComponent):
             self._current_market_regime = "default"
         self.logger.info(f"Initial market regime set to: {self._current_market_regime}")
 
-        self._update_portfolio_value(datetime.datetime.now(datetime.timezone.utc)) 
-        self.state = BaseComponent.STATE_INITIALIZED
-        self.logger.info(f"BasicPortfolio '{self.name}' setup complete. State: {self.state}")
+        self._update_portfolio_value(datetime.datetime.now(datetime.timezone.utc))
+        self.logger.info(f"BasicPortfolio '{self.instance_name}' setup complete.")
 
     def start(self):
+        """Start the portfolio."""
         super().start()
         
-        # Check state before allowing start
-        if self.state not in [BaseComponent.STATE_INITIALIZED, BaseComponent.STATE_STOPPED]:
-            self.logger.warning(f"Cannot start {self.name} from state '{self.state}'. Expected INITIALIZED or STOPPED.")
-            return
+        # Parent class handles state checking
             
         # Ensure we're subscribed to events (needed for restarts)
-        if self._event_bus:
-            self._event_bus.subscribe(EventType.FILL, self.on_fill)
-            self._event_bus.subscribe(EventType.BAR, self.on_bar)
-            self._event_bus.subscribe(EventType.CLASSIFICATION, self.on_classification_change)
-            self.logger.debug(f"'{self.name}' re-subscribed to FILL, BAR, and CLASSIFICATION events on start/restart")
+        if self.event_bus:
+            self.event_bus.subscribe(EventType.FILL, self.on_fill)
+            self.event_bus.subscribe(EventType.BAR, self.on_bar)
+            self.event_bus.subscribe(EventType.CLASSIFICATION, self.on_classification_change)
+            self.logger.debug(f"'{self.instance_name}' re-subscribed to FILL, BAR, and CLASSIFICATION events on start/restart")
         
-        # CRITICAL: Set state to STARTED
-        self.state = BaseComponent.STATE_STARTED
-        self.logger.info(f"BasicPortfolio '{self.name}' started.")
+        # Component is now running
+        self.logger.info(f"BasicPortfolio '{self.instance_name}' started.")
         if not self._portfolio_value_history:
              self._update_portfolio_value(datetime.datetime.now(datetime.timezone.utc))
 
     def stop(self):
-        self.logger.info(f"Stopping {self.name}...")
+        """Stop the portfolio."""
+        self.logger.info(f"Stopping {self.instance_name}...")
         self._log_final_performance_summary()
-        if self._event_bus:
+        if self.event_bus:
             try:
-                self._event_bus.unsubscribe(EventType.FILL, self.on_fill)
-                self._event_bus.unsubscribe(EventType.BAR, self.on_bar)
-                self._event_bus.unsubscribe(EventType.CLASSIFICATION, self.on_classification_change)
-                self.logger.info(f"'{self.name}' unsubscribed from events.")
+                self.event_bus.unsubscribe(EventType.FILL, self.on_fill)
+                self.event_bus.unsubscribe(EventType.BAR, self.on_bar)
+                self.event_bus.unsubscribe(EventType.CLASSIFICATION, self.on_classification_change)
+                self.logger.info(f"'{self.instance_name}' unsubscribed from events.")
             except Exception as e:
-                self.logger.error(f"Error unsubscribing '{self.name}': {e}", exc_info=True)
+                self.logger.error(f"Error unsubscribing '{self.instance_name}': {e}", exc_info=True)
         super().stop()
-        # Ensure state is set to STOPPED
-        self.state = BaseComponent.STATE_STOPPED
-        self.logger.info(f"{self.name} stopped. State: {self.state}")
+        self.logger.info(f"{self.instance_name} stopped.")
 
     def on_classification_change(self, event: Event):
         payload = event.payload
@@ -175,22 +183,22 @@ class BasicPortfolio(BaseComponent):
         new_regime = payload.get('classification')
         timestamp = payload.get('timestamp', datetime.datetime.now(datetime.timezone.utc))
         if new_regime and new_regime != self._current_market_regime:
-            self.logger.info(f"Market regime changed from '{self._current_market_regime}' to '{new_regime}' at {timestamp} for '{self.name}'.")
+            self.logger.info(f"Market regime changed from '{self._current_market_regime}' to '{new_regime}' at {timestamp} for '{self.instance_name}'.")
             self._current_market_regime = new_regime
         elif new_regime:
             # Log when we receive classification events even if regime hasn't changed
-            self.logger.debug(f"Classification event received with same regime '{new_regime}' at {timestamp} for '{self.name}'.")
+            self.logger.debug(f"Classification event received with same regime '{new_regime}' at {timestamp} for '{self.instance_name}'.")
 
     def _get_current_regime(self) -> str:
         return self._current_market_regime or "default"
 
     def on_fill(self, event: Event):
-        self.logger.debug(f"{self.name} received FILL event")
+        self.logger.debug(f"{self.instance_name} received FILL event")
         fill_data = event.payload
         fill_id = fill_data.get('fill_id', 'NO_ID')
         self.logger.debug(f"Processing FILL {fill_id} - current trades: {len(self._trade_log)}")
         if not (isinstance(fill_data, dict) and all(k in fill_data for k in ['symbol', 'timestamp', 'quantity_filled', 'fill_price', 'direction'])):
-            self.logger.error(f"'{self.name}' received incomplete or invalid FILL data: {fill_data}"); return
+            self.logger.error(f"'{self.instance_name}' received incomplete or invalid FILL data: {fill_data}"); return
 
         symbol = fill_data['symbol']
         timestamp = fill_data['timestamp']
@@ -421,7 +429,7 @@ class BasicPortfolio(BaseComponent):
     def _update_portfolio_value(self, timestamp: Optional[datetime.datetime]):
         if timestamp is None: 
             timestamp = datetime.datetime.now(datetime.timezone.utc)
-            self.logger.debug(f"'{self.name}' _update_portfolio_value called with None timestamp, using current time: {timestamp}")
+            self.logger.debug(f"'{self.instance_name}' _update_portfolio_value called with None timestamp, using current time: {timestamp}")
 
         # Store previous values for validation
         prev_holdings_value = self.current_holdings_value
@@ -518,7 +526,7 @@ class BasicPortfolio(BaseComponent):
         return None
 
     def close_all_positions(self, timestamp: datetime.datetime, data_for_closure: Optional[Dict[str, float]] = None) -> None:
-        self.logger.info(f"'{self.name}' initiating closing of all open positions at {timestamp}.")
+        self.logger.info(f"'{self.instance_name}' initiating closing of all open positions at {timestamp}.")
         symbols_to_close = list(self.open_positions.keys()) 
 
         for symbol in symbols_to_close:
@@ -550,7 +558,7 @@ class BasicPortfolio(BaseComponent):
             self.on_fill(Event(EventType.FILL, synthetic_fill_data)) 
         
         self._update_portfolio_value(timestamp) 
-        self.logger.info(f"'{self.name}' finished attempting to close all open positions.")
+        self.logger.info(f"'{self.instance_name}' finished attempting to close all open positions.")
         
     # Alias for method name compatibility with main.py
     def close_all_open_positions(self, timestamp: datetime.datetime, data_for_closure: Optional[Dict[str, float]] = None) -> None:
@@ -734,17 +742,9 @@ class BasicPortfolio(BaseComponent):
         # Add additional metrics from any regime calculations if they exist
         return metrics
         
-    def get_final_portfolio_value(self) -> float:
-        """
-        Returns the final portfolio value (current_total_value).
-        
-        Returns:
-            float: Current total portfolio value
-        """
-        return self.current_total_value
     
     def _log_final_performance_summary(self):
-        self.logger.info(f"--- {self.name} Final Summary ---")
+        self.logger.info(f"--- {self.instance_name} Final Summary ---")
         self.logger.info(f"Initial Cash: {self.initial_cash:.2f}")
         self.logger.info(f"Final Cash: {self.current_cash:.2f}")
         
@@ -811,3 +811,11 @@ class BasicPortfolio(BaseComponent):
                 
                 # Add separation line between transitions
                 self.logger.info("    " + "-" * 40)
+    
+    def dispose(self):
+        """Clean up resources."""
+        super().dispose()
+        self.open_positions.clear()
+        self._trade_log.clear()
+        self._portfolio_value_history.clear()
+        self._last_bar_prices.clear()

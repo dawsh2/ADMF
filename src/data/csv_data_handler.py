@@ -4,53 +4,73 @@ import pandas as pd
 import datetime
 from typing import Optional, Iterator, Tuple, Any
 
-from src.core.component import BaseComponent
+from src.core.component_base import ComponentBase
 from src.core.event import Event, EventType
 from src.core.exceptions import ConfigurationError, ComponentError
 
-class CSVDataHandler(BaseComponent):
-    def __init__(self, instance_name: str, config_loader, event_bus, component_config_key: str,
-                 max_bars: Optional[int] = None): # max_bars here is from CLI's --bars
-        super().__init__(instance_name, config_loader, component_config_key)
+class CSVDataHandler(ComponentBase):
+    def __init__(self, instance_name: str, config_key: Optional[str] = None):
+        """Minimal constructor following ComponentBase pattern."""
+        super().__init__(instance_name, config_key)
         
-        self._event_bus = event_bus
-        if not self._event_bus:
-            self.logger.error(f"EventBus instance is required for {self.name}.")
-            raise ConfigurationError(f"EventBus instance is required for {self.name}.")
-
-        self._symbol: str = self.get_specific_config("symbol")
-        self._csv_file_path: str = self.get_specific_config("csv_file_path")
-        self._timestamp_column: str = self.get_specific_config("timestamp_column", "timestamp")
+        # Initialize internal state (no external dependencies)
+        self._cli_max_bars = None
         
-        if not self._symbol or not self._csv_file_path:
-            raise ConfigurationError(f"Missing 'symbol' or 'csv_file_path' for {self.name}")
-
-        self._cli_max_bars = max_bars # From --bars argument
+        # Configuration parameters (will be set in initialize)
+        self._symbol: Optional[str] = None
+        self._csv_file_path: Optional[str] = None
+        self._timestamp_column: str = "timestamp"
         
-        self._train_test_split_ratio: Optional[float] = self.get_specific_config("train_test_split_ratio", None)
-        if self._train_test_split_ratio is not None and not (0 < self._train_test_split_ratio < 1):
-            raise ConfigurationError(
-                f"'{self.name}': 'train_test_split_ratio' must be between 0 and 1 (exclusive). "
-                f"Got {self._train_test_split_ratio}"
-            )
-            
-        self._regime_column_to_filter: Optional[str] = self.get_specific_config("regime_column_to_filter", None)
-        self._target_regime_value: Optional[str] = self.get_specific_config("target_regime_value", None)
+        self._train_test_split_ratio: Optional[float] = None
+        self._regime_column_to_filter: Optional[str] = None
+        self._target_regime_value: Optional[str] = None
 
-        self._data_for_run: Optional[pd.DataFrame] = None      # This will be the df after --bars and regime filter
+        # Data state
+        self._data_for_run: Optional[pd.DataFrame] = None
         self._train_df: Optional[pd.DataFrame] = None
         self._test_df: Optional[pd.DataFrame] = None
         self._active_df: Optional[pd.DataFrame] = None
-        
         self._data_iterator: Optional[Iterator[Tuple[Any, pd.Series]]] = None
         self._bars_processed_current_run = 0
         self._last_bar_timestamp: Optional[datetime.datetime] = None
-
+    
+    def _initialize(self):
+        """Component-specific initialization logic."""
+        # Load configuration
+        self._symbol = self.get_specific_config("symbol")
+        self._csv_file_path = self.get_specific_config("csv_file_path")
+        self._timestamp_column = self.get_specific_config("timestamp_column", "timestamp")
+        
+        if not self._symbol or not self._csv_file_path:
+            raise ConfigurationError(f"Missing 'symbol' or 'csv_file_path' for {self.instance_name}")
+        
+        # Get CLI parameter if provided
+        if hasattr(self, 'context') and self.context:
+            self._cli_max_bars = self.context.get("max_bars", None)
+        
+        self._train_test_split_ratio = self.get_specific_config("train_test_split_ratio", None)
+        if self._train_test_split_ratio is not None and not (0 < self._train_test_split_ratio < 1):
+            raise ConfigurationError(
+                f"'{self.instance_name}': 'train_test_split_ratio' must be between 0 and 1 (exclusive). "
+                f"Got {self._train_test_split_ratio}"
+            )
+            
+        self._regime_column_to_filter = self.get_specific_config("regime_column_to_filter", None)
+        self._target_regime_value = self.get_specific_config("target_regime_value", None)
+        
         self.logger.info(self._build_config_log_message())
+    
+    def get_specific_config(self, key: str, default=None):
+        """Helper method to get configuration values."""
+        if not self.config_loader:
+            return default
+        config_key = self.config_key or self.instance_name
+        config = self.config_loader.get_component_config(config_key)
+        return config.get(key, default) if config else default
 
     def _build_config_log_message(self) -> str:
         parts = [
-            f"CSVDataHandler '{self.name}' configured for symbol '{self._symbol}' using file '{self._csv_file_path}'.",
+            f"CSVDataHandler '{self.instance_name}' configured for symbol '{self._symbol}' using file '{self._csv_file_path}'.",
             f"Timestamp column: '{self._timestamp_column}'."
         ]
         if self._cli_max_bars is not None:
@@ -62,7 +82,7 @@ class CSVDataHandler(BaseComponent):
         return " ".join(parts)
 
     def setup(self):
-        self.logger.info(f"Setting up CSVDataHandler '{self.name}'...")
+        self.logger.info(f"Setting up CSVDataHandler '{self.instance_name}'...")
         try:
             df_loaded = pd.read_csv(self._csv_file_path)
             self.logger.info(f"Successfully loaded CSV file: {self._csv_file_path}. Initial full shape: {df_loaded.shape}")
@@ -144,20 +164,20 @@ class CSVDataHandler(BaseComponent):
             self._bars_processed_current_run = 0
             self._last_bar_timestamp = None 
 
-            self.state = BaseComponent.STATE_INITIALIZED
-            self.logger.info(f"CSVDataHandler '{self.name}' setup complete. Data loaded and splits prepared. Call set_active_dataset() to begin.")
+            # Component is now initialized
+            self.logger.info(f"CSVDataHandler '{self.instance_name}' setup complete. Data loaded and splits prepared. Call set_active_dataset() to begin.")
 
         except FileNotFoundError:
             self.logger.error(f"CSV file not found: {self._csv_file_path}")
-            self.state = BaseComponent.STATE_FAILED
+            # Mark as failed
             raise ConfigurationError(f"CSVDataHandler: File not found {self._csv_file_path}")
         except KeyError as e: 
             self.logger.error(f"KeyError during CSVDataHandler setup (likely missing column '{e}' in CSV).", exc_info=True)
-            self.state = BaseComponent.STATE_FAILED
+            # Mark as failed
             raise ConfigurationError(f"CSVDataHandler: Missing expected column in CSV - {e}")
         except Exception as e:
             self.logger.error(f"Error loading or processing CSV {self._csv_file_path}: {e}", exc_info=True)
-            self.state = BaseComponent.STATE_FAILED
+            # Mark as failed
             raise ComponentError(f"CSVDataHandler failed setup: {e}") from e
 
     def set_active_dataset(self, dataset_type: str = "full"):
@@ -199,14 +219,12 @@ class CSVDataHandler(BaseComponent):
     # start(), stop(), get_last_timestamp() methods remain the same.
     # The bar payload construction in start() also remains the same.
     def start(self):
-        # Allow starting from both INITIALIZED (first run) and STOPPED (restarts)
-        if self.state not in [BaseComponent.STATE_INITIALIZED, BaseComponent.STATE_STOPPED]:
-            self.logger.warning(f"Cannot start {self.name} from state '{self.state}'. Expected INITIALIZED or STOPPED.")
-            return
+        """Start publishing bar events."""
+        super().start()
         
         if self._active_df is None: # Check if set_active_dataset was called
-             self.logger.error(f"No active dataset selected for {self.name}. Call set_active_dataset() after setup.")
-             self.state = BaseComponent.STATE_STOPPED # Or FAILED
+             self.logger.error(f"No active dataset selected for {self.instance_name}. Call set_active_dataset() after setup.")
+             # Cannot proceed without dataset
              return
         
         if self._active_df.empty:
@@ -215,9 +233,8 @@ class CSVDataHandler(BaseComponent):
             self.logger.debug(f"train_df size: {len(self._train_df) if self._train_df is not None else 'None'}")
             self.logger.debug(f"test_df size: {len(self._test_df) if self._test_df is not None else 'None'}")
             self.logger.debug(f"data_for_run size: {len(self._data_for_run) if self._data_for_run is not None else 'None'}")
-            self.logger.info(f"CSVDataHandler '{self.name}' active dataset is empty. No BAR events will be published.")
-            self.state = BaseComponent.STATE_STOPPED
-            self.logger.info(f"CSVDataHandler '{self.name}' completed data streaming (0 bars). State: {self.state}")
+            self.logger.info(f"CSVDataHandler '{self.instance_name}' active dataset is empty. No BAR events will be published.")
+            self.logger.info(f"CSVDataHandler '{self.instance_name}' completed data streaming (0 bars).")
             return
 
         # IMPORTANT: Reset the data iterator each time we start to ensure fresh iteration
@@ -229,7 +246,7 @@ class CSVDataHandler(BaseComponent):
         self.logger.debug(f"Reset complete - bars_processed: {self._bars_processed_current_run}")
 
         self.logger.debug(f"Starting to publish {len(self._active_df)} BAR events...")
-        self.state = BaseComponent.STATE_STARTED
+        # Component is now running
         
         try:
             self.logger.debug(f"About to iterate through {len(self._active_df)} rows")
@@ -279,25 +296,33 @@ class CSVDataHandler(BaseComponent):
                 self._bars_processed_current_run += 1
                 self._last_bar_timestamp = bar_timestamp
             
-            self.logger.info(f"Finished publishing {self._bars_processed_current_run} BAR events for '{self.name}'.")
+            self.logger.info(f"Finished publishing {self._bars_processed_current_run} BAR events for '{self.instance_name}'.")
 
         except Exception as e:
-            self.logger.error(f"Error during BAR event publishing for '{self.name}': {e}", exc_info=True)
-            self.state = BaseComponent.STATE_FAILED
+            self.logger.error(f"Error during BAR event publishing for '{self.instance_name}': {e}", exc_info=True)
+            # Mark as failed
         finally:
-            self.state = BaseComponent.STATE_STOPPED 
-            self.logger.info(f"CSVDataHandler '{self.name}' completed data streaming for active dataset. State: {self.state}")
+            self.logger.info(f"CSVDataHandler '{self.instance_name}' completed data streaming for active dataset.")
 
     def stop(self):
-        self.logger.info(f"Stopping CSVDataHandler '{self.name}'...")
-        self._data_iterator = None 
-        self.state = BaseComponent.STATE_STOPPED
-        self.logger.info(f"CSVDataHandler '{self.name}' stopped. State: {self.state}")
+        """Stop the data handler."""
+        super().stop()
+        self.logger.info(f"Stopping CSVDataHandler '{self.instance_name}'...")
+        self._data_iterator = None
+        self.logger.info(f"CSVDataHandler '{self.instance_name}' stopped.")
 
+    def dispose(self):
+        """Clean up resources."""
+        super().dispose()
+        self._data_for_run = None
+        self._train_df = None
+        self._test_df = None
+        self._active_df = None
+        self._data_iterator = None
+    
     def get_last_timestamp(self) -> Optional[datetime.datetime]:
         return self._last_bar_timestamp
 
-    # Getter to allow optimizer to check if test data exists
     @property
     def test_df_exists_and_is_not_empty(self) -> bool:
         return self._test_df is not None and not self._test_df.empty

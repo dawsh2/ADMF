@@ -6,53 +6,67 @@ from typing import Optional, Dict, Any, List # Added List for parameter space
 import pandas as pd # Keep if used
 import datetime
 
-from src.core.component import BaseComponent
+from src.core.component_base import ComponentBase
 from src.core.event import Event, EventType
 from src.core.exceptions import ConfigurationError
 
-class MAStrategy(BaseComponent):
+class MAStrategy(ComponentBase):
     """
     A simple Moving Average (MA) Crossover strategy.
     Optimizable for short_window and long_window.
     """
 
-    def __init__(self, instance_name: str, config_loader, event_bus, component_config_key: str):
-        super().__init__(instance_name, config_loader, component_config_key)
+    def __init__(self, instance_name: str, config_key: Optional[str] = None):
+        """Minimal constructor following ComponentBase pattern."""
+        super().__init__(instance_name, config_key)
         
-        self._event_bus = event_bus
-        if not self._event_bus:
-            self.logger.error("EventBus instance is required for MAStrategy.")
-            raise ConfigurationError("EventBus instance is required for MAStrategy.")
-
-        # Load initial parameters from config - these can be overridden by set_parameters
-        self._symbol: str = self.get_specific_config("symbol")
-        self._short_window: int = self.get_specific_config("short_window_default", 10) # Provide default if not in config for optimizn
-        self._long_window: int = self.get_specific_config("long_window_default", 20)  # Provide default
-
-        if not self._symbol:
-            raise ConfigurationError(f"Missing 'symbol' in configuration for {self.name}")
+        # Initialize internal state (no external dependencies)
         
-        self._validate_windows() # Initial validation
+        # Configuration parameters (will be set in initialize)
+        self._symbol: Optional[str] = None
+        self._short_window: int = 10
+        self._long_window: int = 20
 
-        # Initialize state that depends on parameters
-        self._prices: deque[float] = deque(maxlen=self._long_window)
+        # Initialize state
+        self._prices: Optional[deque[float]] = None
         self._prev_short_ma: Optional[float] = None
         self._prev_long_ma: Optional[float] = None
-        self._current_signal_state: int = 0 
-
+        self._current_signal_state: int = 0
+    
+    def _initialize(self):
+        """Component-specific initialization logic."""
+        # Load configuration
+        self._symbol = self.get_specific_config("symbol")
+        self._short_window = self.get_specific_config("short_window_default", 10)
+        self._long_window = self.get_specific_config("long_window_default", 20)
+        
+        if not self._symbol:
+            raise ConfigurationError(f"Missing 'symbol' in configuration for {self.instance_name}")
+        
+        self._validate_windows()
+        self._initialize_parameter_dependent_state()
+        
         self.logger.info(
-            f"MAStrategy '{self.name}' configured for symbol '{self._symbol}' "
+            f"MAStrategy '{self.instance_name}' configured for symbol '{self._symbol}' "
             f"with initial short_window={self._short_window}, long_window={self._long_window}."
         )
+    
+    def get_specific_config(self, key: str, default=None):
+        """Helper method to get configuration values."""
+        if not self.config_loader:
+            return default
+        config_key = self.config_key or self.instance_name
+        config = self.config_loader.get_component_config(config_key)
+        return config.get(key, default) if config else default
 
     def _validate_windows(self):
         if not isinstance(self._short_window, int) or self._short_window <= 0:
-            raise ConfigurationError(f"'short_window' must be a positive integer for {self.name}. Got: {self._short_window}")
+            raise ConfigurationError(f"'short_window' must be a positive integer for {self.instance_name}. Got: {self._short_window}")
         if not isinstance(self._long_window, int) or self._long_window <= 0:
-            raise ConfigurationError(f"'long_window' must be a positive integer for {self.name}. Got: {self._long_window}")
+            raise ConfigurationError(f"'long_window' must be a positive integer for {self.instance_name}. Got: {self._long_window}")
         if self._short_window >= self._long_window:
             raise ConfigurationError(
-                f"'short_window' ({self._short_window}) must be less than 'long_window' ({self._long_window}) for {self.name}."
+                f"'short_window' ({self._short_window}) must be less than 'long_window' ({self._long_window}) for {self.instance_name}."
             )
 
     def _initialize_parameter_dependent_state(self):
@@ -85,7 +99,7 @@ class MAStrategy(BaseComponent):
         Expected params: {"short_window": int, "long_window": int} and other strategy-specific params
         """
         # Log all parameters received
-        self.logger.info(f"Setting parameters for '{self.name}': {params}")
+        self.logger.info(f"Setting parameters for '{self.instance_name}': {params}")
         
         # Extract core window parameters
         new_short_window = params.get("short_window", self._short_window)
@@ -115,11 +129,11 @@ class MAStrategy(BaseComponent):
         for key, value in params.items():
             if key not in ["short_window", "long_window"]:
                 # Store extended parameters (RSI period, thresholds, weights, etc.)
-                self.logger.info(f"'{self.name}' storing extended parameter: {key}={value}")
+                self.logger.info(f"'{self.instance_name}' storing extended parameter: {key}={value}")
                 setattr(self, f"_{key}", value)
             
         self._initialize_parameter_dependent_state()
-        self.logger.info(f"'{self.name}' parameters updated: short_window={self._short_window}, long_window={self._long_window}")
+        self.logger.info(f"'{self.instance_name}' parameters updated: short_window={self._short_window}, long_window={self._long_window}")
         return True # Indicate success
 
     def get_parameters(self) -> Dict[str, Any]:
@@ -143,7 +157,7 @@ class MAStrategy(BaseComponent):
 
     def setup(self):
         """Sets up the component, including re-initializing state based on current parameters."""
-        self.logger.info(f"Setting up MAStrategy '{self.name}'...")
+        self.logger.info(f"Setting up MAStrategy '{self.instance_name}'...")
         # Ensure state is clean and reflects current parameters (short_window, long_window)
         # _initialize_parameter_dependent_state is called after __init__ and set_parameters
         # so an explicit call here might be redundant if parameters haven't changed since init,
@@ -153,27 +167,26 @@ class MAStrategy(BaseComponent):
         # Clear any existing subscriptions before subscribing again (if setup can be called multiple times)
         # For this simple case, assuming event_bus handles duplicate subscriptions gracefully or we only call setup once.
         # If not, add unsubscribe logic here.
-        self._event_bus.subscribe(EventType.BAR, self._on_bar_event)
-        self.logger.info(f"'{self.name}' subscribed to BAR events for symbol '{self._symbol}'.")
-        self.state = BaseComponent.STATE_INITIALIZED
-        self.logger.info(f"MAStrategy '{self.name}' setup complete. State: {self.state}")
+        self.event_bus.subscribe(EventType.BAR, self._on_bar_event)
+        self.logger.info(f"'{self.instance_name}' subscribed to BAR events for symbol '{self._symbol}'.")
+        self.logger.info(f"MAStrategy '{self.instance_name}' setup complete.")
 
     # _on_bar_event remains the same as your last working version (using integer signals)
     def _on_bar_event(self, event: Event):
         try:
-            self.logger.debug(f"STRATEGY_DEBUG: {self.name} received BAR event (state: {self.state})")
+            self.logger.debug(f"STRATEGY_DEBUG: {self.instance_name} received BAR event")
             if event.event_type != EventType.BAR:
-                self.logger.debug(f"STRATEGY_DEBUG: {self.name} ignoring non-BAR event: {event.event_type}")
+                self.logger.debug(f"STRATEGY_DEBUG: {self.instance_name} ignoring non-BAR event: {event.event_type}")
                 return 
             
             bar_data: Dict[str, Any] = event.payload 
             event_symbol = bar_data.get("symbol")
-            self.logger.debug(f"STRATEGY_DEBUG: {self.name} checking symbol: event={event_symbol}, expected={self._symbol}")
+            self.logger.debug(f"STRATEGY_DEBUG: {self.instance_name} checking symbol: event={event_symbol}, expected={self._symbol}")
             if event_symbol != self._symbol:
-                self.logger.debug(f"STRATEGY_DEBUG: {self.name} ignoring event for wrong symbol: {event_symbol}")
+                self.logger.debug(f"STRATEGY_DEBUG: {self.instance_name} ignoring event for wrong symbol: {event_symbol}")
                 return
         except Exception as e:
-            self.logger.error(f"STRATEGY_DEBUG: Exception in {self.name} _on_bar_event: {e}", exc_info=True)
+            self.logger.error(f"STRATEGY_DEBUG: Exception in {self.instance_name} _on_bar_event: {e}", exc_info=True)
             return 
 
         close_price_val = bar_data.get("close")
@@ -229,7 +242,7 @@ class MAStrategy(BaseComponent):
             if self._prev_short_ma <= self._prev_long_ma and current_short_ma > current_long_ma:
                 if self._current_signal_state != 1:
                     # Log the parameters being used for signal generation
-                    self.logger.info(f"'{self.name}' generating BUY signal with MA weight: {ma_weight}, "
+                    self.logger.info(f"'{self.instance_name}' generating BUY signal with MA weight: {ma_weight}, "
                                     f"RSI weight: {rsi_weight}, oversold: {oversold_threshold}, "
                                     f"overbought: {overbought_threshold}")
                     generated_signal_type_int = 1
@@ -237,7 +250,7 @@ class MAStrategy(BaseComponent):
             elif self._prev_short_ma >= self._prev_long_ma and current_short_ma < current_long_ma:
                 if self._current_signal_state != -1:
                     # Log the parameters being used for signal generation
-                    self.logger.info(f"'{self.name}' generating SELL signal with MA weight: {ma_weight}, "
+                    self.logger.info(f"'{self.instance_name}' generating SELL signal with MA weight: {ma_weight}, "
                                     f"RSI weight: {rsi_weight}, oversold: {oversold_threshold}, "
                                     f"overbought: {overbought_threshold}")
                     generated_signal_type_int = -1
@@ -267,19 +280,19 @@ class MAStrategy(BaseComponent):
                     "timestamp": bar_timestamp, 
                     "signal_type": generated_signal_type_int,
                     "price_at_signal": close_price,
-                    "strategy_id": self.name,
+                    "strategy_id": self.instance_name,
                     "short_ma": current_short_ma,
                     "long_ma": current_long_ma,
                     "params": all_params # Add all current parameters to signal
                 }
                 signal_event = Event(EventType.SIGNAL, signal_payload)
                 self.logger.warning(f"STRATEGY_DEBUG: Publishing SIGNAL event: {generated_signal_type_int}")
-                self._event_bus.publish(signal_event)
+                self.event_bus.publish(signal_event)
                 # Get current regime for enhanced logging
                 current_regime = "unknown"
                 try:
-                    if hasattr(self, '_container') and self._container:
-                        regime_detector = self._container.resolve("MyPrimaryRegimeDetector")
+                    if hasattr(self, 'container') and self.container:
+                        regime_detector = self.container.resolve("MyPrimaryRegimeDetector")
                         current_regime = regime_detector.get_current_classification()
                 except:
                     pass
@@ -296,28 +309,38 @@ class MAStrategy(BaseComponent):
 
     # start() and stop() methods remain largely the same, ensuring state is cleared in stop()
     def start(self):
-        if self.state not in [BaseComponent.STATE_INITIALIZED, BaseComponent.STATE_STOPPED]:
-            self.logger.warning(f"Cannot start MAStrategy '{self.name}' from state '{self.state}'. Expected INITIALIZED or STOPPED.")
-            return
+        """Start the strategy."""
+        super().start()
+        
+        # Parent class handles state checking
         
         # Ensure we're subscribed to BAR events (needed for restarts)
-        if self._event_bus:
-            self._event_bus.subscribe(EventType.BAR, self._on_bar_event)
+        if self.event_bus:
+            self.event_bus.subscribe(EventType.BAR, self._on_bar_event)
             self.logger.debug(f"Re-subscribed to BAR events on start/restart")
         
-        self.logger.info(f"MAStrategy '{self.name}' started with SW={self._short_window}, LW={self._long_window}. Listening for BAR events...")
-        self.state = BaseComponent.STATE_STARTED
+        self.logger.info(f"MAStrategy '{self.instance_name}' started with SW={self._short_window}, LW={self._long_window}. Listening for BAR events...")
+        # Component is now running
 
     def stop(self):
-        self.logger.info(f"Stopping MAStrategy '{self.name}'...")
-        if self._event_bus:
+        """Stop the strategy."""
+        self.logger.info(f"Stopping MAStrategy '{self.instance_name}'...")
+        if self.event_bus:
             try:
-                self._event_bus.unsubscribe(EventType.BAR, self._on_bar_event)
-                self.logger.info(f"'{self.name}' attempted to unsubscribe from BAR events.")
+                self.event_bus.unsubscribe(EventType.BAR, self._on_bar_event)
+                self.logger.info(f"'{self.instance_name}' attempted to unsubscribe from BAR events.")
             except Exception as e:
-                 self.logger.error(f"Error unsubscribing '{self.name}' from BAR events: {e}")
+                self.logger.error(f"Error unsubscribing '{self.instance_name}' from BAR events: {e}")
         
-        self._initialize_parameter_dependent_state() # Clear state on stop
-            
-        self.state = BaseComponent.STATE_STOPPED
-        self.logger.info(f"MAStrategy '{self.name}' stopped. State: {self.state}")
+        self._initialize_parameter_dependent_state()  # Clear state on stop
+        super().stop()
+        self.logger.info(f"MAStrategy '{self.instance_name}' stopped.")
+    
+    def dispose(self):
+        """Clean up resources."""
+        super().dispose()
+        if self._prices:
+            self._prices.clear()
+        self._prev_short_ma = None
+        self._prev_long_ma = None
+        self._current_signal_state = 0
