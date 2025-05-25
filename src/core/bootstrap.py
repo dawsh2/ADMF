@@ -772,10 +772,26 @@ class Bootstrap:
         
         # Get entrypoint component name
         entrypoint_name = mode_config.get("entrypoint_component")
+        
+        # If not explicitly configured, use sensible defaults
         if not entrypoint_name:
-            raise ValueError(
-                f"No entrypoint_component configured for run mode '{current_mode}'. "
-                f"Add 'entrypoint_component' to config['system']['run_modes']['{current_mode}']"
+            default_entrypoints = {
+                'production': 'strategy',
+                'backtest': 'strategy',
+                'optimization': 'optimizer',
+                'test': 'strategy'
+            }
+            entrypoint_name = default_entrypoints.get(current_mode)
+            
+            if not entrypoint_name:
+                raise ValueError(
+                    f"No entrypoint_component configured for run mode '{current_mode}' "
+                    f"and no default available. Add 'entrypoint_component' to "
+                    f"config['system']['run_modes']['{current_mode}']"
+                )
+            
+            self.context.logger.info(
+                f"No entrypoint configured for {current_mode}, using default: {entrypoint_name}"
             )
             
         # Get component from container
@@ -801,6 +817,56 @@ class Bootstrap:
         )
         
         return component
+        
+    def execute_entrypoint(self, method_name: str = "execute") -> Any:
+        """
+        Execute the configured entrypoint component.
+        
+        This is a convenience method that:
+        1. Gets the entrypoint component
+        2. Verifies it has the specified method
+        3. Executes the method and returns the result
+        
+        Args:
+            method_name: Name of the method to call on the entrypoint component
+            
+        Returns:
+            Result from the entrypoint component's method
+            
+        Raises:
+            AttributeError: If component doesn't have the specified method
+        """
+        component = self.get_entrypoint_component()
+        
+        # Verify the component has the expected method
+        if not hasattr(component, method_name):
+            raise AttributeError(
+                f"Entrypoint component {component.__class__.__name__} "
+                f"does not have method '{method_name}'"
+            )
+            
+        method = getattr(component, method_name)
+        if not callable(method):
+            raise AttributeError(
+                f"'{method_name}' on {component.__class__.__name__} is not callable"
+            )
+            
+        self.context.logger.info(
+            f"Executing {method_name}() on entrypoint component {component.__class__.__name__}"
+        )
+        
+        # Execute the method
+        try:
+            result = method()
+            self.context.logger.info(
+                f"Entrypoint execution completed successfully"
+            )
+            return result
+        except Exception as e:
+            self.context.logger.error(
+                f"Error executing entrypoint: {e}", exc_info=True
+            )
+            raise
         
     def validate_dependencies(self) -> List[str]:
         """
@@ -942,40 +1008,55 @@ class Bootstrap:
 """
 Example usage of the Bootstrap system with proper lifecycle management:
 
-# 1. Create bootstrap instance
+# 1. Basic usage with manual steps:
 bootstrap = Bootstrap()
-
-# 2. Initialize system context
 context = bootstrap.initialize(
     config=config,
     run_mode=RunMode.PRODUCTION,
     container=container  # Optional: provide existing container
 )
-
-# 3. Optional: Discover additional components
 bootstrap.discover_components(["custom/components"])
-
-# 4. Create components (minimal constructors)
 components = bootstrap.create_standard_components()
-
-# 5. Initialize components (dependency injection)
 bootstrap.initialize_components()
-
-# 6. Start components
 bootstrap.start_components()
-
-# 7. Run your application logic
-# ...
-
-# 8. Cleanup (automatic in context manager)
+# Run your application logic
 bootstrap.teardown()
 
-# Alternative: Use as context manager
+# 2. Simplified usage with setup_managed_components:
+bootstrap = Bootstrap()
+context = bootstrap.initialize(config=config, run_mode=RunMode.OPTIMIZATION)
+components = bootstrap.setup_managed_components(search_paths=["./src"])
+bootstrap.start_components()
+result = bootstrap.execute_entrypoint()  # Runs the configured entrypoint
+bootstrap.teardown()
+
+# 3. Using context manager with entrypoint:
 with Bootstrap() as bootstrap:
-    context = bootstrap.initialize(config=config, run_mode=RunMode.PRODUCTION)
-    components = bootstrap.create_standard_components()
-    bootstrap.initialize_components()
+    context = bootstrap.initialize(config=config, run_mode=RunMode.BACKTEST)
+    bootstrap.setup_managed_components()
     bootstrap.start_components()
-    # Application runs here
+    result = bootstrap.execute_entrypoint()
 # Automatic cleanup on exit
+
+# 4. Example main.py pattern:
+def main():
+    parser = argparse.ArgumentParser()
+    parser.add_argument('--config', default='config/config.yaml')
+    parser.add_argument('--mode', choices=['production', 'backtest', 'optimization', 'test'])
+    args = parser.parse_args()
+    
+    config = Config(args.config)
+    run_mode = RunMode(args.mode)
+    
+    with Bootstrap() as bootstrap:
+        bootstrap.initialize(config=config, run_mode=run_mode)
+        bootstrap.setup_managed_components()
+        bootstrap.start_components()
+        
+        try:
+            result = bootstrap.execute_entrypoint()
+            print(f"Execution completed: {result}")
+        except Exception as e:
+            print(f"Execution failed: {e}")
+            raise
 """
