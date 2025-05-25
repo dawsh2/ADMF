@@ -2,7 +2,7 @@
 import logging
 import threading
 from collections import defaultdict
-from typing import Callable, List
+from typing import Callable, List, Any
 
 from .event import Event, EventType # Import your Event and EventType
 
@@ -58,6 +58,41 @@ class EventBus:
             except KeyError: # EventType not in subscribers
                 logger.debug(f"No subscribers found for event type '{event_type.name}' during unsubscribe.")
 
+
+    def unsubscribe_all(self, handler_instance: Any) -> None:
+        """
+        Unsubscribes all handlers associated with a specific instance from all event types.
+        
+        This is useful for cleanup when a component is being torn down.
+        
+        Args:
+            handler_instance: The instance whose handlers should be unsubscribed
+        """
+        with self._lock:
+            handlers_removed = 0
+            for event_type, handlers in list(self._subscribers.items()):
+                # Create a new list of handlers that don't belong to this instance
+                new_handlers = []
+                for handler in handlers:
+                    # Check if handler is a method of the instance
+                    if hasattr(handler, '__self__') and handler.__self__ is handler_instance:
+                        handlers_removed += 1
+                        logger.debug(
+                            f"Removing handler '{getattr(handler, '__name__', repr(handler))}' "
+                            f"for event type '{event_type.name}' (belongs to {handler_instance})"
+                        )
+                    else:
+                        new_handlers.append(handler)
+                
+                # Update the handlers list
+                if new_handlers:
+                    self._subscribers[event_type] = new_handlers
+                else:
+                    # Remove the event type entirely if no handlers left
+                    del self._subscribers[event_type]
+                    
+            if handlers_removed > 0:
+                logger.debug(f"Removed {handlers_removed} handlers for instance {handler_instance}")
 
     def publish(self, event: Event):
         """

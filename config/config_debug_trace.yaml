@@ -1,0 +1,90 @@
+
+system:
+  name: "ADMF-Debug-Trace"
+  version: "0.1.0"
+
+logging:
+  level: "DEBUG"  # Enable detailed logging
+
+components:
+  # Data handler
+  data_handler_csv:
+    csv_file_path: "data/1000_1min.csv"
+    symbol: "SPY"
+    train_test_split_ratio: 0.8
+    
+  # Portfolio
+  basic_portfolio:
+    initial_cash: 100000.0
+    
+  # Risk manager
+  basic_risk_manager:
+    risk_per_trade: 0.02
+    max_portfolio_risk: 0.06
+    max_position_count: 3
+    
+  # Execution handler
+  simulated_execution_handler:
+    slippage_percent: 0.0
+    commission_per_trade: 0.0
+    
+  # Regime detector with debug
+  MyPrimaryRegimeDetector:
+    min_regime_duration: 2
+    verbose_logging: true  # Enable verbose regime logging
+    debug_mode: true       # Enable debug mode
+    indicators:
+      rsi_14:
+        type: "rsi"
+        parameters: {"period": 14}
+      atr_20:
+        type: "atr"
+        parameters: {"period": 10}
+      trend_10_30:
+        type: "simple_ma_trend"
+        parameters: {"short_period": 5, "long_period": 20}
+    regime_thresholds:
+      trending_up_volatile:
+        trend_10_30: {"min": 0.02}
+        atr_20: {"min": 0.15}
+      trending_up_low_vol:
+        trend_10_30: {"min": 0.02}
+        atr_20: {"max": 0.15}
+      trending_down:
+        trend_10_30: {"max": -0.02}
+      ranging_high_vol:
+        trend_10_30: {"min": -0.02, "max": 0.02}
+        atr_20: {"min": 0.15}
+      ranging_low_vol:
+        trend_10_30: {"min": -0.02, "max": 0.02}
+        atr_20: {"max": 0.15}
+        
+  # Strategy
+  ensemble_strategy:
+    symbol: "SPY"
+    parameters:
+      ma_short_period: 20
+      ma_long_period: 50
+      rsi_period: 14
+      bb_period: 20
+      bb_std: 2.0
+      rsi_oversold: 30
+      rsi_overbought: 70
+      volume_factor: 1.5
+      ma_weight: 0.3
+      rsi_weight: 0.3
+      bb_weight: 0.2
+      volume_weight: 0.2
+      
+  # Optimizer
+  optimizer:
+    parameter_ranges:
+      ma_short_period: [10, 10]  # Fixed for testing
+      ma_long_period: [20, 20]
+      rsi_period: [21, 21]
+      rsi_oversold: [30, 30]
+      rsi_overbought: [70, 70]
+    train_ratio: 0.8
+    metric: "sharpe_ratio"
+    n_initial_samples: 1  # Just one test
+    max_iterations: 1

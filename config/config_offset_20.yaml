@@ -1,0 +1,44 @@
+# Config with adjusted split for warmup
+system:
+  name: "ADMF-Production-Offset"
+  version: "0.1.0"
+
+logging:
+  level: "INFO"
+
+components:
+  ensemble_strategy:
+    symbol: "SPY"
+    short_window_default: 10
+    long_window_default: 20
+    ma_rule.weight: 1.0
+    rsi_indicator:
+      period: 14
+    rsi_rule:
+      oversold_threshold: 30.0
+      overbought_threshold: 70.0
+      weight: 0.0
+
+  data_handler_csv:
+    csv_file_path: "data/1000_1min.csv"
+    symbol: "SPY"
+    timestamp_column: "timestamp"
+    train_test_split_ratio: 0.780  # Start 20 bars earlier
+    open_column: "Open"
+    high_column: "High"
+    low_column: "Low"
+    close_column: "Close"
+    volume_column: "Volume"
+
+  basic_portfolio:
+    initial_cash: 100000.00
+
+  basic_risk_manager:
+    target_trade_quantity: 100
+
+  simulated_execution_handler:
+    default_quantity: 100
+    commission_per_trade: 0.005
+    commission_type: "per_share"
+    passthrough: false
+    fill_price_logic: "signal_price"

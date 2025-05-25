@@ -24,6 +24,9 @@ from src.risk.basic_portfolio import BasicPortfolio # Ensure this is the updated
 from src.core.dummy_component import DummyComponent
 from src.strategy.optimization.basic_optimizer import BasicOptimizer
 from src.strategy.optimization.enhanced_optimizer import EnhancedOptimizer
+# Import V2 optimizer that uses BacktestEngine
+from src.strategy.optimization.enhanced_optimizer_v2 import EnhancedOptimizerV2
+from src.strategy.optimization.enhanced_optimizer_v3 import EnhancedOptimizerV3
 from src.strategy.optimization.genetic_optimizer import GeneticOptimizer
 from src.strategy.regime_adaptive_strategy import RegimeAdaptiveStrategy
 
@@ -209,12 +212,13 @@ def main():
         else:
             logger.info("Optimizer will run each parameter set on the full dataset (as configured in CSVDataHandler, before train/test split).")
 
-        # Register the appropriate optimizer
+        # Register the appropriate optimizer - Using V2 with BacktestEngine
         optimizer_args = {"instance_name": "EnhancedOptimizer", "config_loader": config_loader,
                           "event_bus": event_bus, "component_config_key": "components.optimizer",
                           "container": container}
-        container.register_type("optimizer_service", EnhancedOptimizer, True, constructor_kwargs=optimizer_args)
-        logger.info("EnhancedOptimizer registered as 'optimizer_service'.")
+        # Use EnhancedOptimizerV3 which ensures clean state for every backtest
+        container.register_type("optimizer_service", EnhancedOptimizerV3, True, constructor_kwargs=optimizer_args)
+        logger.info("EnhancedOptimizerV3 (with CleanBacktestEngine) registered as 'optimizer_service'.")
         
         # Register genetic optimizer if needed
         if run_genetic_optimization or run_random_search:
@@ -236,7 +240,7 @@ def main():
             except Exception as e:
                 logger.warning(f"Could not set up RegimeDetector for optimization: {e}")
             
-            optimizer: EnhancedOptimizer = container.resolve("optimizer_service")
+            optimizer: EnhancedOptimizerV2 = container.resolve("optimizer_service")
             optimizer.setup() 
             if optimizer.get_state() == BaseComponent.STATE_INITIALIZED:
                 optimizer.start()

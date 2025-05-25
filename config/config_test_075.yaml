@@ -1,64 +1,41 @@
+# Precise warmup test
 system:
-  name: "ADMF-Trader-MVP"
+  name: "ADMF-Warmup-Test-075"
   version: "0.1.0"
 
 logging:
-  level: "DEBUG"
+  level: "INFO"
 
 components:
-  dummy_service:
-    some_setting: "Dummy setting"
-
-  # Use RegimeAdaptiveStrategy as it automatically loads optimized parameters
-  regime_adaptive_strategy:
-    symbol: "SPY"
-    
-    # Default parameters (before regime adaptation)
-    short_window_default: 10
-    long_window_default: 20
-    ma_rule.weight: 0.6
-    
-    # Enable regime adaptation with optimized parameters
-    regime_detector_service_name: "MyPrimaryRegimeDetector"
-    regime_params_file_path: "regime_optimized_parameters.json"
-    fallback_to_overall_best: true
-
-  # Also include ensemble_strategy config as fallback
   ensemble_strategy:
     symbol: "SPY"
     short_window_default: 10
     long_window_default: 20
-    ma_rule.weight: 0.6
+    ma_rule.weight: 1.0
     rsi_indicator:
       period: 14
     rsi_rule:
       oversold_threshold: 30.0
       overbought_threshold: 70.0
-      weight: 0.4
+      weight: 0.0
 
-  # Data Handler - KEY: Set to only use test data
   data_handler_csv:
-    csv_file_path: "data/SPY_1min.csv"
+    csv_file_path: "data/1000_1min.csv"
     symbol: "SPY"
     timestamp_column: "timestamp"
-    train_test_split_ratio: 0.8
+    train_test_split_ratio: 0.75
     open_column: "Open"
     high_column: "High"
     low_column: "Low"
     close_column: "Close"
     volume_column: "Volume"
-    # Force test data only
-    test_only: true
 
-  # Portfolio Manager
   basic_portfolio:
     initial_cash: 100000.00
 
-  # Risk Manager
   basic_risk_manager:
     target_trade_quantity: 100
 
-  # Execution Handler
   simulated_execution_handler:
     default_quantity: 100
     commission_per_trade: 0.005
@@ -66,14 +43,12 @@ components:
     passthrough: false
     fill_price_logic: "signal_price"
 
-  # Regime Detector
-  MyPrimaryRegimeDetector: 
+  MyPrimaryRegimeDetector:
     min_regime_duration: 2
     verbose_logging: false
     summary_interval: 50
-    
     indicators:
-      rsi_14: 
+      rsi_14:
         type: "rsi"
         parameters: {"period": 14}
       atr_20:
@@ -82,23 +57,18 @@ components:
       trend_10_30:
         type: "simple_ma_trend"
         parameters: {"short_period": 5, "long_period": 20}
-    
     regime_thresholds:
       trending_up_volatile:
         trend_10_30: {"min": 0.02}
         atr_20: {"min": 0.15}
-      
       trending_up_low_vol:
         trend_10_30: {"min": 0.02}
         atr_20: {"max": 0.15}
-        
       ranging_low_vol:
         trend_10_30: {"min": -0.01, "max": 0.01}
         atr_20: {"max": 0.12}
-        
       trending_down:
         trend_10_30: {"max": -0.01}
-        
       oversold_in_uptrend:
         rsi_14: {"max": 40}
         trend_10_30: {"min": 0.01}

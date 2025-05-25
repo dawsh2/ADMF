@@ -1,0 +1,611 @@
+{
+  "version_id": "63e696942dd9bdcd27904917b79b0cbe9f3fe0db1ad52df524ff33c5881cde8d",
+  "timestamp": "20250525_123512",
+  "optimization_type": "grid_search",
+  "metadata": {
+    "dataset_info": {
+      "train_size": 0,
+      "test_size": 0,
+      "split_ratio": 0.8
+    }
+  },
+  "results": {
+    "best_parameters_on_train": {
+      "short_window": 5,
+      "long_window": 20,
+      "rsi_indicator.period": 9,
+      "rsi_rule.oversold_threshold": 20.0,
+      "rsi_rule.overbought_threshold": 60.0
+    },
+    "best_training_metric_value": 100730.12499999994,
+    "test_set_metric_value_for_best_params": 100037.76499999998,
+    "best_parameters_per_regime": {
+      "default": {
+        "parameters": {
+          "short_window": 10,
+          "long_window": 20,
+          "rsi_indicator.period": 21,
+          "rsi_rule.oversold_threshold": 30.0,
+          "rsi_rule.overbought_threshold": 70.0
+        },
+        "metric": {
+          "name": "sharpe_ratio",
+          "value": -2.5204060161533044
+        },
+        "portfolio_value": null
+      },
+      "trending_down": {
+        "parameters": {
+          "short_window": 10,
+          "long_window": 20,
+          "rsi_indicator.period": 21,
+          "rsi_rule.oversold_threshold": 30.0,
+          "rsi_rule.overbought_threshold": 70.0
+        },
+        "metric": {
+          "name": "sharpe_ratio",
+          "value": 8.141603306318952
+        },
+        "portfolio_value": null
+      },
+      "ranging_low_vol": {
+        "parameters": {
+          "short_window": 10,
+          "long_window": 20,
+          "rsi_indicator.period": 21,
+          "rsi_rule.oversold_threshold": 30.0,
+          "rsi_rule.overbought_threshold": 70.0
+        },
+        "metric": {
+          "name": "sharpe_ratio",
+          "value": -11.78199525714962
+        },
+        "portfolio_value": null
+      },
+      "trending_up_volatile": {
+        "parameters": {
+          "short_window": 10,
+          "long_window": 20,
+          "rsi_indicator.period": 21,
+          "rsi_rule.oversold_threshold": 30.0,
+          "rsi_rule.overbought_threshold": 70.0
+        },
+        "metric": {
+          "name": "sharpe_ratio",
+          "value": 2.6427090633859294
+        },
+        "portfolio_value": null
+      },
+      "trending_up_low_vol": {
+        "parameters": {
+          "short_window": 10,
+          "long_window": 20,
+          "rsi_indicator.period": 14,
+          "rsi_rule.oversold_threshold": 30.0,
+          "rsi_rule.overbought_threshold": 60.0
+        },
+        "metric": {
+          "name": "sharpe_ratio",
+          "value": -8.23164625090721
+        },
+        "portfolio_value": null
+      }
+    },
+    "best_metric_per_regime": {
+      "default": 11.580549065604151,
+      "trending_down": 13.613096016795824,
+      "ranging_low_vol": 5.306990482597852,
+      "trending_up_volatile": 8.253389538380466,
+      "trending_up_low_vol": 38.15292347412129
+    },
+    "all_training_results": [
+      {
+        "parameters": {
+          "short_window": 5,
+          "long_window": 20,
+          "rsi_indicator.period": 9,
+          "rsi_rule.oversold_threshold": 20.0,
+          "rsi_rule.overbought_threshold": 60.0
+        },
+        "metric_value": 100730.12499999994,
+        "regime_performance": "<cleared to free memory>"
+      },
+      {
+        "parameters": {
+          "short_window": 5,
+          "long_window": 20,
+          "rsi_indicator.period": 9,
+          "rsi_rule.oversold_threshold": 20.0,
+          "rsi_rule.overbought_threshold": 70.0
+        },
+        "metric_value": 100074.56500000006,
+        "regime_performance": "<cleared to free memory>"
+      },
+      {
+        "parameters": {
+          "short_window": 5,
+          "long_window": 20,
+          "rsi_indicator.period": 9,
+          "rsi_rule.oversold_threshold": 30.0,
+          "rsi_rule.overbought_threshold": 60.0
+        },
+        "metric_value": 100697.82499999984,
+        "regime_performance": "<cleared to free memory>"
+      },
+      {
+        "parameters": {
+          "short_window": 5,
+          "long_window": 20,
+          "rsi_indicator.period": 9,
+          "rsi_rule.oversold_threshold": 30.0,
+          "rsi_rule.overbought_threshold": 70.0
+        },
+        "metric_value": 100072.375,
+        "regime_performance": "<cleared to free memory>"
+      },
+      {
+        "parameters": {
+          "short_window": 5,
+          "long_window": 20,
+          "rsi_indicator.period": 14,
+          "rsi_rule.oversold_threshold": 20.0,
+          "rsi_rule.overbought_threshold": 60.0
+        },
+        "metric_value": 100156.54500000001,
+        "regime_performance": "<cleared to free memory>"
+      },
+      {
+        "parameters": {
+          "short_window": 5,
+          "long_window": 20,
+          "rsi_indicator.period": 14,
+          "rsi_rule.oversold_threshold": 20.0,
+          "rsi_rule.overbought_threshold": 70.0
+        },
+        "metric_value": 99914.935,
+        "regime_performance": "<cleared to free memory>"
+      },
+      {
+        "parameters": {
+          "short_window": 5,
+          "long_window": 20,
+          "rsi_indicator.period": 14,
+          "rsi_rule.oversold_threshold": 30.0,
+          "rsi_rule.overbought_threshold": 60.0
+        },
+        "metric_value": 100442.18500000006,
+        "regime_performance": "<cleared to free memory>"
+      },
+      {
+        "parameters": {
+          "short_window": 5,
+          "long_window": 20,
+          "rsi_indicator.period": 14,
+          "rsi_rule.oversold_threshold": 30.0,
+          "rsi_rule.overbought_threshold": 70.0
+        },
+        "metric_value": 100200.57500000004,
+        "regime_performance": "<cleared to free memory>"
+      },
+      {
+        "parameters": {
+          "short_window": 5,
+          "long_window": 20,
+          "rsi_indicator.period": 21,
+          "rsi_rule.oversold_threshold": 20.0,
+          "rsi_rule.overbought_threshold": 60.0
+        },
+        "metric_value": 99914.93499999997,
+        "regime_performance": "<cleared to free memory>"
+      },
+      {
+        "parameters": {
+          "short_window": 5,
+          "long_window": 20,
+          "rsi_indicator.period": 21,
+          "rsi_rule.oversold_threshold": 20.0,
+          "rsi_rule.overbought_threshold": 70.0
+        },
+        "metric_value": 100117.93499999994,
+        "regime_performance": "<cleared to free memory>"
+      },
+      {
+        "parameters": {
+          "short_window": 5,
+          "long_window": 20,
+          "rsi_indicator.period": 21,
+          "rsi_rule.oversold_threshold": 30.0,
+          "rsi_rule.overbought_threshold": 60.0
+        },
+        "metric_value": 99846.93499999997,
+        "regime_performance": "<cleared to free memory>"
+      },
+      {
+        "parameters": {
+          "short_window": 5,
+          "long_window": 20,
+          "rsi_indicator.period": 21,
+          "rsi_rule.oversold_threshold": 30.0,
+          "rsi_rule.overbought_threshold": 70.0
+        },
+        "metric_value": 100049.93499999994,
+        "regime_performance": "<cleared to free memory>"
+      },
+      {
+        "parameters": {
+          "short_window": 10,
+          "long_window": 20,
+          "rsi_indicator.period": 9,
+          "rsi_rule.oversold_threshold": 20.0,
+          "rsi_rule.overbought_threshold": 60.0
+        },
+        "metric_value": 100641.74499999994,
+        "regime_performance": "<cleared to free memory>"
+      },
+      {
+        "parameters": {
+          "short_window": 10,
+          "long_window": 20,
+          "rsi_indicator.period": 9,
+          "rsi_rule.oversold_threshold": 20.0,
+          "rsi_rule.overbought_threshold": 70.0
+        },
+        "metric_value": 100046.45999999993,
+        "regime_performance": "<cleared to free memory>"
+      },
+      {
+        "parameters": {
+          "short_window": 10,
+          "long_window": 20,
+          "rsi_indicator.period": 9,
+          "rsi_rule.oversold_threshold": 30.0,
+          "rsi_rule.overbought_threshold": 60.0
+        },
+        "metric_value": 100662.65499999985,
+        "regime_performance": "<cleared to free memory>"
+      },
+      {
+        "parameters": {
+          "short_window": 10,
+          "long_window": 20,
+          "rsi_indicator.period": 9,
+          "rsi_rule.oversold_threshold": 30.0,
+          "rsi_rule.overbought_threshold": 70.0
+        },
+        "metric_value": 100079.52999999994,
+        "regime_performance": "<cleared to free memory>"
+      },
+      {
+        "parameters": {
+          "short_window": 10,
+          "long_window": 20,
+          "rsi_indicator.period": 14,
+          "rsi_rule.oversold_threshold": 20.0,
+          "rsi_rule.overbought_threshold": 60.0
+        },
+        "metric_value": 100010.9599999999,
+        "regime_performance": "<cleared to free memory>"
+      },
+      {
+        "parameters": {
+          "short_window": 10,
+          "long_window": 20,
+          "rsi_indicator.period": 14,
+          "rsi_rule.oversold_threshold": 20.0,
+          "rsi_rule.overbought_threshold": 70.0
+        },
+        "metric_value": 99836.92999999996,
+        "regime_performance": "<cleared to free memory>"
+      },
+      {
+        "parameters": {
+          "short_window": 10,
+          "long_window": 20,
+          "rsi_indicator.period": 14,
+          "rsi_rule.oversold_threshold": 30.0,
+          "rsi_rule.overbought_threshold": 60.0
+        },
+        "metric_value": 100292.69999999992,
+        "regime_performance": "<cleared to free memory>"
+      },
+      {
+        "parameters": {
+          "short_window": 10,
+          "long_window": 20,
+          "rsi_indicator.period": 14,
+          "rsi_rule.oversold_threshold": 30.0,
+          "rsi_rule.overbought_threshold": 70.0
+        },
+        "metric_value": 100118.67000000001,
+        "regime_performance": "<cleared to free memory>"
+      },
+      {
+        "parameters": {
+          "short_window": 10,
+          "long_window": 20,
+          "rsi_indicator.period": 21,
+          "rsi_rule.oversold_threshold": 20.0,
+          "rsi_rule.overbought_threshold": 60.0
+        },
+        "metric_value": 99742.16999999995,
+        "regime_performance": "<cleared to free memory>"
+      },
+      {
+        "parameters": {
+          "short_window": 10,
+          "long_window": 20,
+          "rsi_indicator.period": 21,
+          "rsi_rule.oversold_threshold": 20.0,
+          "rsi_rule.overbought_threshold": 70.0
+        },
+        "metric_value": 99965.16999999995,
+        "regime_performance": "<cleared to free memory>"
+      },
+      {
+        "parameters": {
+          "short_window": 10,
+          "long_window": 20,
+          "rsi_indicator.period": 21,
+          "rsi_rule.oversold_threshold": 30.0,
+          "rsi_rule.overbought_threshold": 60.0
+        },
+        "metric_value": 99674.16999999995,
+        "regime_performance": "<cleared to free memory>"
+      },
+      {
+        "parameters": {
+          "short_window": 10,
+          "long_window": 20,
+          "rsi_indicator.period": 21,
+          "rsi_rule.oversold_threshold": 30.0,
+          "rsi_rule.overbought_threshold": 70.0
+        },
+        "metric_value": 99897.16999999995,
+        "regime_performance": "<cleared to free memory>"
+      }
+    ],
+    "regimes_encountered": [
+      "ranging_low_vol",
+      "trending_down",
+      "trending_up_low_vol",
+      "trending_up_volatile",
+      "default"
+    ],
+    "top_n_test_results": [
+      {
+        "rank": 1,
+        "parameters": {
+          "short_window": 10,
+          "long_window": 20,
+          "rsi_indicator.period": 9,
+          "rsi_rule.oversold_threshold": 30.0,
+          "rsi_rule.overbought_threshold": 60.0
+        },
+        "train_metric": 100662.65499999985,
+        "test_metric": 100174.98500000002
+      },
+      {
+        "rank": 2,
+        "parameters": {
+          "short_window": 5,
+          "long_window": 20,
+          "rsi_indicator.period": 9,
+          "rsi_rule.oversold_threshold": 30.0,
+          "rsi_rule.overbought_threshold": 60.0
+        },
+        "train_metric": 100697.82499999984,
+        "test_metric": 100128.92499999999
+      },
+      {
+        "rank": 3,
+        "parameters": {
+          "short_window": 5,
+          "long_window": 20,
+          "rsi_indicator.period": 9,
+          "rsi_rule.oversold_threshold": 20.0,
+          "rsi_rule.overbought_threshold": 60.0
+        },
+        "train_metric": 100730.12499999994,
+        "test_metric": 100037.76499999998
+      }
+    ],
+    "ready_for_adaptive_test": true,
+    "regime_adaptive_test_results": {
+      "adaptive_metric": 100174.98500000002,
+      "method": "true_adaptive",
+      "regimes_detected": [
+        "trending_down",
+        "ranging_low_vol",
+        "default",
+        "trending_up_low_vol",
+        "_boundary_trades_summary"
+      ],
+      "adaptive_regime_performance": {
+        "trending_down": {
+          "pnl": 37.990000000013424,
+          "commission": 0.01,
+          "count": 2,
+          "wins": 2,
+          "losses": 0,
+          "pnl_values": [
+            14.50000000000955,
+            23.490000000003874
+          ],
+          "boundary_trade_count": 1,
+          "boundary_trades_pnl": 23.490000000003874,
+          "pure_regime_count": 1,
+          "pure_regime_pnl": 14.50000000000955,
+          "sharpe_ratio": 47.434559774309896,
+          "win_rate": 1.0,
+          "avg_pnl": 18.995000000006712,
+          "std_dev_pnl": 6.3568899628630495,
+          "gross_pnl": 37.980000000013426,
+          "net_pnl": 37.990000000013424
+        },
+        "ranging_low_vol": {
+          "pnl": 48.5300000000052,
+          "commission": 0.04,
+          "count": 9,
+          "wins": 7,
+          "losses": 2,
+          "pnl_values": [
+            5.989999999997053,
+            -0.9999999999990905,
+            2.0400000000108776,
+            20.100000000002183,
+            10.599999999999454,
+            14.999999999997726,
+            12.999999999999545,
+            2.400000000000091,
+            -19.600000000002638
+          ],
+          "boundary_trade_count": 2,
+          "boundary_trades_pnl": 8.03000000000793,
+          "pure_regime_count": 7,
+          "pure_regime_pnl": 40.49999999999727,
+          "sharpe_ratio": 7.368381836336783,
+          "win_rate": 0.7777777777777778,
+          "avg_pnl": 5.3922222222228005,
+          "std_dev_pnl": 11.617051882661574,
+          "gross_pnl": 48.4900000000052,
+          "net_pnl": 48.5300000000052
+        },
+        "default": {
+          "pnl": 15.999999999996817,
+          "commission": 0.015,
+          "count": 3,
+          "wins": 2,
+          "losses": 1,
+          "pnl_values": [
+            13.999999999998636,
+            -5.999999999994543,
+            7.999999999992724
+          ],
+          "boundary_trade_count": 1,
+          "boundary_trades_pnl": 7.999999999992724,
+          "pure_regime_count": 2,
+          "pure_regime_pnl": 8.000000000004093,
+          "sharpe_ratio": 8.249280751157974,
+          "win_rate": 0.6666666666666666,
+          "avg_pnl": 5.3333333333322726,
+          "std_dev_pnl": 10.263202878889235,
+          "gross_pnl": 15.984999999996816,
+          "net_pnl": 15.999999999996817
+        },
+        "trending_up_low_vol": {
+          "pnl": 1.999999999998181,
+          "commission": 0.005,
+          "count": 1,
+          "wins": 1,
+          "losses": 0,
+          "pnl_values": [
+            1.999999999998181
+          ],
+          "boundary_trade_count": 0,
+          "boundary_trades_pnl": 0.0,
+          "pure_regime_count": 1,
+          "pure_regime_pnl": 1.999999999998181,
+          "sharpe_ratio": null,
+          "win_rate": 1.0,
+          "avg_pnl": 1.999999999998181,
+          "std_dev_pnl": 0.0,
+          "gross_pnl": 1.9949999999981811,
+          "net_pnl": 1.999999999998181
+        },
+        "_boundary_trades_summary": {
+          "trending_down_to_ranging_low_vol": {
+            "pnl": 23.490000000003874,
+            "commission": 0.005,
+            "count": 1,
+            "wins": 1,
+            "losses": 0,
+            "pnl_values": [
+              23.490000000003874
+            ],
+            "boundary_trade_count": 0,
+            "boundary_trades_pnl": 0.0,
+            "pure_regime_count": 0,
+            "pure_regime_pnl": 0.0,
+            "sharpe_ratio": null,
+            "win_rate": 1.0,
+            "avg_pnl": 23.490000000003874,
+            "std_dev_pnl": 0.0,
+            "gross_pnl": 23.485000000003875,
+            "net_pnl": 23.490000000003874
+          },
+          "ranging_low_vol_to_default": {
+            "pnl": 5.989999999997053,
+            "commission": 0.005,
+            "count": 1,
+            "wins": 1,
+            "losses": 0,
+            "pnl_values": [
+              5.989999999997053
+            ],
+            "boundary_trade_count": 0,
+            "boundary_trades_pnl": 0.0,
+            "pure_regime_count": 0,
+            "pure_regime_pnl": 0.0,
+            "sharpe_ratio": null,
+            "win_rate": 1.0,
+            "avg_pnl": 5.989999999997053,
+            "std_dev_pnl": 0.0,
+            "gross_pnl": 5.984999999997053,
+            "net_pnl": 5.989999999997053
+          },
+          "ranging_low_vol_to_trending_up_low_vol": {
+            "pnl": 2.0400000000108776,
+            "commission": 0.005,
+            "count": 1,
+            "wins": 1,
+            "losses": 0,
+            "pnl_values": [
+              2.0400000000108776
+            ],
+            "boundary_trade_count": 0,
+            "boundary_trades_pnl": 0.0,
+            "pure_regime_count": 0,
+            "pure_regime_pnl": 0.0,
+            "sharpe_ratio": null,
+            "win_rate": 1.0,
+            "avg_pnl": 2.0400000000108776,
+            "std_dev_pnl": 0.0,
+            "gross_pnl": 2.0350000000108777,
+            "net_pnl": 2.0400000000108776
+          },
+          "default_to_ranging_low_vol": {
+            "pnl": 7.999999999992724,
+            "commission": 0.005,
+            "count": 1,
+            "wins": 1,
+            "losses": 0,
+            "pnl_values": [
+              7.999999999992724
+            ],
+            "boundary_trade_count": 0,
+            "boundary_trades_pnl": 0.0,
+            "pure_regime_count": 0,
+            "pure_regime_pnl": 0.0,
+            "sharpe_ratio": null,
+            "win_rate": 1.0,
+            "avg_pnl": 7.999999999992724,
+            "std_dev_pnl": 0.0,
+            "gross_pnl": 7.994999999992724,
+            "net_pnl": 7.999999999992724
+          }
+        }
+      },
+      "regimes_info": {
+        "regimes_with_optimized_params": [
+          "trending_down",
+          "default",
+          "trending_up_low_vol",
+          "ranging_low_vol"
+        ],
+        "would_use_default_for": [
+          "_boundary_trades_summary"
+        ]
+      }
+    }
+  }
+}

@@ -1,0 +1,37 @@
+components:
+  basic_portfolio:
+    initial_cash: 100000.0
+  basic_risk_manager:
+    target_trade_quantity: 100
+  data_handler_csv:
+    close_column: Close
+    csv_file_path: data/1000_1min.csv
+    high_column: High
+    low_column: Low
+    open_column: Open
+    symbol: SPY
+    timestamp_column: timestamp
+    train_test_split_ratio: 0.8
+    volume_column: Volume
+  ensemble_strategy:
+    long_window_default: 20
+    ma_rule.weight: 1.0
+    rsi_indicator:
+      period: 14
+    rsi_rule:
+      overbought_threshold: 70.0
+      oversold_threshold: 30.0
+      weight: 0.0
+    short_window_default: 10
+    symbol: SPY
+  simulated_execution_handler:
+    commission_per_trade: 0.005
+    commission_type: per_share
+    default_quantity: 100
+    fill_price_logic: signal_price
+    passthrough: false
+logging:
+  level: INFO
+system:
+  name: ADMF-Test-Match
+  version: 0.1.0

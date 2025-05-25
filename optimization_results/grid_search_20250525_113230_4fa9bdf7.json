@@ -1,0 +1,2022 @@
+{
+  "version_id": "4fa9bdf70b64040c409ed0289ef43173a378b1706bfb559323171ec9d6ed73ac",
+  "timestamp": "20250525_113230",
+  "optimization_type": "grid_search",
+  "metadata": {
+    "dataset_info": {
+      "train_size": 0,
+      "test_size": 0,
+      "split_ratio": 0.8
+    }
+  },
+  "results": {
+    "best_parameters_on_train": {
+      "short_window": 10,
+      "long_window": 20,
+      "rsi_indicator.period": 14,
+      "rsi_rule.oversold_threshold": 30.0,
+      "rsi_rule.overbought_threshold": 60.0
+    },
+    "best_training_metric_value": 100440.41999999998,
+    "test_set_metric_value_for_best_params": 99892.54999999999,
+    "best_parameters_per_regime": {
+      "ranging_low_vol": {
+        "parameters": {
+          "short_window": 10,
+          "long_window": 20,
+          "rsi_indicator.period": 14,
+          "rsi_rule.oversold_threshold": 30.0,
+          "rsi_rule.overbought_threshold": 60.0
+        },
+        "metric": {
+          "name": "sharpe_ratio",
+          "value": 11.88187495860053
+        },
+        "portfolio_value": null
+      },
+      "trending_up_low_vol": {
+        "parameters": {
+          "short_window": 5,
+          "long_window": 20,
+          "rsi_indicator.period": 9,
+          "rsi_rule.oversold_threshold": 20.0,
+          "rsi_rule.overbought_threshold": 70.0
+        },
+        "metric": {
+          "name": "sharpe_ratio",
+          "value": 29.24601590101226
+        },
+        "portfolio_value": null
+      },
+      "default": {
+        "parameters": {
+          "short_window": 10,
+          "long_window": 20,
+          "rsi_indicator.period": 14,
+          "rsi_rule.oversold_threshold": 30.0,
+          "rsi_rule.overbought_threshold": 60.0
+        },
+        "metric": {
+          "name": "sharpe_ratio",
+          "value": 41.984542538415305
+        },
+        "portfolio_value": null
+      },
+      "trending_up_volatile": {
+        "parameters": {
+          "short_window": 5,
+          "long_window": 20,
+          "rsi_indicator.period": 9,
+          "rsi_rule.oversold_threshold": 20.0,
+          "rsi_rule.overbought_threshold": 70.0
+        },
+        "metric": {
+          "name": "sharpe_ratio",
+          "value": -3.927202733727432
+        },
+        "portfolio_value": null
+      },
+      "trending_down": {
+        "parameters": {
+          "short_window": 5,
+          "long_window": 20,
+          "rsi_indicator.period": 9,
+          "rsi_rule.oversold_threshold": 20.0,
+          "rsi_rule.overbought_threshold": 70.0
+        },
+        "metric": {
+          "name": "sharpe_ratio",
+          "value": 11.708884020515978
+        },
+        "portfolio_value": null
+      }
+    },
+    "best_metric_per_regime": {
+      "ranging_low_vol": 11.88187495860053,
+      "trending_up_low_vol": 29.24601590101226,
+      "default": 41.984542538415305,
+      "trending_up_volatile": -3.927202733727432,
+      "trending_down": 11.708884020515978
+    },
+    "all_training_results": [
+      {
+        "parameters": {
+          "short_window": 5,
+          "long_window": 20
+        },
+        "metric_value": 100050.53999999995,
+        "regime_performance": {
+          "default": {
+            "pnl": -116.2499999999568,
+            "commission": 0.10000000000000002,
+            "count": 20,
+            "wins": 4,
+            "losses": 16,
+            "pnl_values": [
+              -18.499999999994543,
+              15.50000000000864,
+              5.5000000000063665,
+              -8.49999999999227,
+              -11.50000000000091,
+              -9.49999999999136,
+              -4.9999999999954525,
+              -10.989999999992506,
+              -0.009999999997489795,
+              -17.000000000007276,
+              2.4999999999977263,
+              -28.500000000008185,
+              -3.9899999999988722,
+              -2.9899999999997817,
+              -1.4999999999986358,
+              -8.999999999991815,
+              -1.4999999999986358,
+              -7.000000000005002,
+              0.9999999999990905,
+              -5.269999999995889
+            ],
+            "boundary_trade_count": 4,
+            "boundary_trades_pnl": -30.759999999997945,
+            "pure_regime_count": 16,
+            "pure_regime_pnl": -85.48999999995885,
+            "sharpe_ratio": -9.832518864380182,
+            "win_rate": 0.2,
+            "avg_pnl": -5.81249999999784,
+            "std_dev_pnl": 9.384225776327542,
+            "gross_pnl": -116.3499999999568,
+            "net_pnl": -116.2499999999568
+          },
+          "ranging_low_vol": {
+            "pnl": -143.70000000001255,
+            "commission": 0.075,
+            "count": 15,
+            "wins": 3,
+            "losses": 12,
+            "pnl_values": [
+              0.49999999999954525,
+              -6.9999999999936335,
+              4.499999999995907,
+              -22.01000000000022,
+              -10.789999999997235,
+              -5.700000000001637,
+              -13.200000000006185,
+              -11.50000000000091,
+              -9.990000000004784,
+              -20.000000000004547,
+              -2.9999999999972715,
+              -10.500000000001819,
+              -21.000000000003638,
+              0.9900000000016007,
+              -14.999999999997726
+            ],
+            "boundary_trade_count": 0,
+            "boundary_trades_pnl": 0.0,
+            "pure_regime_count": 15,
+            "pure_regime_pnl": -143.70000000001255,
+            "sharpe_ratio": -18.773110069811715,
+            "win_rate": 0.2,
+            "avg_pnl": -9.580000000000837,
+            "std_dev_pnl": 8.100830645240617,
+            "gross_pnl": -143.77500000001254,
+            "net_pnl": -143.70000000001255
+          },
+          "trending_down": {
+            "pnl": -138.56000000000677,
+            "commission": 0.05999999999999999,
+            "count": 12,
+            "wins": 4,
+            "losses": 8,
+            "pnl_values": [
+              17.210000000000036,
+              -9.010000000000673,
+              -16.50000000000773,
+              -11.009999999998854,
+              -96.50000000000318,
+              70.00000000000455,
+              -34.399999999993724,
+              3.4999999999968168,
+              -11.50000000000091,
+              -20.990000000006148,
+              7.699999999999818,
+              -37.05999999999676
+            ],
+            "boundary_trade_count": 10,
+            "boundary_trades_pnl": -49.7600000000034,
+            "pure_regime_count": 2,
+            "pure_regime_pnl": -88.80000000000337,
+            "sharpe_ratio": -4.720673780978949,
+            "win_rate": 0.3333333333333333,
+            "avg_pnl": -11.54666666666723,
+            "std_dev_pnl": 38.828705251594926,
+            "gross_pnl": -138.62000000000677,
+            "net_pnl": -138.56000000000677
+          },
+          "trending_up_volatile": {
+            "pnl": -23.700000000008004,
+            "commission": 0.01,
+            "count": 3,
+            "wins": 1,
+            "losses": 2,
+            "pnl_values": [
+              -34.00000000000318,
+              -22.500000000002274,
+              32.79999999999745
+            ],
+            "boundary_trade_count": 1,
+            "boundary_trades_pnl": -22.500000000002274,
+            "pure_regime_count": 2,
+            "pure_regime_pnl": -1.2000000000057298,
+            "sharpe_ratio": -3.511551544962259,
+            "win_rate": 0.3333333333333333,
+            "avg_pnl": -7.9000000000026676,
+            "std_dev_pnl": 35.71316283949117,
+            "gross_pnl": -23.710000000008005,
+            "net_pnl": -23.700000000008004
+          },
+          "trending_up_low_vol": {
+            "pnl": -55.00000000000682,
+            "commission": 0.01,
+            "count": 2,
+            "wins": 0,
+            "losses": 2,
+            "pnl_values": [
+              -3.00000000000864,
+              -51.99999999999818
+            ],
+            "boundary_trade_count": 1,
+            "boundary_trades_pnl": -51.99999999999818,
+            "pure_regime_count": 1,
+            "pure_regime_pnl": -3.00000000000864,
+            "sharpe_ratio": -12.599458547304259,
+            "win_rate": 0.0,
+            "avg_pnl": -27.50000000000341,
+            "std_dev_pnl": 34.648232278133435,
+            "gross_pnl": -55.01000000000682,
+            "net_pnl": -55.00000000000682
+          },
+          "_boundary_trades_summary": {
+            "default_to_ranging_low_vol": {
+              "pnl": -30.759999999997945,
+              "commission": 0.02,
+              "count": 4,
+              "wins": 1,
+              "losses": 3,
+              "pnl_values": [
+                -10.989999999992506,
+                -17.000000000007276,
+                2.4999999999977263,
+                -5.269999999995889
+              ],
+              "boundary_trade_count": 0,
+              "boundary_trades_pnl": 0.0,
+              "pure_regime_count": 0,
+              "pure_regime_pnl": 0.0,
+              "sharpe_ratio": -14.68692771618516,
+              "win_rate": 0.25,
+              "avg_pnl": -7.689999999999486,
+              "std_dev_pnl": 8.311810873691716,
+              "gross_pnl": -30.779999999997944,
+              "net_pnl": -30.759999999997945
+            },
+            "trending_down_to_ranging_low_vol": {
+              "pnl": -19.31000000000722,
+              "commission": 0.02,
+              "count": 4,
+              "wins": 1,
+              "losses": 3,
+              "pnl_values": [
+                17.210000000000036,
+                -9.010000000000673,
+                -16.50000000000773,
+                -11.009999999998854
+              ],
+              "boundary_trade_count": 0,
+              "boundary_trades_pnl": 0.0,
+              "pure_regime_count": 0,
+              "pure_regime_pnl": 0.0,
+              "sharpe_ratio": -5.099077191268492,
+              "win_rate": 0.25,
+              "avg_pnl": -4.827500000001805,
+              "std_dev_pnl": 15.029030518745751,
+              "gross_pnl": -19.33000000000722,
+              "net_pnl": -19.31000000000722
+            },
+            "trending_down_to_default": {
+              "pnl": -30.44999999999618,
+              "commission": 0.030000000000000002,
+              "count": 6,
+              "wins": 2,
+              "losses": 4,
+              "pnl_values": [
+                70.00000000000455,
+                -34.399999999993724,
+                3.4999999999968168,
+                -11.50000000000091,
+                -20.990000000006148,
+                -37.05999999999676
+              ],
+              "boundary_trade_count": 0,
+              "boundary_trades_pnl": 0.0,
+              "pure_regime_count": 0,
+              "pure_regime_pnl": 0.0,
+              "sharpe_ratio": -2.0284100984416824,
+              "win_rate": 0.3333333333333333,
+              "avg_pnl": -5.074999999999363,
+              "std_dev_pnl": 39.71737642392876,
+              "gross_pnl": -30.47999999999618,
+              "net_pnl": -30.44999999999618
+            },
+            "trending_up_volatile_to_default": {
+              "pnl": -22.500000000002274,
+              "commission": 0.005,
+              "count": 1,
+              "wins": 0,
+              "losses": 1,
+              "pnl_values": [
+                -22.500000000002274
+              ],
+              "boundary_trade_count": 0,
+              "boundary_trades_pnl": 0.0,
+              "pure_regime_count": 0,
+              "pure_regime_pnl": 0.0,
+              "sharpe_ratio": null,
+              "win_rate": 0.0,
+              "avg_pnl": -22.500000000002274,
+              "std_dev_pnl": 0.0,
+              "gross_pnl": -22.505000000002273,
+              "net_pnl": -22.500000000002274
+            },
+            "trending_up_low_vol_to_default": {
+              "pnl": -51.99999999999818,
+              "commission": 0.005,
+              "count": 1,
+              "wins": 0,
+              "losses": 1,
+              "pnl_values": [
+                -51.99999999999818
+              ],
+              "boundary_trade_count": 0,
+              "boundary_trades_pnl": 0.0,
+              "pure_regime_count": 0,
+              "pure_regime_pnl": 0.0,
+              "sharpe_ratio": null,
+              "win_rate": 0.0,
+              "avg_pnl": -51.99999999999818,
+              "std_dev_pnl": 0.0,
+              "gross_pnl": -52.004999999998184,
+              "net_pnl": -51.99999999999818
+            }
+          }
+        }
+      },
+      {
+        "parameters": {
+          "short_window": 10,
+          "long_window": 20
+        },
+        "metric_value": 99977.77999999994,
+        "regime_performance": {
+          "default": {
+            "pnl": -41.97000000000344,
+            "commission": 0.075,
+            "count": 15,
+            "wins": 7,
+            "losses": 8,
+            "pnl_values": [
+              -4.9999999999954525,
+              20.500000000004093,
+              -3.4999999999968168,
+              -34.49999999999136,
+              4.9999999999954525,
+              10.599999999999454,
+              -33.00000000000409,
+              6.499999999994088,
+              -0.6000000000085493,
+              3.9899999999988722,
+              -11.50000000000091,
+              -13.999999999998636,
+              -11.50000000000091,
+              14.990000000000236,
+              10.050000000001091
+            ],
+            "boundary_trade_count": 3,
+            "boundary_trades_pnl": -11.510000000009768,
+            "pure_regime_count": 12,
+            "pure_regime_pnl": -30.45999999999367,
+            "sharpe_ratio": -2.7693361619101715,
+            "win_rate": 0.4666666666666667,
+            "avg_pnl": -2.798000000000229,
+            "std_dev_pnl": 16.03881595202191,
+            "gross_pnl": -42.04500000000344,
+            "net_pnl": -41.97000000000344
+          },
+          "ranging_low_vol": {
+            "pnl": -148.19999999996298,
+            "commission": 0.10000000000000002,
+            "count": 20,
+            "wins": 4,
+            "losses": 16,
+            "pnl_values": [
+              -1.999999999998181,
+              -12.999999999999545,
+              -0.9999999999990905,
+              -20.000000000004547,
+              4.9999999999954525,
+              8.789999999999054,
+              -0.009999999997489795,
+              -12.000000000000455,
+              -6.4899999999965985,
+              -12.12999999999056,
+              0.7500000000050022,
+              -25.0,
+              -7.999999999992724,
+              -7.999999999992724,
+              -16.499999999996362,
+              -5.000000000006821,
+              9.500000000002728,
+              -7.510000000002037,
+              -26.499999999998636,
+              -9.09999999998945
+            ],
+            "boundary_trade_count": 3,
+            "boundary_trades_pnl": -21.490000000005693,
+            "pure_regime_count": 17,
+            "pure_regime_pnl": -126.70999999995729,
+            "sharpe_ratio": -11.78199525714962,
+            "win_rate": 0.2,
+            "avg_pnl": -7.409999999998149,
+            "std_dev_pnl": 9.983886491426087,
+            "gross_pnl": -148.29999999996298,
+            "net_pnl": -148.19999999996298
+          },
+          "trending_down": {
+            "pnl": -111.00000000001273,
+            "commission": 0.015,
+            "count": 3,
+            "wins": 0,
+            "losses": 3,
+            "pnl_values": [
+              -102.5000000000091,
+              -6.000000000005912,
+              -2.4999999999977263
+            ],
+            "boundary_trade_count": 0,
+            "boundary_trades_pnl": 0.0,
+            "pure_regime_count": 3,
+            "pure_regime_pnl": -111.00000000001273,
+            "sharpe_ratio": -10.349598131303326,
+            "win_rate": 0.0,
+            "avg_pnl": -37.00000000000424,
+            "std_dev_pnl": 56.75165195833942,
+            "gross_pnl": -111.01500000001273,
+            "net_pnl": -111.00000000001273
+          },
+          "trending_up_low_vol": {
+            "pnl": -6.500000000005457,
+            "commission": 0.005,
+            "count": 1,
+            "wins": 0,
+            "losses": 1,
+            "pnl_values": [
+              -6.500000000005457
+            ],
+            "boundary_trade_count": 1,
+            "boundary_trades_pnl": -6.500000000005457,
+            "pure_regime_count": 0,
+            "pure_regime_pnl": 0.0,
+            "sharpe_ratio": null,
+            "win_rate": 0.0,
+            "avg_pnl": -6.500000000005457,
+            "std_dev_pnl": 0.0,
+            "gross_pnl": -6.505000000005457,
+            "net_pnl": -6.500000000005457
+          },
+          "trending_up_volatile": {
+            "pnl": 32.79999999999745,
+            "commission": 0.0,
+            "count": 1,
+            "wins": 1,
+            "losses": 0,
+            "pnl_values": [
+              32.79999999999745
+            ],
+            "boundary_trade_count": 0,
+            "boundary_trades_pnl": 0.0,
+            "pure_regime_count": 1,
+            "pure_regime_pnl": 32.79999999999745,
+            "sharpe_ratio": null,
+            "win_rate": 1.0,
+            "avg_pnl": 32.79999999999745,
+            "std_dev_pnl": 0.0,
+            "gross_pnl": 32.79999999999745,
+            "net_pnl": 32.79999999999745
+          },
+          "_boundary_trades_summary": {
+            "ranging_low_vol_to_default": {
+              "pnl": -26.490000000001146,
+              "commission": 0.01,
+              "count": 2,
+              "wins": 0,
+              "losses": 2,
+              "pnl_values": [
+                -20.000000000004547,
+                -6.4899999999965985
+              ],
+              "boundary_trade_count": 0,
+              "boundary_trades_pnl": 0.0,
+              "pure_regime_count": 0,
+              "pure_regime_pnl": 0.0,
+              "sharpe_ratio": -22.009586419449523,
+              "win_rate": 0.0,
+              "avg_pnl": -13.245000000000573,
+              "std_dev_pnl": 9.553012613835877,
+              "gross_pnl": -26.500000000001148,
+              "net_pnl": -26.490000000001146
+            },
+            "ranging_low_vol_to_trending_down": {
+              "pnl": 4.9999999999954525,
+              "commission": 0.005,
+              "count": 1,
+              "wins": 1,
+              "losses": 0,
+              "pnl_values": [
+                4.9999999999954525
+              ],
+              "boundary_trade_count": 0,
+              "boundary_trades_pnl": 0.0,
+              "pure_regime_count": 0,
+              "pure_regime_pnl": 0.0,
+              "sharpe_ratio": null,
+              "win_rate": 1.0,
+              "avg_pnl": 4.9999999999954525,
+              "std_dev_pnl": 0.0,
+              "gross_pnl": 4.994999999995453,
+              "net_pnl": 4.9999999999954525
+            },
+            "default_to_trending_down": {
+              "pnl": -18.010000000003856,
+              "commission": 0.01,
+              "count": 2,
+              "wins": 1,
+              "losses": 1,
+              "pnl_values": [
+                -33.00000000000409,
+                14.990000000000236
+              ],
+              "boundary_trade_count": 0,
+              "boundary_trades_pnl": 0.0,
+              "pure_regime_count": 0,
+              "pure_regime_pnl": 0.0,
+              "sharpe_ratio": -4.212580716970643,
+              "win_rate": 0.5,
+              "avg_pnl": -9.005000000001928,
+              "std_dev_pnl": 33.934054429145476,
+              "gross_pnl": -18.020000000003858,
+              "net_pnl": -18.010000000003856
+            },
+            "default_to_trending_up_volatile": {
+              "pnl": 6.499999999994088,
+              "commission": 0.005,
+              "count": 1,
+              "wins": 1,
+              "losses": 0,
+              "pnl_values": [
+                6.499999999994088
+              ],
+              "boundary_trade_count": 0,
+              "boundary_trades_pnl": 0.0,
+              "pure_regime_count": 0,
+              "pure_regime_pnl": 0.0,
+              "sharpe_ratio": null,
+              "win_rate": 1.0,
+              "avg_pnl": 6.499999999994088,
+              "std_dev_pnl": 0.0,
+              "gross_pnl": 6.494999999994088,
+              "net_pnl": 6.499999999994088
+            },
+            "trending_up_low_vol_to_trending_down": {
+              "pnl": -6.500000000005457,
+              "commission": 0.005,
+              "count": 1,
+              "wins": 0,
+              "losses": 1,
+              "pnl_values": [
+                -6.500000000005457
+              ],
+              "boundary_trade_count": 0,
+              "boundary_trades_pnl": 0.0,
+              "pure_regime_count": 0,
+              "pure_regime_pnl": 0.0,
+              "sharpe_ratio": null,
+              "win_rate": 0.0,
+              "avg_pnl": -6.500000000005457,
+              "std_dev_pnl": 0.0,
+              "gross_pnl": -6.505000000005457,
+              "net_pnl": -6.500000000005457
+            }
+          }
+        }
+      },
+      {
+        "parameters": {
+          "rsi_indicator.period": 9,
+          "rsi_rule.oversold_threshold": 20.0,
+          "rsi_rule.overbought_threshold": 60.0
+        },
+        "metric_value": 100211.17500000002,
+        "regime_performance": {
+          "trending_down": {
+            "pnl": 301.7599999999902,
+            "commission": 0.025,
+            "count": 5,
+            "wins": 5,
+            "losses": 0,
+            "pnl_values": [
+              20.75999999999567,
+              22.500000000002274,
+              34.49999999999136,
+              130.99999999999454,
+              93.00000000000637
+            ],
+            "boundary_trade_count": 0,
+            "boundary_trades_pnl": 0.0,
+            "pure_regime_count": 5,
+            "pure_regime_pnl": 301.7599999999902,
+            "sharpe_ratio": 19.429536219039058,
+            "win_rate": 1.0,
+            "avg_pnl": 60.35199999999804,
+            "std_dev_pnl": 49.30937557909313,
+            "gross_pnl": 301.73499999999024,
+            "net_pnl": 301.7599999999902
+          },
+          "default": {
+            "pnl": 23.60000000001037,
+            "commission": 0.01,
+            "count": 2,
+            "wins": 2,
+            "losses": 0,
+            "pnl_values": [
+              15.50000000000864,
+              8.100000000001728
+            ],
+            "boundary_trade_count": 1,
+            "boundary_trades_pnl": 8.100000000001728,
+            "pure_regime_count": 1,
+            "pure_regime_pnl": 15.50000000000864,
+            "sharpe_ratio": 35.79855986263027,
+            "win_rate": 1.0,
+            "avg_pnl": 11.800000000005184,
+            "std_dev_pnl": 5.23259018078534,
+            "gross_pnl": 23.590000000010367,
+            "net_pnl": 23.60000000001037
+          },
+          "ranging_low_vol": {
+            "pnl": 25.0,
+            "commission": 0.005,
+            "count": 1,
+            "wins": 1,
+            "losses": 0,
+            "pnl_values": [
+              25.0
+            ],
+            "boundary_trade_count": 1,
+            "boundary_trades_pnl": 25.0,
+            "pure_regime_count": 0,
+            "pure_regime_pnl": 0.0,
+            "sharpe_ratio": null,
+            "win_rate": 1.0,
+            "avg_pnl": 25.0,
+            "std_dev_pnl": 0.0,
+            "gross_pnl": 24.995,
+            "net_pnl": 25.0
+          },
+          "trending_up_volatile": {
+            "pnl": -32.79999999999745,
+            "commission": 0.0,
+            "count": 1,
+            "wins": 0,
+            "losses": 1,
+            "pnl_values": [
+              -32.79999999999745
+            ],
+            "boundary_trade_count": 0,
+            "boundary_trades_pnl": 0.0,
+            "pure_regime_count": 1,
+            "pure_regime_pnl": -32.79999999999745,
+            "sharpe_ratio": null,
+            "win_rate": 0.0,
+            "avg_pnl": -32.79999999999745,
+            "std_dev_pnl": 0.0,
+            "gross_pnl": -32.79999999999745,
+            "net_pnl": -32.79999999999745
+          },
+          "_boundary_trades_summary": {
+            "ranging_low_vol_to_trending_down": {
+              "pnl": 25.0,
+              "commission": 0.005,
+              "count": 1,
+              "wins": 1,
+              "losses": 0,
+              "pnl_values": [
+                25.0
+              ],
+              "boundary_trade_count": 0,
+              "boundary_trades_pnl": 0.0,
+              "pure_regime_count": 0,
+              "pure_regime_pnl": 0.0,
+              "sharpe_ratio": null,
+              "win_rate": 1.0,
+              "avg_pnl": 25.0,
+              "std_dev_pnl": 0.0,
+              "gross_pnl": 24.995,
+              "net_pnl": 25.0
+            },
+            "default_to_trending_up_volatile": {
+              "pnl": 8.100000000001728,
+              "commission": 0.005,
+              "count": 1,
+              "wins": 1,
+              "losses": 0,
+              "pnl_values": [
+                8.100000000001728
+              ],
+              "boundary_trade_count": 0,
+              "boundary_trades_pnl": 0.0,
+              "pure_regime_count": 0,
+              "pure_regime_pnl": 0.0,
+              "sharpe_ratio": null,
+              "win_rate": 1.0,
+              "avg_pnl": 8.100000000001728,
+              "std_dev_pnl": 0.0,
+              "gross_pnl": 8.095000000001727,
+              "net_pnl": 8.100000000001728
+            }
+          }
+        }
+      },
+      {
+        "parameters": {
+          "rsi_indicator.period": 9,
+          "rsi_rule.oversold_threshold": 20.0,
+          "rsi_rule.overbought_threshold": 70.0
+        },
+        "metric_value": 100247.92000000001,
+        "regime_performance": {
+          "trending_up_low_vol": {
+            "pnl": 9.500000000002728,
+            "commission": 0.01,
+            "count": 2,
+            "wins": 2,
+            "losses": 0,
+            "pnl_values": [
+              4.000000000007731,
+              5.499999999994998
+            ],
+            "boundary_trade_count": 0,
+            "boundary_trades_pnl": 0.0,
+            "pure_regime_count": 2,
+            "pure_regime_pnl": 9.500000000002728,
+            "sharpe_ratio": 71.09149034932878,
+            "win_rate": 1.0,
+            "avg_pnl": 4.750000000001364,
+            "std_dev_pnl": 1.0606601717708177,
+            "gross_pnl": 9.490000000002729,
+            "net_pnl": 9.500000000002728
+          },
+          "ranging_low_vol": {
+            "pnl": 25.0,
+            "commission": 0.005,
+            "count": 1,
+            "wins": 1,
+            "losses": 0,
+            "pnl_values": [
+              25.0
+            ],
+            "boundary_trade_count": 1,
+            "boundary_trades_pnl": 25.0,
+            "pure_regime_count": 0,
+            "pure_regime_pnl": 0.0,
+            "sharpe_ratio": null,
+            "win_rate": 1.0,
+            "avg_pnl": 25.0,
+            "std_dev_pnl": 0.0,
+            "gross_pnl": 24.995,
+            "net_pnl": 25.0
+          },
+          "trending_down": {
+            "pnl": 258.49999999999227,
+            "commission": 0.015,
+            "count": 3,
+            "wins": 3,
+            "losses": 0,
+            "pnl_values": [
+              34.49999999999136,
+              130.99999999999454,
+              93.00000000000637
+            ],
+            "boundary_trade_count": 0,
+            "boundary_trades_pnl": 0.0,
+            "pure_regime_count": 3,
+            "pure_regime_pnl": 258.49999999999227,
+            "sharpe_ratio": 28.138441822010904,
+            "win_rate": 1.0,
+            "avg_pnl": 86.16666666666409,
+            "std_dev_pnl": 48.61155555352635,
+            "gross_pnl": 258.4849999999923,
+            "net_pnl": 258.49999999999227
+          },
+          "trending_up_volatile": {
+            "pnl": -18.299999999999272,
+            "commission": 0.005,
+            "count": 2,
+            "wins": 1,
+            "losses": 1,
+            "pnl_values": [
+              14.499999999998181,
+              -32.79999999999745
+            ],
+            "boundary_trade_count": 0,
+            "boundary_trades_pnl": 0.0,
+            "pure_regime_count": 2,
+            "pure_regime_pnl": -18.299999999999272,
+            "sharpe_ratio": -4.342853922492605,
+            "win_rate": 0.5,
+            "avg_pnl": -9.149999999999636,
+            "std_dev_pnl": 33.44615075012061,
+            "gross_pnl": -18.30499999999927,
+            "net_pnl": -18.299999999999272
+          },
+          "_boundary_trades_summary": {
+            "ranging_low_vol_to_trending_down": {
+              "pnl": 25.0,
+              "commission": 0.005,
+              "count": 1,
+              "wins": 1,
+              "losses": 0,
+              "pnl_values": [
+                25.0
+              ],
+              "boundary_trade_count": 0,
+              "boundary_trades_pnl": 0.0,
+              "pure_regime_count": 0,
+              "pure_regime_pnl": 0.0,
+              "sharpe_ratio": null,
+              "win_rate": 1.0,
+              "avg_pnl": 25.0,
+              "std_dev_pnl": 0.0,
+              "gross_pnl": 24.995,
+              "net_pnl": 25.0
+            }
+          }
+        }
+      },
+      {
+        "parameters": {
+          "rsi_indicator.period": 9,
+          "rsi_rule.oversold_threshold": 30.0,
+          "rsi_rule.overbought_threshold": 60.0
+        },
+        "metric_value": 100126.75999999992,
+        "regime_performance": {
+          "default": {
+            "pnl": 49.19999999999618,
+            "commission": 0.02,
+            "count": 4,
+            "wins": 4,
+            "losses": 0,
+            "pnl_values": [
+              15.50000000000864,
+              8.100000000001728,
+              15.599999999994907,
+              9.999999999990905
+            ],
+            "boundary_trade_count": 1,
+            "boundary_trades_pnl": 8.100000000001728,
+            "pure_regime_count": 3,
+            "pure_regime_pnl": 41.09999999999445,
+            "sharpe_ratio": 50.94995007471417,
+            "win_rate": 1.0,
+            "avg_pnl": 12.299999999999045,
+            "std_dev_pnl": 3.8323187063034045,
+            "gross_pnl": 49.17999999999618,
+            "net_pnl": 49.19999999999618
+          },
+          "trending_down": {
+            "pnl": 231.52000000000044,
+            "commission": 0.045,
+            "count": 9,
+            "wins": 9,
+            "losses": 0,
+            "pnl_values": [
+              25.0,
+              22.00000000000273,
+              22.500000000002274,
+              96.50000000000318,
+              9.000000000003183,
+              22.00000000000273,
+              5.009999999992942,
+              4.499999999995907,
+              25.00999999999749
+            ],
+            "boundary_trade_count": 1,
+            "boundary_trades_pnl": 22.00000000000273,
+            "pure_regime_count": 8,
+            "pure_regime_pnl": 209.5199999999977,
+            "sharpe_ratio": 14.659814256862562,
+            "win_rate": 1.0,
+            "avg_pnl": 25.724444444444494,
+            "std_dev_pnl": 27.855939272942724,
+            "gross_pnl": 231.47500000000045,
+            "net_pnl": 231.52000000000044
+          },
+          "ranging_low_vol": {
+            "pnl": 62.229999999976826,
+            "commission": 0.025,
+            "count": 5,
+            "wins": 5,
+            "losses": 0,
+            "pnl_values": [
+              12.12999999999056,
+              25.0,
+              3.4999999999968168,
+              12.5,
+              9.09999999998945
+            ],
+            "boundary_trade_count": 0,
+            "boundary_trades_pnl": 0.0,
+            "pure_regime_count": 5,
+            "pure_regime_pnl": 62.229999999976826,
+            "sharpe_ratio": 25.04490677035403,
+            "win_rate": 1.0,
+            "avg_pnl": 12.445999999995365,
+            "std_dev_pnl": 7.888794584727973,
+            "gross_pnl": 62.20499999997683,
+            "net_pnl": 62.229999999976826
+          },
+          "trending_up_low_vol": {
+            "pnl": 49.00000000000091,
+            "commission": 0.005,
+            "count": 1,
+            "wins": 1,
+            "losses": 0,
+            "pnl_values": [
+              49.00000000000091
+            ],
+            "boundary_trade_count": 0,
+            "boundary_trades_pnl": 0.0,
+            "pure_regime_count": 1,
+            "pure_regime_pnl": 49.00000000000091,
+            "sharpe_ratio": null,
+            "win_rate": 1.0,
+            "avg_pnl": 49.00000000000091,
+            "std_dev_pnl": 0.0,
+            "gross_pnl": 48.99500000000091,
+            "net_pnl": 49.00000000000091
+          },
+          "trending_up_volatile": {
+            "pnl": -32.79999999999745,
+            "commission": 0.0,
+            "count": 1,
+            "wins": 0,
+            "losses": 1,
+            "pnl_values": [
+              -32.79999999999745
+            ],
+            "boundary_trade_count": 0,
+            "boundary_trades_pnl": 0.0,
+            "pure_regime_count": 1,
+            "pure_regime_pnl": -32.79999999999745,
+            "sharpe_ratio": null,
+            "win_rate": 0.0,
+            "avg_pnl": -32.79999999999745,
+            "std_dev_pnl": 0.0,
+            "gross_pnl": -32.79999999999745,
+            "net_pnl": -32.79999999999745
+          },
+          "_boundary_trades_summary": {
+            "trending_down_to_default": {
+              "pnl": 22.00000000000273,
+              "commission": 0.005,
+              "count": 1,
+              "wins": 1,
+              "losses": 0,
+              "pnl_values": [
+                22.00000000000273
+              ],
+              "boundary_trade_count": 0,
+              "boundary_trades_pnl": 0.0,
+              "pure_regime_count": 0,
+              "pure_regime_pnl": 0.0,
+              "sharpe_ratio": null,
+              "win_rate": 1.0,
+              "avg_pnl": 22.00000000000273,
+              "std_dev_pnl": 0.0,
+              "gross_pnl": 21.99500000000273,
+              "net_pnl": 22.00000000000273
+            },
+            "default_to_trending_up_volatile": {
+              "pnl": 8.100000000001728,
+              "commission": 0.005,
+              "count": 1,
+              "wins": 1,
+              "losses": 0,
+              "pnl_values": [
+                8.100000000001728
+              ],
+              "boundary_trade_count": 0,
+              "boundary_trades_pnl": 0.0,
+              "pure_regime_count": 0,
+              "pure_regime_pnl": 0.0,
+              "sharpe_ratio": null,
+              "win_rate": 1.0,
+              "avg_pnl": 8.100000000001728,
+              "std_dev_pnl": 0.0,
+              "gross_pnl": 8.095000000001727,
+              "net_pnl": 8.100000000001728
+            }
+          }
+        }
+      },
+      {
+        "parameters": {
+          "rsi_indicator.period": 9,
+          "rsi_rule.oversold_threshold": 30.0,
+          "rsi_rule.overbought_threshold": 70.0
+        },
+        "metric_value": 100086.47999999995,
+        "regime_performance": {
+          "trending_up_low_vol": {
+            "pnl": 18.50000000000591,
+            "commission": 0.015,
+            "count": 3,
+            "wins": 3,
+            "losses": 0,
+            "pnl_values": [
+              4.000000000007731,
+              5.499999999994998,
+              9.000000000003183
+            ],
+            "boundary_trade_count": 0,
+            "boundary_trades_pnl": 0.0,
+            "pure_regime_count": 3,
+            "pure_regime_pnl": 18.50000000000591,
+            "sharpe_ratio": 38.15292347412129,
+            "win_rate": 1.0,
+            "avg_pnl": 6.166666666668637,
+            "std_dev_pnl": 2.5658007197225854,
+            "gross_pnl": 18.48500000000591,
+            "net_pnl": 18.50000000000591
+          },
+          "trending_down": {
+            "pnl": 199.0699999999947,
+            "commission": 0.035,
+            "count": 7,
+            "wins": 7,
+            "losses": 0,
+            "pnl_values": [
+              25.0,
+              96.50000000000318,
+              9.000000000003183,
+              22.00000000000273,
+              5.009999999992942,
+              4.499999999995907,
+              37.05999999999676
+            ],
+            "boundary_trade_count": 1,
+            "boundary_trades_pnl": 37.05999999999676,
+            "pure_regime_count": 6,
+            "pure_regime_pnl": 162.00999999999794,
+            "sharpe_ratio": 13.976686729011472,
+            "win_rate": 1.0,
+            "avg_pnl": 28.438571428570672,
+            "std_dev_pnl": 32.30009619623196,
+            "gross_pnl": 199.0349999999947,
+            "net_pnl": 199.0699999999947
+          },
+          "ranging_low_vol": {
+            "pnl": 77.11999999997943,
+            "commission": 0.02,
+            "count": 4,
+            "wins": 4,
+            "losses": 0,
+            "pnl_values": [
+              6.4899999999965985,
+              12.12999999999056,
+              25.0,
+              33.49999999999227
+            ],
+            "boundary_trade_count": 1,
+            "boundary_trades_pnl": 6.4899999999965985,
+            "pure_regime_count": 3,
+            "pure_regime_pnl": 70.62999999998283,
+            "sharpe_ratio": 24.999921509259707,
+            "win_rate": 1.0,
+            "avg_pnl": 19.279999999994857,
+            "std_dev_pnl": 12.242458903341301,
+            "gross_pnl": 77.09999999997943,
+            "net_pnl": 77.11999999997943
+          },
+          "trending_up_volatile": {
+            "pnl": -18.299999999999272,
+            "commission": 0.005,
+            "count": 2,
+            "wins": 1,
+            "losses": 1,
+            "pnl_values": [
+              14.499999999998181,
+              -32.79999999999745
+            ],
+            "boundary_trade_count": 0,
+            "boundary_trades_pnl": 0.0,
+            "pure_regime_count": 2,
+            "pure_regime_pnl": -18.299999999999272,
+            "sharpe_ratio": -4.342853922492605,
+            "win_rate": 0.5,
+            "avg_pnl": -9.149999999999636,
+            "std_dev_pnl": 33.44615075012061,
+            "gross_pnl": -18.30499999999927,
+            "net_pnl": -18.299999999999272
+          },
+          "_boundary_trades_summary": {
+            "ranging_low_vol_to_default": {
+              "pnl": 6.4899999999965985,
+              "commission": 0.005,
+              "count": 1,
+              "wins": 1,
+              "losses": 0,
+              "pnl_values": [
+                6.4899999999965985
+              ],
+              "boundary_trade_count": 0,
+              "boundary_trades_pnl": 0.0,
+              "pure_regime_count": 0,
+              "pure_regime_pnl": 0.0,
+              "sharpe_ratio": null,
+              "win_rate": 1.0,
+              "avg_pnl": 6.4899999999965985,
+              "std_dev_pnl": 0.0,
+              "gross_pnl": 6.484999999996599,
+              "net_pnl": 6.4899999999965985
+            },
+            "trending_down_to_default": {
+              "pnl": 37.05999999999676,
+              "commission": 0.005,
+              "count": 1,
+              "wins": 1,
+              "losses": 0,
+              "pnl_values": [
+                37.05999999999676
+              ],
+              "boundary_trade_count": 0,
+              "boundary_trades_pnl": 0.0,
+              "pure_regime_count": 0,
+              "pure_regime_pnl": 0.0,
+              "sharpe_ratio": null,
+              "win_rate": 1.0,
+              "avg_pnl": 37.05999999999676,
+              "std_dev_pnl": 0.0,
+              "gross_pnl": 37.05499999999676,
+              "net_pnl": 37.05999999999676
+            }
+          }
+        }
+      },
+      {
+        "parameters": {
+          "rsi_indicator.period": 14,
+          "rsi_rule.oversold_threshold": 20.0,
+          "rsi_rule.overbought_threshold": 60.0
+        },
+        "metric_value": 99943.19,
+        "regime_performance": {
+          "trending_down": {
+            "pnl": 138.99999999999864,
+            "commission": 0.005,
+            "count": 1,
+            "wins": 1,
+            "losses": 0,
+            "pnl_values": [
+              138.99999999999864
+            ],
+            "boundary_trade_count": 0,
+            "boundary_trades_pnl": 0.0,
+            "pure_regime_count": 1,
+            "pure_regime_pnl": 138.99999999999864,
+            "sharpe_ratio": null,
+            "win_rate": 1.0,
+            "avg_pnl": 138.99999999999864,
+            "std_dev_pnl": 0.0,
+            "gross_pnl": 138.99499999999864,
+            "net_pnl": 138.99999999999864
+          },
+          "trending_up_volatile": {
+            "pnl": -32.79999999999745,
+            "commission": 0.0,
+            "count": 1,
+            "wins": 0,
+            "losses": 1,
+            "pnl_values": [
+              -32.79999999999745
+            ],
+            "boundary_trade_count": 0,
+            "boundary_trades_pnl": 0.0,
+            "pure_regime_count": 1,
+            "pure_regime_pnl": -32.79999999999745,
+            "sharpe_ratio": null,
+            "win_rate": 0.0,
+            "avg_pnl": -32.79999999999745,
+            "std_dev_pnl": 0.0,
+            "gross_pnl": -32.79999999999745,
+            "net_pnl": -32.79999999999745
+          },
+          "_boundary_trades_summary": {}
+        }
+      },
+      {
+        "parameters": {
+          "rsi_indicator.period": 14,
+          "rsi_rule.oversold_threshold": 20.0,
+          "rsi_rule.overbought_threshold": 70.0
+        },
+        "metric_value": 99943.19,
+        "regime_performance": {
+          "trending_down": {
+            "pnl": 138.99999999999864,
+            "commission": 0.005,
+            "count": 1,
+            "wins": 1,
+            "losses": 0,
+            "pnl_values": [
+              138.99999999999864
+            ],
+            "boundary_trade_count": 0,
+            "boundary_trades_pnl": 0.0,
+            "pure_regime_count": 1,
+            "pure_regime_pnl": 138.99999999999864,
+            "sharpe_ratio": null,
+            "win_rate": 1.0,
+            "avg_pnl": 138.99999999999864,
+            "std_dev_pnl": 0.0,
+            "gross_pnl": 138.99499999999864,
+            "net_pnl": 138.99999999999864
+          },
+          "trending_up_volatile": {
+            "pnl": -32.79999999999745,
+            "commission": 0.0,
+            "count": 1,
+            "wins": 0,
+            "losses": 1,
+            "pnl_values": [
+              -32.79999999999745
+            ],
+            "boundary_trade_count": 0,
+            "boundary_trades_pnl": 0.0,
+            "pure_regime_count": 1,
+            "pure_regime_pnl": -32.79999999999745,
+            "sharpe_ratio": null,
+            "win_rate": 0.0,
+            "avg_pnl": -32.79999999999745,
+            "std_dev_pnl": 0.0,
+            "gross_pnl": -32.79999999999745,
+            "net_pnl": -32.79999999999745
+          },
+          "_boundary_trades_summary": {}
+        }
+      },
+      {
+        "parameters": {
+          "rsi_indicator.period": 14,
+          "rsi_rule.oversold_threshold": 30.0,
+          "rsi_rule.overbought_threshold": 60.0
+        },
+        "metric_value": 100440.41999999998,
+        "regime_performance": {
+          "default": {
+            "pnl": 42.49999999999545,
+            "commission": 0.01,
+            "count": 2,
+            "wins": 2,
+            "losses": 0,
+            "pnl_values": [
+              24.00000000000091,
+              18.499999999994543
+            ],
+            "boundary_trade_count": 2,
+            "boundary_trades_pnl": 42.49999999999545,
+            "pure_regime_count": 0,
+            "pure_regime_pnl": 0.0,
+            "sharpe_ratio": 86.73842123874078,
+            "win_rate": 1.0,
+            "avg_pnl": 21.249999999997726,
+            "std_dev_pnl": 3.889087296530513,
+            "gross_pnl": 42.489999999995455,
+            "net_pnl": 42.49999999999545
+          },
+          "ranging_low_vol": {
+            "pnl": 37.999999999999545,
+            "commission": 0.01,
+            "count": 2,
+            "wins": 2,
+            "losses": 0,
+            "pnl_values": [
+              25.0,
+              12.999999999999545
+            ],
+            "boundary_trade_count": 1,
+            "boundary_trades_pnl": 25.0,
+            "pure_regime_count": 1,
+            "pure_regime_pnl": 12.999999999999545,
+            "sharpe_ratio": 35.54574517435068,
+            "win_rate": 1.0,
+            "avg_pnl": 18.999999999999773,
+            "std_dev_pnl": 8.485281374238891,
+            "gross_pnl": 37.98999999999955,
+            "net_pnl": 37.999999999999545
+          },
+          "trending_up_low_vol": {
+            "pnl": 0.9999999999990905,
+            "commission": 0.005,
+            "count": 1,
+            "wins": 1,
+            "losses": 0,
+            "pnl_values": [
+              0.9999999999990905
+            ],
+            "boundary_trade_count": 0,
+            "boundary_trades_pnl": 0.0,
+            "pure_regime_count": 1,
+            "pure_regime_pnl": 0.9999999999990905,
+            "sharpe_ratio": null,
+            "win_rate": 1.0,
+            "avg_pnl": 0.9999999999990905,
+            "std_dev_pnl": 0.0,
+            "gross_pnl": 0.9949999999990905,
+            "net_pnl": 0.9999999999990905
+          },
+          "trending_down": {
+            "pnl": 317.269999999985,
+            "commission": 0.025,
+            "count": 5,
+            "wins": 5,
+            "losses": 0,
+            "pnl_values": [
+              34.49999999999136,
+              130.99999999999454,
+              93.00000000000637,
+              24.259999999992488,
+              34.51000000000022
+            ],
+            "boundary_trade_count": 0,
+            "boundary_trades_pnl": 0.0,
+            "pure_regime_count": 5,
+            "pure_regime_pnl": 317.269999999985,
+            "sharpe_ratio": 21.664031887777973,
+            "win_rate": 1.0,
+            "avg_pnl": 63.453999999996995,
+            "std_dev_pnl": 46.49647061874889,
+            "gross_pnl": 317.244999999985,
+            "net_pnl": 317.269999999985
+          },
+          "trending_up_volatile": {
+            "pnl": -18.299999999999272,
+            "commission": 0.005,
+            "count": 2,
+            "wins": 1,
+            "losses": 1,
+            "pnl_values": [
+              14.499999999998181,
+              -32.79999999999745
+            ],
+            "boundary_trade_count": 0,
+            "boundary_trades_pnl": 0.0,
+            "pure_regime_count": 2,
+            "pure_regime_pnl": -18.299999999999272,
+            "sharpe_ratio": -4.342853922492605,
+            "win_rate": 0.5,
+            "avg_pnl": -9.149999999999636,
+            "std_dev_pnl": 33.44615075012061,
+            "gross_pnl": -18.30499999999927,
+            "net_pnl": -18.299999999999272
+          },
+          "_boundary_trades_summary": {
+            "default_to_trending_up_low_vol": {
+              "pnl": 42.49999999999545,
+              "commission": 0.01,
+              "count": 2,
+              "wins": 2,
+              "losses": 0,
+              "pnl_values": [
+                24.00000000000091,
+                18.499999999994543
+              ],
+              "boundary_trade_count": 0,
+              "boundary_trades_pnl": 0.0,
+              "pure_regime_count": 0,
+              "pure_regime_pnl": 0.0,
+              "sharpe_ratio": 86.73842123874078,
+              "win_rate": 1.0,
+              "avg_pnl": 21.249999999997726,
+              "std_dev_pnl": 3.889087296530513,
+              "gross_pnl": 42.489999999995455,
+              "net_pnl": 42.49999999999545
+            },
+            "ranging_low_vol_to_trending_down": {
+              "pnl": 25.0,
+              "commission": 0.005,
+              "count": 1,
+              "wins": 1,
+              "losses": 0,
+              "pnl_values": [
+                25.0
+              ],
+              "boundary_trade_count": 0,
+              "boundary_trades_pnl": 0.0,
+              "pure_regime_count": 0,
+              "pure_regime_pnl": 0.0,
+              "sharpe_ratio": null,
+              "win_rate": 1.0,
+              "avg_pnl": 25.0,
+              "std_dev_pnl": 0.0,
+              "gross_pnl": 24.995,
+              "net_pnl": 25.0
+            }
+          }
+        }
+      },
+      {
+        "parameters": {
+          "rsi_indicator.period": 14,
+          "rsi_rule.oversold_threshold": 30.0,
+          "rsi_rule.overbought_threshold": 70.0
+        },
+        "metric_value": 100209.44,
+        "regime_performance": {
+          "trending_down": {
+            "pnl": 248.27000000000226,
+            "commission": 0.02,
+            "count": 4,
+            "wins": 4,
+            "losses": 0,
+            "pnl_values": [
+              96.50000000000318,
+              93.00000000000637,
+              24.259999999992488,
+              34.51000000000022
+            ],
+            "boundary_trade_count": 0,
+            "boundary_trades_pnl": 0.0,
+            "pure_regime_count": 4,
+            "pure_regime_pnl": 248.27000000000226,
+            "sharpe_ratio": 25.930987292825193,
+            "win_rate": 1.0,
+            "avg_pnl": 62.067500000000564,
+            "std_dev_pnl": 37.996664217626474,
+            "gross_pnl": 248.25000000000225,
+            "net_pnl": 248.27000000000226
+          },
+          "trending_up_low_vol": {
+            "pnl": 24.00000000000091,
+            "commission": 0.005,
+            "count": 1,
+            "wins": 1,
+            "losses": 0,
+            "pnl_values": [
+              24.00000000000091
+            ],
+            "boundary_trade_count": 0,
+            "boundary_trades_pnl": 0.0,
+            "pure_regime_count": 1,
+            "pure_regime_pnl": 24.00000000000091,
+            "sharpe_ratio": null,
+            "win_rate": 1.0,
+            "avg_pnl": 24.00000000000091,
+            "std_dev_pnl": 0.0,
+            "gross_pnl": 23.99500000000091,
+            "net_pnl": 24.00000000000091
+          },
+          "ranging_low_vol": {
+            "pnl": 47.500000000002274,
+            "commission": 0.005,
+            "count": 1,
+            "wins": 1,
+            "losses": 0,
+            "pnl_values": [
+              47.500000000002274
+            ],
+            "boundary_trade_count": 1,
+            "boundary_trades_pnl": 47.500000000002274,
+            "pure_regime_count": 0,
+            "pure_regime_pnl": 0.0,
+            "sharpe_ratio": null,
+            "win_rate": 1.0,
+            "avg_pnl": 47.500000000002274,
+            "std_dev_pnl": 0.0,
+            "gross_pnl": 47.49500000000227,
+            "net_pnl": 47.500000000002274
+          },
+          "default": {
+            "pnl": 38.94999999999982,
+            "commission": 0.005,
+            "count": 1,
+            "wins": 1,
+            "losses": 0,
+            "pnl_values": [
+              38.94999999999982
+            ],
+            "boundary_trade_count": 1,
+            "boundary_trades_pnl": 38.94999999999982,
+            "pure_regime_count": 0,
+            "pure_regime_pnl": 0.0,
+            "sharpe_ratio": null,
+            "win_rate": 1.0,
+            "avg_pnl": 38.94999999999982,
+            "std_dev_pnl": 0.0,
+            "gross_pnl": 38.944999999999816,
+            "net_pnl": 38.94999999999982
+          },
+          "trending_up_volatile": {
+            "pnl": -32.79999999999745,
+            "commission": 0.0,
+            "count": 1,
+            "wins": 0,
+            "losses": 1,
+            "pnl_values": [
+              -32.79999999999745
+            ],
+            "boundary_trade_count": 0,
+            "boundary_trades_pnl": 0.0,
+            "pure_regime_count": 1,
+            "pure_regime_pnl": -32.79999999999745,
+            "sharpe_ratio": null,
+            "win_rate": 0.0,
+            "avg_pnl": -32.79999999999745,
+            "std_dev_pnl": 0.0,
+            "gross_pnl": -32.79999999999745,
+            "net_pnl": -32.79999999999745
+          },
+          "_boundary_trades_summary": {
+            "ranging_low_vol_to_trending_up_low_vol": {
+              "pnl": 47.500000000002274,
+              "commission": 0.005,
+              "count": 1,
+              "wins": 1,
+              "losses": 0,
+              "pnl_values": [
+                47.500000000002274
+              ],
+              "boundary_trade_count": 0,
+              "boundary_trades_pnl": 0.0,
+              "pure_regime_count": 0,
+              "pure_regime_pnl": 0.0,
+              "sharpe_ratio": null,
+              "win_rate": 1.0,
+              "avg_pnl": 47.500000000002274,
+              "std_dev_pnl": 0.0,
+              "gross_pnl": 47.49500000000227,
+              "net_pnl": 47.500000000002274
+            },
+            "default_to_trending_up_volatile": {
+              "pnl": 38.94999999999982,
+              "commission": 0.005,
+              "count": 1,
+              "wins": 1,
+              "losses": 0,
+              "pnl_values": [
+                38.94999999999982
+              ],
+              "boundary_trade_count": 0,
+              "boundary_trades_pnl": 0.0,
+              "pure_regime_count": 0,
+              "pure_regime_pnl": 0.0,
+              "sharpe_ratio": null,
+              "win_rate": 1.0,
+              "avg_pnl": 38.94999999999982,
+              "std_dev_pnl": 0.0,
+              "gross_pnl": 38.944999999999816,
+              "net_pnl": 38.94999999999982
+            }
+          }
+        }
+      },
+      {
+        "parameters": {
+          "rsi_indicator.period": 21,
+          "rsi_rule.oversold_threshold": 20.0,
+          "rsi_rule.overbought_threshold": 60.0
+        },
+        "metric_value": 99969.19,
+        "regime_performance": {
+          "trending_down": {
+            "pnl": 164.99999999999773,
+            "commission": 0.005,
+            "count": 1,
+            "wins": 1,
+            "losses": 0,
+            "pnl_values": [
+              164.99999999999773
+            ],
+            "boundary_trade_count": 0,
+            "boundary_trades_pnl": 0.0,
+            "pure_regime_count": 1,
+            "pure_regime_pnl": 164.99999999999773,
+            "sharpe_ratio": null,
+            "win_rate": 1.0,
+            "avg_pnl": 164.99999999999773,
+            "std_dev_pnl": 0.0,
+            "gross_pnl": 164.99499999999773,
+            "net_pnl": 164.99999999999773
+          },
+          "trending_up_volatile": {
+            "pnl": -32.79999999999745,
+            "commission": 0.0,
+            "count": 1,
+            "wins": 0,
+            "losses": 1,
+            "pnl_values": [
+              -32.79999999999745
+            ],
+            "boundary_trade_count": 0,
+            "boundary_trades_pnl": 0.0,
+            "pure_regime_count": 1,
+            "pure_regime_pnl": -32.79999999999745,
+            "sharpe_ratio": null,
+            "win_rate": 0.0,
+            "avg_pnl": -32.79999999999745,
+            "std_dev_pnl": 0.0,
+            "gross_pnl": -32.79999999999745,
+            "net_pnl": -32.79999999999745
+          },
+          "_boundary_trades_summary": {}
+        }
+      },
+      {
+        "parameters": {
+          "rsi_indicator.period": 21,
+          "rsi_rule.oversold_threshold": 20.0,
+          "rsi_rule.overbought_threshold": 70.0
+        },
+        "metric_value": 99969.19,
+        "regime_performance": {
+          "trending_down": {
+            "pnl": 164.99999999999773,
+            "commission": 0.005,
+            "count": 1,
+            "wins": 1,
+            "losses": 0,
+            "pnl_values": [
+              164.99999999999773
+            ],
+            "boundary_trade_count": 0,
+            "boundary_trades_pnl": 0.0,
+            "pure_regime_count": 1,
+            "pure_regime_pnl": 164.99999999999773,
+            "sharpe_ratio": null,
+            "win_rate": 1.0,
+            "avg_pnl": 164.99999999999773,
+            "std_dev_pnl": 0.0,
+            "gross_pnl": 164.99499999999773,
+            "net_pnl": 164.99999999999773
+          },
+          "trending_up_volatile": {
+            "pnl": -32.79999999999745,
+            "commission": 0.0,
+            "count": 1,
+            "wins": 0,
+            "losses": 1,
+            "pnl_values": [
+              -32.79999999999745
+            ],
+            "boundary_trade_count": 0,
+            "boundary_trades_pnl": 0.0,
+            "pure_regime_count": 1,
+            "pure_regime_pnl": -32.79999999999745,
+            "sharpe_ratio": null,
+            "win_rate": 0.0,
+            "avg_pnl": -32.79999999999745,
+            "std_dev_pnl": 0.0,
+            "gross_pnl": -32.79999999999745,
+            "net_pnl": -32.79999999999745
+          },
+          "_boundary_trades_summary": {}
+        }
+      },
+      {
+        "parameters": {
+          "rsi_indicator.period": 21,
+          "rsi_rule.oversold_threshold": 30.0,
+          "rsi_rule.overbought_threshold": 60.0
+        },
+        "metric_value": 99935.19,
+        "regime_performance": {
+          "trending_down": {
+            "pnl": 130.99999999999454,
+            "commission": 0.005,
+            "count": 1,
+            "wins": 1,
+            "losses": 0,
+            "pnl_values": [
+              130.99999999999454
+            ],
+            "boundary_trade_count": 0,
+            "boundary_trades_pnl": 0.0,
+            "pure_regime_count": 1,
+            "pure_regime_pnl": 130.99999999999454,
+            "sharpe_ratio": null,
+            "win_rate": 1.0,
+            "avg_pnl": 130.99999999999454,
+            "std_dev_pnl": 0.0,
+            "gross_pnl": 130.99499999999455,
+            "net_pnl": 130.99999999999454
+          },
+          "trending_up_volatile": {
+            "pnl": -32.79999999999745,
+            "commission": 0.0,
+            "count": 1,
+            "wins": 0,
+            "losses": 1,
+            "pnl_values": [
+              -32.79999999999745
+            ],
+            "boundary_trade_count": 0,
+            "boundary_trades_pnl": 0.0,
+            "pure_regime_count": 1,
+            "pure_regime_pnl": -32.79999999999745,
+            "sharpe_ratio": null,
+            "win_rate": 0.0,
+            "avg_pnl": -32.79999999999745,
+            "std_dev_pnl": 0.0,
+            "gross_pnl": -32.79999999999745,
+            "net_pnl": -32.79999999999745
+          },
+          "_boundary_trades_summary": {}
+        }
+      },
+      {
+        "parameters": {
+          "rsi_indicator.period": 21,
+          "rsi_rule.oversold_threshold": 30.0,
+          "rsi_rule.overbought_threshold": 70.0
+        },
+        "metric_value": 99935.19,
+        "regime_performance": {
+          "trending_down": {
+            "pnl": 130.99999999999454,
+            "commission": 0.005,
+            "count": 1,
+            "wins": 1,
+            "losses": 0,
+            "pnl_values": [
+              130.99999999999454
+            ],
+            "boundary_trade_count": 0,
+            "boundary_trades_pnl": 0.0,
+            "pure_regime_count": 1,
+            "pure_regime_pnl": 130.99999999999454,
+            "sharpe_ratio": null,
+            "win_rate": 1.0,
+            "avg_pnl": 130.99999999999454,
+            "std_dev_pnl": 0.0,
+            "gross_pnl": 130.99499999999455,
+            "net_pnl": 130.99999999999454
+          },
+          "trending_up_volatile": {
+            "pnl": -32.79999999999745,
+            "commission": 0.0,
+            "count": 1,
+            "wins": 0,
+            "losses": 1,
+            "pnl_values": [
+              -32.79999999999745
+            ],
+            "boundary_trade_count": 0,
+            "boundary_trades_pnl": 0.0,
+            "pure_regime_count": 1,
+            "pure_regime_pnl": -32.79999999999745,
+            "sharpe_ratio": null,
+            "win_rate": 0.0,
+            "avg_pnl": -32.79999999999745,
+            "std_dev_pnl": 0.0,
+            "gross_pnl": -32.79999999999745,
+            "net_pnl": -32.79999999999745
+          },
+          "_boundary_trades_summary": {}
+        }
+      }
+    ],
+    "regimes_encountered": [
+      "ranging_low_vol",
+      "trending_up_low_vol",
+      "default",
+      "trending_up_volatile",
+      "trending_down"
+    ],
+    "top_n_test_results": [
+      {
+        "rank": 1,
+        "parameters": {
+          "rsi_indicator.period": 9,
+          "rsi_rule.oversold_threshold": 20.0,
+          "rsi_rule.overbought_threshold": 60.0
+        },
+        "train_metric": 100211.17500000002,
+        "test_metric": 99967.81
+      },
+      {
+        "rank": 2,
+        "parameters": {
+          "rsi_indicator.period": 14,
+          "rsi_rule.oversold_threshold": 30.0,
+          "rsi_rule.overbought_threshold": 60.0
+        },
+        "train_metric": 100440.41999999998,
+        "test_metric": 99892.54999999999
+      },
+      {
+        "rank": 3,
+        "parameters": {
+          "rsi_indicator.period": 9,
+          "rsi_rule.oversold_threshold": 20.0,
+          "rsi_rule.overbought_threshold": 70.0
+        },
+        "train_metric": 100247.92000000001,
+        "test_metric": 99811.52999999997
+      }
+    ],
+    "ready_for_adaptive_test": true,
+    "regime_adaptive_test_results": {
+      "adaptive_metric": 99967.81,
+      "method": "true_adaptive",
+      "regimes_detected": [
+        "default",
+        "trending_down",
+        "ranging_low_vol",
+        "trending_up_low_vol",
+        "_boundary_trades_summary"
+      ],
+      "adaptive_regime_performance": {
+        "default": {
+          "pnl": -1.0000000000104592,
+          "commission": 0.025,
+          "count": 5,
+          "wins": 2,
+          "losses": 3,
+          "pnl_values": [
+            -9.000000000003183,
+            -8.000000000004093,
+            13.999999999998636,
+            -5.999999999994543,
+            7.999999999992724
+          ],
+          "boundary_trade_count": 1,
+          "boundary_trades_pnl": 7.999999999992724,
+          "pure_regime_count": 4,
+          "pure_regime_pnl": -9.000000000003183,
+          "sharpe_ratio": -0.3024401667245861,
+          "win_rate": 0.4,
+          "avg_pnl": -0.20000000000209184,
+          "std_dev_pnl": 10.497618777607359,
+          "gross_pnl": -1.025000000010459,
+          "net_pnl": -1.0000000000104592
+        },
+        "trending_down": {
+          "pnl": -14.50000000000955,
+          "commission": 0.005,
+          "count": 1,
+          "wins": 0,
+          "losses": 1,
+          "pnl_values": [
+            -14.50000000000955
+          ],
+          "boundary_trade_count": 0,
+          "boundary_trades_pnl": 0.0,
+          "pure_regime_count": 1,
+          "pure_regime_pnl": -14.50000000000955,
+          "sharpe_ratio": null,
+          "win_rate": 0.0,
+          "avg_pnl": -14.50000000000955,
+          "std_dev_pnl": 0.0,
+          "gross_pnl": -14.50500000000955,
+          "net_pnl": -14.50000000000955
+        },
+        "ranging_low_vol": {
+          "pnl": 17.830000000003565,
+          "commission": 0.030000000000000002,
+          "count": 7,
+          "wins": 5,
+          "losses": 2,
+          "pnl_values": [
+            5.989999999997053,
+            -0.9999999999990905,
+            2.0400000000108776,
+            14.999999999997726,
+            12.999999999999545,
+            2.400000000000091,
+            -19.600000000002638
+          ],
+          "boundary_trade_count": 2,
+          "boundary_trades_pnl": 8.03000000000793,
+          "pure_regime_count": 5,
+          "pure_regime_pnl": 9.799999999995634,
+          "sharpe_ratio": 3.54738467278162,
+          "win_rate": 0.7142857142857143,
+          "avg_pnl": 2.5471428571433665,
+          "std_dev_pnl": 11.398436609590778,
+          "gross_pnl": 17.800000000003564,
+          "net_pnl": 17.830000000003565
+        },
+        "trending_up_low_vol": {
+          "pnl": 1.999999999998181,
+          "commission": 0.005,
+          "count": 1,
+          "wins": 1,
+          "losses": 0,
+          "pnl_values": [
+            1.999999999998181
+          ],
+          "boundary_trade_count": 0,
+          "boundary_trades_pnl": 0.0,
+          "pure_regime_count": 1,
+          "pure_regime_pnl": 1.999999999998181,
+          "sharpe_ratio": null,
+          "win_rate": 1.0,
+          "avg_pnl": 1.999999999998181,
+          "std_dev_pnl": 0.0,
+          "gross_pnl": 1.9949999999981811,
+          "net_pnl": 1.999999999998181
+        },
+        "_boundary_trades_summary": {
+          "ranging_low_vol_to_default": {
+            "pnl": 5.989999999997053,
+            "commission": 0.005,
+            "count": 1,
+            "wins": 1,
+            "losses": 0,
+            "pnl_values": [
+              5.989999999997053
+            ],
+            "boundary_trade_count": 0,
+            "boundary_trades_pnl": 0.0,
+            "pure_regime_count": 0,
+            "pure_regime_pnl": 0.0,
+            "sharpe_ratio": null,
+            "win_rate": 1.0,
+            "avg_pnl": 5.989999999997053,
+            "std_dev_pnl": 0.0,
+            "gross_pnl": 5.984999999997053,
+            "net_pnl": 5.989999999997053
+          },
+          "ranging_low_vol_to_trending_up_low_vol": {
+            "pnl": 2.0400000000108776,
+            "commission": 0.005,
+            "count": 1,
+            "wins": 1,
+            "losses": 0,
+            "pnl_values": [
+              2.0400000000108776
+            ],
+            "boundary_trade_count": 0,
+            "boundary_trades_pnl": 0.0,
+            "pure_regime_count": 0,
+            "pure_regime_pnl": 0.0,
+            "sharpe_ratio": null,
+            "win_rate": 1.0,
+            "avg_pnl": 2.0400000000108776,
+            "std_dev_pnl": 0.0,
+            "gross_pnl": 2.0350000000108777,
+            "net_pnl": 2.0400000000108776
+          },
+          "default_to_ranging_low_vol": {
+            "pnl": 7.999999999992724,
+            "commission": 0.005,
+            "count": 1,
+            "wins": 1,
+            "losses": 0,
+            "pnl_values": [
+              7.999999999992724
+            ],
+            "boundary_trade_count": 0,
+            "boundary_trades_pnl": 0.0,
+            "pure_regime_count": 0,
+            "pure_regime_pnl": 0.0,
+            "sharpe_ratio": null,
+            "win_rate": 1.0,
+            "avg_pnl": 7.999999999992724,
+            "std_dev_pnl": 0.0,
+            "gross_pnl": 7.994999999992724,
+            "net_pnl": 7.999999999992724
+          }
+        }
+      },
+      "regimes_info": {
+        "regimes_with_optimized_params": [
+          "trending_up_low_vol",
+          "trending_down",
+          "ranging_low_vol",
+          "default"
+        ],
+        "would_use_default_for": [
+          "_boundary_trades_summary"
+        ]
+      }
+    }
+  }
+}

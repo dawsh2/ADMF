@@ -52,6 +52,11 @@ class RegimeDetector(Classifier):
         self._checks_since_last_log = 0
 
         self.logger.info(f"RegimeDetector '{self.name}' initialized. Min duration: {self._min_regime_duration}, Thresholds: {self._regime_thresholds}")
+        
+        # Enhanced debugging for regime matching
+        self._debug_mode = self.get_specific_config("debug_mode", False)
+        self._first_100_bars = True
+        self._bar_count = 0
 
     def _get_indicator_class(self, indicator_type_name: str) -> Optional[Type[BaseIndicatorInterface]]:
         if indicator_type_name == "rsi":
@@ -103,6 +108,11 @@ class RegimeDetector(Classifier):
     def classify(self, data: Dict[str, Any]) -> str:
         """ Classify market data into a regime label. """
         current_bar_timestamp = data.get('timestamp', 'N/A') # Get timestamp for logging
+        
+        # Enhanced debugging for first 100 bars
+        if self._debug_mode and self._bar_count < 100:
+            self._bar_count += 1
+            self.logger.info(f"[REGIME_DEBUG] Bar #{self._bar_count} at {current_bar_timestamp}: Starting classification")
 
         if not self._regime_indicators or not self._regime_thresholds:
             raw_detected_regime = self._current_classification if self._current_classification is not None else "default"
@@ -125,8 +135,12 @@ class RegimeDetector(Classifier):
                 if hasattr(indicator_obj, 'ready') and hasattr(indicator_obj, 'value'):
                     if indicator_obj.ready:
                         indicator_values[name] = indicator_obj.value
+                        if self._debug_mode and self._bar_count <= 100:
+                            self.logger.info(f"[REGIME_DEBUG] Bar #{self._bar_count}: {name} = {indicator_obj.value:.4f if indicator_obj.value else 'None'}")
                     else:
                         indicator_values[name] = None # Mark as None if not ready
+                        if self._debug_mode and self._bar_count <= 100:
+                            self.logger.info(f"[REGIME_DEBUG] Bar #{self._bar_count}: {name} NOT READY")
                         # Check if this non-ready indicator is actually used in any threshold
                         for regime_def in self._regime_thresholds.values():
                             if isinstance(regime_def, dict) and name in regime_def:
@@ -155,6 +169,10 @@ class RegimeDetector(Classifier):
             self.logger.debug(f"RegimeDetector '{self.name}' at {current_bar_timestamp}: Raw detection: '{raw_detected_regime}'.")
 
         final_regime = self._apply_stabilization(raw_detected_regime, current_bar_timestamp)
+        
+        if self._debug_mode and self._bar_count <= 100:
+            self.logger.info(f"[REGIME_DEBUG] Bar #{self._bar_count}: raw={raw_detected_regime}, final={final_regime}, duration={self._current_regime_duration}")
+        
         return final_regime
     
     def _determine_regime_from_indicators(self, indicator_values: Dict[str, Optional[float]], current_bar_timestamp: Any) -> str:

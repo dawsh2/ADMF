@@ -1,0 +1,47 @@
+# Example component metadata file for dynamic discovery
+# Place a component_meta.yaml file in any component directory to enable discovery
+#
+# The ComponentDiscovery system searches for these files and registers components
+# automatically, allowing for plugin-style component addition without modifying
+# the core bootstrap code.
+
+# Components section - can define multiple components in one file
+components:
+  # Component name (used as key in component registry)
+  ma_crossover_strategy:
+    # Required fields
+    class: "MovingAverageCrossoverStrategy"  # Class name
+    module: "strategy.implementations.ma_crossover"  # Module path (Python import path)
+    
+    # Optional fields
+    dependencies:  # List of component dependencies by name
+      - "event_bus"
+      - "data_handler"
+      
+    config_key: "ma_crossover_strategy"  # Key in configuration file
+    required: false  # Whether component is required for system operation (default: true)
+    
+    # Lifecycle hooks (optional) - can specify custom methods to call
+    lifecycle_hooks:
+      pre_initialize: "prepare_indicators"
+      post_start: "log_parameters"
+      
+  # Another component example
+  enhanced_regime_detector:
+    class: "EnhancedRegimeDetector"
+    module: "strategy.implementations.enhanced_regime"
+    dependencies:
+      - "event_bus"
+      - "data_handler"
+    config_key: "enhanced_regime_detector"
+    required: false
+    
+  # Example of a minimal component definition
+  simple_logger:
+    class: "SimpleLogger"
+    module: "utils.logging.simple_logger"
+    # All other fields are optional and will use defaults:
+    # dependencies: []
+    # config_key: null
+    # required: true
+    # lifecycle_hooks: {}
