@@ -11,7 +11,7 @@ import argparse
 import logging
 from typing import List, Dict, Any
 
-from .config import Config
+from .config import SimpleConfigLoader
 from .bootstrap import Bootstrap, RunMode
 from .exceptions import ConfigurationError, ADMFTraderError
 
@@ -50,7 +50,8 @@ class ApplicationLauncher:
             self._setup_bootstrap_logging(args)
             
             # Load configuration
-            config = Config(args.config)
+            config_loader = SimpleConfigLoader(args.config)
+            config = config_loader  # For now, use the loader directly
             self.logger.info(f"Configuration loaded from: {args.config}")
             
             # Determine run mode from config (not from args!)
@@ -149,7 +150,7 @@ class ApplicationLauncher:
             )
             logging.getLogger().addHandler(handler)
             
-    def _determine_run_mode(self, config: Config) -> RunMode:
+    def _determine_run_mode(self, config: SimpleConfigLoader) -> RunMode:
         """
         Determine run mode from configuration.
         
