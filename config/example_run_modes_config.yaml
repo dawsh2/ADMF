@@ -1,0 +1,35 @@
+# Example configuration showing run mode entrypoint configuration
+# This demonstrates how to configure different entrypoint components for each run mode
+
+system:
+  name: "ADMF-Trader"
+  version: "1.0.0"
+  
+  # Run mode configurations
+  run_modes:
+    # Production mode - runs live trading
+    production:
+      entrypoint_component: "strategy"  # The main strategy component
+      description: "Live trading mode"
+      
+    # Backtest mode - runs historical simulation
+    backtest:
+      entrypoint_component: "strategy"  # Uses same strategy in backtest mode
+      description: "Historical backtesting mode"
+      
+    # Optimization mode - runs parameter optimization
+    optimization:
+      entrypoint_component: "optimizer"  # The optimizer component
+      description: "Parameter optimization mode"
+      
+    # Test mode - runs unit tests or integration tests
+    test:
+      entrypoint_component: "test_runner"  # A test runner component
+      description: "Testing mode"
+
+# Rest of configuration remains the same...
+logging:
+  level: "INFO"
+
+components:
+  # ... component configurations ...

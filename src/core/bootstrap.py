@@ -731,6 +731,77 @@ class Bootstrap:
         """Get current lifecycle state of a component."""
         return self.lifecycle_tracker.get_state(component_name)
         
+    def get_entrypoint_component(self) -> Any:
+        """
+        Get the configured entrypoint component for the current run mode.
+        
+        Based on the roadmap, this method looks up the entrypoint component
+        from the configuration based on the current run mode. The config
+        structure expected is:
+        
+        system:
+          run_modes:
+            production:
+              entrypoint_component: "ProductionCoordinator"
+            backtest:
+              entrypoint_component: "BacktestRunner"
+            optimization:
+              entrypoint_component: "GeneticOptimizer"
+              
+        Returns:
+            The entrypoint component instance
+            
+        Raises:
+            RuntimeError: If system not initialized or entrypoint not found
+            ValueError: If entrypoint not configured for run mode
+        """
+        if not self.context:
+            raise RuntimeError("System not initialized. Call initialize() first.")
+            
+        # Get run mode configuration
+        run_mode_config = self.context.config.get("system", {}).get("run_modes", {})
+        current_mode = self.context.run_mode.value
+        
+        if current_mode not in run_mode_config:
+            raise ValueError(
+                f"No configuration found for run mode '{current_mode}'. "
+                f"Available modes: {list(run_mode_config.keys())}"
+            )
+            
+        mode_config = run_mode_config[current_mode]
+        
+        # Get entrypoint component name
+        entrypoint_name = mode_config.get("entrypoint_component")
+        if not entrypoint_name:
+            raise ValueError(
+                f"No entrypoint_component configured for run mode '{current_mode}'. "
+                f"Add 'entrypoint_component' to config['system']['run_modes']['{current_mode}']"
+            )
+            
+        # Get component from container
+        try:
+            component = self.context.container.get(entrypoint_name)
+        except KeyError:
+            available = list(self.components.keys())
+            raise RuntimeError(
+                f"Entrypoint component '{entrypoint_name}' not found in container. "
+                f"Available components: {available}"
+            )
+            
+        # Verify component is in proper state
+        state = self.lifecycle_tracker.get_state(entrypoint_name)
+        if state not in [ComponentState.INITIALIZED, ComponentState.RUNNING]:
+            raise RuntimeError(
+                f"Entrypoint component '{entrypoint_name}' is in {state.value} state. "
+                f"Expected INITIALIZED or RUNNING."
+            )
+            
+        self.context.logger.info(
+            f"Retrieved entrypoint component '{entrypoint_name}' for {current_mode} mode"
+        )
+        
+        return component
+        
     def validate_dependencies(self) -> List[str]:
         """
         Validate all component dependencies using the dependency graph.
@@ -773,6 +844,49 @@ class Bootstrap:
         errors.extend(graph_errors)
                     
         return errors
+        
+    def setup_managed_components(self, 
+                                search_paths: Optional[List[str]] = None,
+                                component_overrides: Optional[Dict[str, str]] = None) -> Dict[str, Any]:
+        """
+        Comprehensive component setup method.
+        
+        This method handles the complete component setup process:
+        1. Discovers component definitions from filesystem
+        2. Creates components based on run mode
+        3. Initializes all components with dependencies
+        4. Returns the created components
+        
+        Args:
+            search_paths: Optional paths to search for component_meta.yaml files
+            component_overrides: Optional overrides for component classes
+            
+        Returns:
+            Dictionary of created components
+        """
+        if not self.context:
+            raise RuntimeError("System not initialized. Call initialize() first.")
+            
+        self.context.logger.info("Setting up managed components")
+        
+        # Step 1: Discover components from filesystem
+        if search_paths:
+            self.discover_components(search_paths)
+        else:
+            # Use default search paths
+            self.discover_components()
+            
+        # Step 2: Create components
+        components = self.create_standard_components(component_overrides)
+        
+        # Step 3: Initialize components (dependency injection)
+        self.initialize_components()
+        
+        self.context.logger.info(
+            f"Setup complete: {len(components)} components created and initialized"
+        )
+        
+        return components
         
     def discover_components(self, additional_paths: Optional[List[str]] = None) -> None:
         """
