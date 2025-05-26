@@ -101,15 +101,21 @@ class BacktestRunner(ComponentBase):
         """Configure the data handler for backtest."""
         # Set active dataset
         if hasattr(data_handler, 'set_active_dataset'):
-            if self.use_test_dataset and hasattr(data_handler, 'test_df_exists_and_is_not_empty'):
-                if data_handler.test_df_exists_and_is_not_empty:
+            # Check if we have train/test split
+            has_train_test_split = (hasattr(data_handler, 'train_df_exists_and_is_not_empty') and 
+                                   data_handler.train_df_exists_and_is_not_empty and
+                                   hasattr(data_handler, 'test_df_exists_and_is_not_empty') and 
+                                   data_handler.test_df_exists_and_is_not_empty)
+            
+            if has_train_test_split:
+                if self.use_test_dataset:
                     self.logger.info("Using test dataset for backtest")
                     data_handler.set_active_dataset('test')
                 else:
-                    self.logger.warning("Test dataset requested but not available")
-                    data_handler.set_active_dataset('full')
+                    self.logger.info("Using train dataset for backtest")
+                    data_handler.set_active_dataset('train')
             else:
-                self.logger.info("Using full dataset for backtest")
+                self.logger.info("No train/test split available, using full dataset")
                 data_handler.set_active_dataset('full')
                 
         # Apply max bars override
@@ -261,6 +267,12 @@ class BacktestRunner(ComponentBase):
                     total_return = (final_value / initial_value) - 1.0
                     results['total_return'] = total_return
                     self.logger.info(f"Total return: {total_return * 100:.2f}%")
+        
+        # Get regime-specific performance if available
+        if hasattr(portfolio, 'get_performance_by_regime'):
+            regime_performance = portfolio.get_performance_by_regime()
+            results['regime_performance'] = regime_performance
+            self.logger.debug(f"Included regime performance data with {len(regime_performance)} regimes")
                 
         # Get strategy info
         if hasattr(strategy, 'get_name'):

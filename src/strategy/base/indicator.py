@@ -269,12 +269,13 @@ class RSIIndicator(IndicatorBase):
         space = super().get_parameter_space()
         
         # RSI typically uses periods between 5 and 25
+        # For now, keep RSI period fixed at 14
         space.update_parameter(
             'lookback_period',
             Parameter(
                 name='lookback_period',
                 param_type='discrete',
-                values=[5, 7, 9, 14, 21, 25],
+                values=[14],  # Fixed value only
                 default=14
             )
         )

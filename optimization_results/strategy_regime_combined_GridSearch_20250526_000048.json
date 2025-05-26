@@ -1,0 +1,72 @@
+{
+  "strategy": "strategy",
+  "method": "GridSearch",
+  "metric": "sharpe_ratio",
+  "timestamp": "20250526_000048",
+  "regimes": {
+    "trending_up": {
+      "best_params": {
+        "weights.ma_crossover": 1.0,
+        "indicators.fast_ma.lookback_period": 5,
+        "indicators.slow_ma.lookback_period": 20,
+        "rules.ma_crossover.generate_exit_signals": true,
+        "rules.ma_crossover.min_separation": 0.0001
+      },
+      "best_score": 0.9355457233470321,
+      "metadata": {
+        "win_rate": 0.46875,
+        "total_return": 230.73999999996886,
+        "regime": "trending_up",
+        "timestamp": "2025-05-26T00:00:48.100386"
+      }
+    },
+    "trending_down": {
+      "best_params": {
+        "weights.ma_crossover": 1.0,
+        "indicators.fast_ma.lookback_period": 5,
+        "indicators.slow_ma.lookback_period": 20,
+        "rules.ma_crossover.generate_exit_signals": true,
+        "rules.ma_crossover.min_separation": 0.0001
+      },
+      "best_score": -1.2715383251749466,
+      "metadata": {
+        "win_rate": 0.4186046511627907,
+        "total_return": -381.39000000001033,
+        "regime": "trending_down",
+        "timestamp": "2025-05-26T00:00:48.100502"
+      }
+    },
+    "volatile": {
+      "best_params": {
+        "weights.ma_crossover": 1.0,
+        "indicators.fast_ma.lookback_period": 5,
+        "indicators.slow_ma.lookback_period": 20,
+        "rules.ma_crossover.generate_exit_signals": true,
+        "rules.ma_crossover.min_separation": 0.0001
+      },
+      "best_score": -11.88811124579084,
+      "metadata": {
+        "win_rate": 0.16666666666666666,
+        "total_return": -298.4999999999957,
+        "regime": "volatile",
+        "timestamp": "2025-05-26T00:00:48.100610"
+      }
+    },
+    "default": {
+      "best_params": {
+        "weights.ma_crossover": 1.0,
+        "indicators.fast_ma.lookback_period": 10,
+        "indicators.slow_ma.lookback_period": 30,
+        "rules.ma_crossover.generate_exit_signals": true,
+        "rules.ma_crossover.min_separation": 0.0001
+      },
+      "best_score": -6.6784855833413515,
+      "metadata": {
+        "win_rate": 0.2497918401332223,
+        "total_return": -32495.119999999788,
+        "regime": "default",
+        "timestamp": "2025-05-26T00:00:48.100714"
+      }
+    }
+  }
+}

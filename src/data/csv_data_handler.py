@@ -56,8 +56,19 @@ class CSVDataHandler(ComponentBase):
             raise ConfigurationError(f"Missing 'symbol' or 'csv_file_path' for {self.instance_name}")
         
         # Get CLI parameter if provided
-        if hasattr(self, 'context') and self.context:
-            self._cli_max_bars = self.context.get("max_bars", None)
+        # ComponentBase stores context as _context
+        if hasattr(self, '_context') and self._context:
+            # Check if it's a SystemContext object with metadata
+            if hasattr(self._context, 'metadata') and self._context.metadata:
+                cli_args = self._context.metadata.get('cli_args', {})
+                self._cli_max_bars = cli_args.get('bars', None)
+                self.logger.debug(f"Got max_bars from context metadata: {self._cli_max_bars}")
+            else:
+                # Try direct access
+                self._cli_max_bars = self._context.get("max_bars", None)
+                self.logger.debug(f"Got max_bars from _context: {self._cli_max_bars}")
+        else:
+            self.logger.debug("No context available for max_bars")
         
         self._train_test_split_ratio = self.get_specific_config("train_test_split_ratio", None)
         if self._train_test_split_ratio is not None and not (0 < self._train_test_split_ratio < 1):
@@ -125,6 +136,7 @@ class CSVDataHandler(ComponentBase):
 
             # Step 1: Apply --bars limit to the initially loaded data
             self._data_for_run = df_loaded # Start with the full loaded data
+            self.logger.debug(f"_cli_max_bars = {self._cli_max_bars}, len(df_loaded) = {len(df_loaded)}")
             if self._cli_max_bars is not None and self._cli_max_bars != 0:
                 if self._cli_max_bars > 0:
                     # Positive value: take first N bars
@@ -356,3 +368,48 @@ class CSVDataHandler(ComponentBase):
     @property
     def test_df_exists_and_is_not_empty(self) -> bool:
         return self._test_df is not None and not self._test_df.empty
+    
+    @property
+    def train_df_exists_and_is_not_empty(self) -> bool:
+        return self._train_df is not None and not self._train_df.empty
+    
+    def apply_train_test_split(self, train_ratio: float) -> None:
+        """Apply train/test split to the current data_for_run dataset."""
+        if not 0 < train_ratio < 1:
+            raise ValueError(f"train_ratio must be between 0 and 1, got {train_ratio}")
+            
+        self._train_test_split_ratio = train_ratio
+        
+        # First, ensure we have data to work with
+        if self._data_for_run is None:
+            self.logger.error("No data loaded - cannot apply train/test split")
+            return
+            
+        # CRITICAL: Ensure we respect the --bars limit if set
+        # This MUST happen before the split to get correct train/test sizes
+        if self._cli_max_bars is not None and self._cli_max_bars != 0:
+            if self._cli_max_bars > 0 and len(self._data_for_run) > self._cli_max_bars:
+                self.logger.info(f"Applying --bars limit before split: {len(self._data_for_run)} -> {self._cli_max_bars}")
+                self._data_for_run = self._data_for_run.head(self._cli_max_bars)
+            elif self._cli_max_bars < 0 and len(self._data_for_run) > abs(self._cli_max_bars):
+                self.logger.info(f"Applying --bars limit before split: {len(self._data_for_run)} -> last {abs(self._cli_max_bars)}")
+                self._data_for_run = self._data_for_run.tail(abs(self._cli_max_bars))
+        
+        if self._data_for_run is not None and not self._data_for_run.empty:
+            split_point = int(len(self._data_for_run) * train_ratio)
+            self._train_df = self._data_for_run.iloc[:split_point].copy()
+            self._test_df = self._data_for_run.iloc[split_point:].copy()
+            
+            self.logger.info(
+                f"Train/test split applied: {train_ratio:.0%} split on {len(self._data_for_run)} bars -> "
+                f"Train: {len(self._train_df)} bars, Test: {len(self._test_df)} bars"
+            )
+            
+            # Log if this looks wrong
+            if self._cli_max_bars and len(self._data_for_run) > self._cli_max_bars:
+                self.logger.warning(
+                    f"WARNING: Train/test split on {len(self._data_for_run)} bars but --bars limit is {self._cli_max_bars}. "
+                    f"Split should have been on {self._cli_max_bars} bars!"
+                )
+        else:
+            self.logger.warning("No data available to split")

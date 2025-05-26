@@ -1,0 +1,65 @@
+{
+  "strategy": "strategy",
+  "method": "GridSearch",
+  "metric": "sharpe_ratio",
+  "timestamp": "20250525_235635",
+  "regimes": {
+    "trending_up": {
+      "best_params": {
+        "weights.ma_crossover": 1.0,
+        "indicators.fast_ma.lookback_period": 5,
+        "indicators.slow_ma.lookback_period": 20,
+        "rules.ma_crossover.generate_exit_signals": true,
+        "rules.ma_crossover.min_separation": 0.0001
+      },
+      "best_score": 0,
+      "metadata": {
+        "win_rate": 0.0,
+        "total_return": -42.000000000007276,
+        "regime": "trending_up",
+        "timestamp": "2025-05-25T23:56:35.912999"
+      }
+    },
+    "trending_down": {
+      "best_params": {
+        "weights.ma_crossover": 1.0,
+        "indicators.fast_ma.lookback_period": 5,
+        "indicators.slow_ma.lookback_period": 20,
+        "rules.ma_crossover.generate_exit_signals": true,
+        "rules.ma_crossover.min_separation": 0.0001
+      },
+      "best_score": -10.586152606482933,
+      "metadata": {
+        "win_rate": 0.5,
+        "total_return": -232.000000000005,
+        "regime": "trending_down",
+        "timestamp": "2025-05-25T23:56:35.913109"
+      }
+    },
+    "volatile": {
+      "best_params": {},
+      "best_score": -Infinity,
+      "metadata": {
+        "regime": "volatile",
+        "error": "No trades in regime",
+        "timestamp": "2025-05-25T23:56:35.913234"
+      }
+    },
+    "default": {
+      "best_params": {
+        "weights.ma_crossover": 1.0,
+        "indicators.fast_ma.lookback_period": 5,
+        "indicators.slow_ma.lookback_period": 20,
+        "rules.ma_crossover.generate_exit_signals": true,
+        "rules.ma_crossover.min_separation": 0.0001
+      },
+      "best_score": -13.120382377190678,
+      "metadata": {
+        "win_rate": 0.15151515151515152,
+        "total_return": -587.1499999999855,
+        "regime": "default",
+        "timestamp": "2025-05-25T23:56:35.913237"
+      }
+    }
+  }
+}

@@ -109,3 +109,14 @@ class SimpleConfigLoader:
         logger.debug(f"Reloading configuration from '{self.config_file_path}'...")
         self._load_and_shield_config() # Use the shielding method on reload too
         logger.debug("Configuration reloaded.")
+    
+    def get_component_config(self, component_key: str) -> Dict[str, Any]:
+        """Get configuration for a specific component.
+        
+        Args:
+            component_key: The component's configuration key
+            
+        Returns:
+            Component configuration dictionary, or empty dict if not found
+        """
+        return self.get(component_key, {})

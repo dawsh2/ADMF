@@ -221,13 +221,12 @@ class ThresholdRule(RuleBase):
         """Get parameter space for optimization."""
         space = super().get_parameter_space()
         
+        # For now, keep RSI thresholds fixed
         space.add_parameter(
             Parameter(
                 name='buy_threshold',
-                param_type='continuous',
-                min_value=10.0,
-                max_value=40.0,
-                step=5.0,
+                param_type='discrete',
+                values=[30.0],  # Fixed value only
                 default=30.0
             )
         )
@@ -235,10 +234,8 @@ class ThresholdRule(RuleBase):
         space.add_parameter(
             Parameter(
                 name='sell_threshold',
-                param_type='continuous',
-                min_value=60.0,
-                max_value=90.0,
-                step=5.0,
+                param_type='discrete',
+                values=[70.0],  # Fixed value only
                 default=70.0
             )
         )

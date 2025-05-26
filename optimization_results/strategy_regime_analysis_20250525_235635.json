@@ -1,0 +1,66 @@
+{
+  "best_parameters": {
+    "default": {
+      "parameters": {
+        "weights.ma_crossover": 1.0,
+        "indicators.fast_ma.lookback_period": 5,
+        "indicators.slow_ma.lookback_period": 20,
+        "rules.ma_crossover.generate_exit_signals": true,
+        "rules.ma_crossover.min_separation": 0.0001
+      },
+      "sharpe_ratio": -13.120382377190678,
+      "win_rate": 0.15151515151515152,
+      "total_return": -587.1499999999855
+    },
+    "trending_down": {
+      "parameters": {
+        "weights.ma_crossover": 1.0,
+        "indicators.fast_ma.lookback_period": 5,
+        "indicators.slow_ma.lookback_period": 20,
+        "rules.ma_crossover.generate_exit_signals": true,
+        "rules.ma_crossover.min_separation": 0.0001
+      },
+      "sharpe_ratio": -10.586152606482933,
+      "win_rate": 0.5,
+      "total_return": -232.000000000005
+    },
+    "trending_up": {
+      "parameters": {
+        "weights.ma_crossover": 1.0,
+        "indicators.fast_ma.lookback_period": 5,
+        "indicators.slow_ma.lookback_period": 20,
+        "rules.ma_crossover.generate_exit_signals": true,
+        "rules.ma_crossover.min_separation": 0.0001
+      },
+      "sharpe_ratio": 0,
+      "win_rate": 0.0,
+      "total_return": -42.000000000007276
+    }
+  },
+  "regime_statistics": {
+    "default": {
+      "avg_return": -1464.8599999999703,
+      "std_return": 654.2064081771022,
+      "avg_sharpe": -13.136060561923879,
+      "avg_win_rate": 0.15151515151515152,
+      "total_trades": 0,
+      "parameter_sets_tested": 4
+    },
+    "trending_down": {
+      "avg_return": -604.0000000000077,
+      "std_return": 277.272429209976,
+      "avg_sharpe": -11.441653459113512,
+      "avg_win_rate": 0.4096590909090909,
+      "total_trades": 0,
+      "parameter_sets_tested": 4
+    },
+    "trending_up": {
+      "avg_return": -105.00000000001819,
+      "std_return": 46.95742752750372,
+      "avg_sharpe": 0.0,
+      "avg_win_rate": 0.0,
+      "total_trades": 0,
+      "parameter_sets_tested": 4
+    }
+  }
+}

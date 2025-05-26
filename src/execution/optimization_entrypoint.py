@@ -39,6 +39,8 @@ class OptimizationEntrypoint(ComponentBase):
         self._n_iterations = config.get('n_iterations', None)
         self._regime_specific = config.get('regime_specific', False)
         self._regimes = config.get('regimes', [])
+        self._optimization_method = config.get('optimization_method', 'standard')
+        self._train_ratio = config.get('train_ratio', 0.8)
         
         self.logger.info(f"OptimizationEntrypoint initialized for strategy '{self._strategy_name}'")
         
@@ -76,8 +78,21 @@ class OptimizationEntrypoint(ComponentBase):
         method = self._create_method()
         metric = self._create_metric()
         
-        # Run optimization
-        if self._regime_specific and self._regimes:
+        # Run optimization based on method
+        if self._optimization_method == 'regime_specific_with_split':
+            # Regime-specific optimization with train/test split
+            results = self._runner.optimize_regime_specific_with_split(
+                strategy_name=self._strategy_name,
+                regimes=self._regimes,
+                train_ratio=self._train_ratio,
+                method=method,
+                metric=metric,
+                n_iterations=self._n_iterations
+            )
+            
+            # Format results
+            return self._format_train_test_results(results)
+        elif self._regime_specific and self._regimes:
             # Regime-specific optimization
             results = self._runner.optimize_regime_specific(
                 strategy_name=self._strategy_name,
@@ -191,6 +206,29 @@ class OptimizationEntrypoint(ComponentBase):
                 'best_parameters': result.best_params,
                 'best_score': result.best_score,
                 'iterations': len(result.all_results)
+            }
+            
+        return formatted
+        
+    def _format_train_test_results(self, results: Dict[str, Any]) -> Dict[str, Any]:
+        """Format train/test split optimization results."""
+        formatted = {
+            'mode': 'train_test_optimization',
+            'strategy': self._strategy_name,
+            'method': self._method_type,
+            'metric': self._metric_type,
+            'train_ratio': results.get('train_ratio', 0.8),
+            'regime_parameters': results.get('regime_parameters', {}),
+            'train_results': {},
+            'test_results': results.get('test_results', {})
+        }
+        
+        # Format training results by regime
+        train_results = results.get('train_results', {})
+        for regime, result in train_results.items():
+            formatted['train_results'][regime] = {
+                'best_parameters': result.best_params,
+                'best_score': result.best_score
             }
             
         return formatted

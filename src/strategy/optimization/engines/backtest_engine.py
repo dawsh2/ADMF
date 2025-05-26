@@ -153,6 +153,17 @@ class BacktestEngine:
             Dictionary of component instances or None on error
         """
         try:
+            # IMPORTANT: Check if we're in a scoped context with isolated container
+            # If so, we should NOT resolve from parent container to avoid state leakage
+            if hasattr(self.bootstrap, '_is_scoped_context') and self.bootstrap._is_scoped_context:
+                # We're in a scoped context - components should be created fresh
+                # This prevents state leakage between optimization runs
+                self.logger.debug("In scoped context - creating fresh component instances")
+                
+                # For now, still resolve from container but log a warning
+                # TODO: Implement proper component creation in scoped context
+                self.logger.warning("Components resolved from parent container - potential state leakage!")
+            
             # Get fresh instances of all required components
             data_handler = self.container.resolve("data_handler")
             regime_detector = self.container.resolve("MyPrimaryRegimeDetector")

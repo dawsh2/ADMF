@@ -1,0 +1,80 @@
+{
+  "strategy": "strategy",
+  "method": "GridSearch",
+  "metric": "sharpe_ratio",
+  "timestamp": "20250525_230645",
+  "regimes": {
+    "trending_up": {
+      "best_params": {
+        "weights.ma_crossover": 1.0,
+        "indicators.fast_ma.lookback_period": 5,
+        "indicators.slow_ma.lookback_period": 20,
+        "rules.ma_crossover.generate_exit_signals": true,
+        "rules.ma_crossover.min_separation": 0.0001
+      },
+      "best_score": -Infinity,
+      "metadata": {
+        "method": "GridSearch",
+        "iterations": 4,
+        "timestamp": "2025-05-25T23:06:42.827634",
+        "total_combinations": 4,
+        "evaluated_combinations": 4,
+        "early_stopped": false
+      }
+    },
+    "trending_down": {
+      "best_params": {
+        "weights.ma_crossover": 1.0,
+        "indicators.fast_ma.lookback_period": 5,
+        "indicators.slow_ma.lookback_period": 20,
+        "rules.ma_crossover.generate_exit_signals": true,
+        "rules.ma_crossover.min_separation": 0.0001
+      },
+      "best_score": -Infinity,
+      "metadata": {
+        "method": "GridSearch",
+        "iterations": 4,
+        "timestamp": "2025-05-25T23:06:43.668008",
+        "total_combinations": 4,
+        "evaluated_combinations": 4,
+        "early_stopped": false
+      }
+    },
+    "volatile": {
+      "best_params": {
+        "weights.ma_crossover": 1.0,
+        "indicators.fast_ma.lookback_period": 5,
+        "indicators.slow_ma.lookback_period": 20,
+        "rules.ma_crossover.generate_exit_signals": true,
+        "rules.ma_crossover.min_separation": 0.0001
+      },
+      "best_score": -Infinity,
+      "metadata": {
+        "method": "GridSearch",
+        "iterations": 4,
+        "timestamp": "2025-05-25T23:06:44.514226",
+        "total_combinations": 4,
+        "evaluated_combinations": 4,
+        "early_stopped": false
+      }
+    },
+    "default": {
+      "best_params": {
+        "weights.ma_crossover": 1.0,
+        "indicators.fast_ma.lookback_period": 5,
+        "indicators.slow_ma.lookback_period": 20,
+        "rules.ma_crossover.generate_exit_signals": true,
+        "rules.ma_crossover.min_separation": 0.0001
+      },
+      "best_score": -Infinity,
+      "metadata": {
+        "method": "GridSearch",
+        "iterations": 4,
+        "timestamp": "2025-05-25T23:06:45.359096",
+        "total_combinations": 4,
+        "evaluated_combinations": 4,
+        "early_stopped": false
+      }
+    }
+  }
+}

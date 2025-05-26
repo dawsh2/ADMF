@@ -1,0 +1,128 @@
+# Test configuration for CleanBacktestEngine with train/test split
+
+# Run mode
+run_mode: optimization
+
+# Data Configuration 
+data:
+  file_path: data/SPY_1min.csv
+  symbol: SPY
+  timestamp_column: Date
+
+# Core Components
+components:
+  # Data handler
+  data_handler_csv:
+    class_path: src.data.csv_data_handler.CSVDataHandler
+    component_key: data_handler_csv
+    config:
+      csv_file_path: data/SPY_1min.csv
+      symbol: SPY
+      timestamp_column: Date
+      train_test_split_ratio: 0.8  # 80% train, 20% test
+
+  # Regime Detector
+  MyPrimaryRegimeDetector:
+    class_path: src.strategy.regime_detector.RegimeDetector
+    component_key: MyPrimaryRegimeDetector
+    config:
+      lookback_period: 20
+      regime_change_threshold: 2
+
+  # Portfolio
+  basic_portfolio:
+    class_path: src.risk.basic_portfolio.BasicPortfolio
+    component_key: basic_portfolio
+    config:
+      initial_capital: 100000.0
+      position_limits:
+        max_position_size: 0.2
+        max_positions: 5
+
+  # Risk Manager
+  basic_risk_manager:
+    class_path: src.risk.basic_risk_manager.BasicRiskManager
+    component_key: basic_risk_manager
+    portfolio_manager_key: basic_portfolio
+    config:
+      position_limits:
+        max_position_size: 0.2
+        max_positions: 5
+
+  # Execution Handler
+  simulated_execution_handler:
+    class_path: src.execution.simulated_execution_handler.SimulatedExecutionHandler
+    component_key: simulated_execution_handler
+    config:
+      execution_delay: 0
+
+  # Backtest Runner
+  backtest_runner:
+    class_path: src.execution.backtest_runner.BacktestRunner
+    component_key: backtest_runner
+    
+  # Strategy
+  ensemble_strategy:
+    class_path: src.strategy.implementations.ensemble_strategy.EnsembleSignalStrategy
+    component_key: ensemble_strategy
+    config:
+      aggregation_method: majority
+      signal_threshold: 0.6
+      # Indicators
+      indicators:
+        - type: MovingAverage
+          params:
+            lookback_period: 10
+            price_field: close
+        - type: MovingAverage
+          params:
+            lookback_period: 20
+            price_field: close
+        - type: RSI
+          params:
+            lookback_period: 14
+            price_field: close
+      # Rules  
+      rules:
+        - type: MACrossover
+          params:
+            fast_ma_indicator_index: 0
+            slow_ma_indicator_index: 1
+        - type: RSIOversold
+          params:
+            rsi_indicator_index: 2
+            oversold_threshold: 30
+        - type: RSIOverbought
+          params:
+            rsi_indicator_index: 2
+            overbought_threshold: 70
+
+# Optimization Configuration
+optimization:
+  target_strategy: ensemble_strategy
+  method: GridSearch
+  metric: SharpeRatio
+  regimes:
+    - trending_up
+    - trending_down
+    - ranging
+  
+  # Parameter space for optimization
+  parameter_space:
+    MovingAverage_0_lookback_period:
+      type: discrete
+      values: [5, 10, 15]
+    MovingAverage_1_lookback_period:
+      type: discrete
+      values: [20, 30, 40]
+    
+# Logging Configuration
+logging:
+  level: INFO
+  format: "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
+  handlers:
+    console:
+      enabled: true
+    file:
+      enabled: true
+      filename: logs/test_clean_engine.log

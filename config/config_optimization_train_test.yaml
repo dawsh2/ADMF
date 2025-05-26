@@ -1,0 +1,162 @@
+# Configuration for regime-specific optimization with train/test split
+
+# CLI execution example:
+# python main_ultimate.py --config config/config_optimization_train_test.yaml --bars 1000
+
+# Run mode
+run_mode: optimization
+
+# Core system configuration
+logging:
+  level: INFO
+  
+# Bootstrap configuration
+bootstrap:
+  auto_start_components: false  # We'll start components when needed
+
+# Component configurations
+components:
+  # Event bus for component communication
+  event_bus:
+    class_path: src.core.event_bus.EventBus
+    config:
+      name: "main_event_bus"
+
+  # CSV data handler
+  data_handler:
+    class_path: src.data.csv_data_handler.CSVDataHandler
+    config:
+      csv_file_path: "data/SPY_1min.csv"
+      symbol: "SPY"
+      timestamp_column: "timestamp"
+      # Train/test split will be set by optimizer
+      train_test_split_ratio: 0.8  # 80% train, 20% test
+
+  # Strategy to optimize (component-based)
+  strategy:
+    class_path: src.strategy.base.strategy.Strategy
+    config:
+      indicators:
+        fast_ma:
+          class: MovingAverageIndicator
+          lookback_period: 5  # Will be optimized
+        slow_ma:
+          class: MovingAverageIndicator
+          lookback_period: 20  # Will be optimized
+      rules:
+        ma_crossover:
+          class: TrueCrossoverRule
+          dependencies:
+            - fast_ma
+            - slow_ma
+          generate_exit_signals: true
+          min_separation: 0.0001
+      weights:
+        ma_crossover: 1.0
+      signal_aggregation_method: "weighted"
+  
+  # Regime detector for regime-based analysis
+  regime_detector:
+    class_path: src.strategy.regime_detector.RegimeDetector
+    config:
+      ma_periods:
+        short: 10
+        long: 30
+      rsi_period: 14
+      atr_period: 14
+      update_frequency: 1
+      classification_rules:
+        trending_up:
+          conditions:
+            - indicator: "ma_trend"
+              operator: ">"
+              value: 0.01
+            - indicator: "rsi"
+              operator: ">"
+              value: 55
+            - indicator: "rsi"
+              operator: "<"
+              value: 80
+        trending_down:
+          conditions:
+            - indicator: "ma_trend"
+              operator: "<"
+              value: -0.01
+            - indicator: "rsi"
+              operator: ">"
+              value: 20
+            - indicator: "rsi"
+              operator: "<"
+              value: 45
+        volatile:
+          conditions:
+            - indicator: "atr"
+              operator: ">"
+              value: 0.5
+      # Compatibility with old format
+      regime_thresholds:
+        trending_up:
+          ma_trend:
+            min: 0.01
+          rsi:
+            min: 55
+            max: 80
+        trending_down:
+          ma_trend:
+            max: -0.01
+          rsi:
+            min: 20
+            max: 45
+        volatile:
+          atr:
+            min: 0.5
+
+  # Risk manager
+  risk_manager:
+    class_path: src.risk.basic_risk_manager.BasicRiskManager
+    config:
+      max_position_size: 100
+      stop_loss_pct: 0.02
+
+  # Portfolio manager
+  portfolio_manager:
+    class_path: src.risk.basic_portfolio.BasicPortfolio
+    config:
+      initial_cash: 100000
+      max_positions: 1
+
+  # Execution handler
+  execution_handler:
+    class_path: src.execution.simulated_execution_handler.SimulatedExecutionHandler
+    config:
+      latency_ms: 10
+
+  # Backtest runner
+  backtest_runner:
+    class_path: src.execution.backtest_runner.BacktestRunner
+    config:
+      start_date: "2024-01-01"
+      end_date: "2024-12-31"
+      # use_test_dataset will be set by optimizer
+
+  # Optimization runner
+  optimizer:
+    class_path: src.strategy.optimization.runner.OptimizationRunner
+    config:
+      results_dir: "optimization_results"
+
+# Entry point for optimization with train/test split
+entrypoint:
+  class_path: src.execution.optimization_entrypoint.OptimizationEntrypoint
+  config:
+    strategy_name: "strategy"
+    optimization_method: "regime_specific_with_split"  # Use train/test split method
+    regimes: 
+      - "trending_up"
+      - "trending_down"
+      - "volatile"
+      - "default"
+    metric: "sharpe_ratio"
+    train_ratio: 0.8  # 80% for training
+    # Grid search parameters
+    n_iterations: null  # Use all combinations for grid search

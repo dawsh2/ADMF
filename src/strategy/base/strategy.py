@@ -223,11 +223,11 @@ class Strategy(ComponentBase):
     def _publish_signal(self, signal: int, bar_data: Dict[str, Any]) -> None:
         """Publish trading signal to event bus."""
         signal_data = {
-            'signal': signal,
+            'signal_type': signal,  # Changed from 'signal' to match risk manager
             'symbol': bar_data.get('symbol'),
             'timestamp': bar_data.get('timestamp'),
-            'price': bar_data.get('close'),
-            'strategy': self.instance_name,
+            'price_at_signal': bar_data.get('close'),  # Changed from 'price' to match risk manager
+            'strategy_id': self.instance_name,  # Changed from 'strategy' to match risk manager
             'regime': self._current_regime,
             'bars_processed': self._bars_processed
         }
@@ -307,9 +307,68 @@ class Strategy(ComponentBase):
     
     def _initialize_components_from_config(self, config: Dict[str, Any]) -> None:
         """Initialize components based on configuration."""
-        # This would be implemented to create components from config
-        # For now, components are added programmatically
-        pass
+        # Initialize indicators
+        indicators_config = config.get('indicators', {})
+        for name, indicator_config in indicators_config.items():
+            indicator_class = indicator_config.get('class', 'MovingAverageIndicator')
+            
+            # Create indicator based on class name
+            if indicator_class == 'MovingAverageIndicator':
+                from .indicator import MovingAverageIndicator
+                indicator = MovingAverageIndicator(
+                    name=name,
+                    lookback_period=indicator_config.get('lookback_period', 20)
+                )
+                self.add_indicator(name, indicator)
+            elif indicator_class == 'RSIIndicator':
+                from .indicator import RSIIndicator
+                indicator = RSIIndicator(
+                    name=name,
+                    lookback_period=indicator_config.get('lookback_period', 14)
+                )
+                self.add_indicator(name, indicator)
+                
+        # Initialize rules
+        rules_config = config.get('rules', {})
+        for name, rule_config in rules_config.items():
+            rule_class = rule_config.get('class', 'CrossoverRule')
+            dependencies = rule_config.get('dependencies', [])
+            
+            # Get dependency components
+            dep_components = []
+            for dep_name in dependencies:
+                if dep_name in self._indicators:
+                    dep_components.append(self._indicators[dep_name])
+                    
+            # Create rule based on class name
+            if rule_class == 'CrossoverRule':
+                from .rule import CrossoverRule
+                rule = CrossoverRule(
+                    name=name,
+                    dependencies=dep_components,
+                    generate_exit_signals=rule_config.get('generate_exit_signals', False)
+                )
+                weight = config.get('weights', {}).get(name, 1.0)
+                self.add_rule(name, rule, weight)
+            elif rule_class == 'TrueCrossoverRule':
+                from .rules.crossover import TrueCrossoverRule
+                rule = TrueCrossoverRule(name=name)
+                # Set dependencies
+                for i, dep in enumerate(dep_components):
+                    if i == 0:
+                        rule.add_dependency('fast_ma', dep)
+                    elif i == 1:
+                        rule.add_dependency('slow_ma', dep)
+                # Set parameters
+                rule.set_parameters({
+                    'generate_exit_signals': rule_config.get('generate_exit_signals', False),
+                    'min_separation': rule_config.get('min_separation', 0.0)
+                })
+                weight = config.get('weights', {}).get(name, 1.0)
+                self.add_rule(name, rule, weight)
+                
+        # Set signal aggregation method
+        self._aggregation_method = config.get('signal_aggregation_method', 'weighted')
         
     def _setup_parameters(self) -> None:
         """Set up parameter management for all components."""

@@ -1,0 +1,73 @@
+{
+  "strategy": "strategy",
+  "regime": "trending_up",
+  "method": "GridSearch",
+  "metric": "sharpe_ratio",
+  "timestamp": "20250525_232754",
+  "best_params": {
+    "weights.ma_crossover": 1.0,
+    "indicators.fast_ma.lookback_period": 5,
+    "indicators.slow_ma.lookback_period": 20,
+    "rules.ma_crossover.generate_exit_signals": true,
+    "rules.ma_crossover.min_separation": 0.0001
+  },
+  "best_score": -Infinity,
+  "metadata": {
+    "method": "GridSearch",
+    "iterations": 4,
+    "timestamp": "2025-05-25T23:27:54.776337",
+    "total_combinations": 4,
+    "evaluated_combinations": 4,
+    "early_stopped": false
+  },
+  "all_results": [
+    {
+      "iteration": 1,
+      "params": {
+        "weights.ma_crossover": 1.0,
+        "indicators.fast_ma.lookback_period": 5,
+        "indicators.slow_ma.lookback_period": 20,
+        "rules.ma_crossover.generate_exit_signals": true,
+        "rules.ma_crossover.min_separation": 0.0001
+      },
+      "score": -Infinity,
+      "timestamp": "2025-05-25T23:25:58.121952"
+    },
+    {
+      "iteration": 2,
+      "params": {
+        "weights.ma_crossover": 1.0,
+        "indicators.fast_ma.lookback_period": 5,
+        "indicators.slow_ma.lookback_period": 30,
+        "rules.ma_crossover.generate_exit_signals": true,
+        "rules.ma_crossover.min_separation": 0.0001
+      },
+      "score": -Infinity,
+      "timestamp": "2025-05-25T23:26:37.090541"
+    },
+    {
+      "iteration": 3,
+      "params": {
+        "weights.ma_crossover": 1.0,
+        "indicators.fast_ma.lookback_period": 10,
+        "indicators.slow_ma.lookback_period": 20,
+        "rules.ma_crossover.generate_exit_signals": true,
+        "rules.ma_crossover.min_separation": 0.0001
+      },
+      "score": -Infinity,
+      "timestamp": "2025-05-25T23:27:15.982974"
+    },
+    {
+      "iteration": 4,
+      "params": {
+        "weights.ma_crossover": 1.0,
+        "indicators.fast_ma.lookback_period": 10,
+        "indicators.slow_ma.lookback_period": 30,
+        "rules.ma_crossover.generate_exit_signals": true,
+        "rules.ma_crossover.min_separation": 0.0001
+      },
+      "score": -Infinity,
+      "timestamp": "2025-05-25T23:27:54.776328"
+    }
+  ]
+}

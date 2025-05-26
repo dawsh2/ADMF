@@ -57,6 +57,9 @@ class RegimeDetector(ComponentBase):
     
     def _initialize(self):
         """Component-specific initialization logic."""
+        # Log instance ID for debugging isolation
+        self.logger.debug(f"RegimeDetector '{self.instance_name}' created with ID {id(self)}")
+        
         # Load configuration parameters
         self._regime_thresholds = self.get_specific_config("regime_thresholds", {})
         self._min_regime_duration = self.get_specific_config("min_regime_duration", 1)
@@ -74,6 +77,9 @@ class RegimeDetector(ComponentBase):
         if self.subscription_manager:
             self.subscription_manager.subscribe(EventType.BAR, self.on_bar)
             self.logger.info(f"'{self.instance_name}' subscribed to BAR events.")
+            # Log instance and event bus IDs for debugging isolation
+            event_bus_id = id(self.event_bus) if self.event_bus else 'None'
+            self.logger.debug(f"RegimeDetector '{self.instance_name}' (ID {id(self)}) listening to EventBus ID {event_bus_id}")
 
     def on_bar(self, event):
         """Handle incoming BAR events."""

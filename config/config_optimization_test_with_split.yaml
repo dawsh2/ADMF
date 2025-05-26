@@ -1,0 +1,142 @@
+# Configuration for regime-specific optimization with train/test split
+# Based on the working config_optimization_test.yaml
+
+# CLI execution:
+# python main_ultimate.py --config config/config_optimization_test_with_split.yaml --bars 5000
+
+# Core system configuration
+logging:
+  level: INFO
+  format: "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
+
+# Run mode
+run_mode: optimization
+
+# Optimization configuration
+optimization:
+  strategy_name: strategy
+  method: grid
+  metric: sharpe_ratio
+  max_iterations: 100
+  regime_specific: true
+  regimes: ["trending_up", "trending_down", "volatile", "default"]
+  # Train/test split parameters
+  optimization_method: "regime_specific_with_split"
+  train_ratio: 0.8
+
+# Component configurations
+components:
+  # Event bus
+  event_bus:
+    class_path: src.core.event_bus.EventBus
+    config:
+      name: "main_event_bus"
+
+  # Data handler with train/test split support
+  data_handler:
+    class_path: src.data.csv_data_handler.CSVDataHandler
+    config:
+      csv_file_path: "data/SPY_1min.csv"
+      symbol: "SPY"
+      timestamp_column: "timestamp"
+      # train_test_split_ratio will be set by optimizer
+
+  # Strategy - using the working CompositeMAStrategy
+  strategy:
+    class_path: src.strategy.implementations.composite_ma_strategy.CompositeMAStrategy
+    config:
+      fast_ma_period: 10
+      slow_ma_period: 20
+      signal_threshold: 0.0001
+      use_stops: false
+      # Keep RSI enabled but with fixed parameters
+      use_rsi_filter: true
+      rsi_period: 14  # Fixed
+      rsi_buy_threshold: 30  # Fixed
+      rsi_sell_threshold: 70  # Fixed
+      parameter_constraints:
+        fast_ma:
+          min: 5
+          max: 10
+          values: [5, 10]
+        slow_ma:
+          min: 20
+          max: 30
+          values: [20, 30]
+  
+  # Optimizer entry point
+  optimizer:
+    class_path: src.execution.optimization_entrypoint.OptimizationEntrypoint
+    config:
+      strategy_name: strategy
+      method: grid
+      metric: sharpe_ratio
+      regime_specific: true
+      optimization_method: "regime_specific_with_split"
+      train_ratio: 0.8
+      regimes: ["trending_up", "trending_down", "volatile", "default"]
+
+  # Regime detector with indicators
+  regime_detector:
+    class_path: src.strategy.regime_detector.RegimeDetector
+    config:
+      min_regime_duration: 1
+      indicators:
+        ma_trend:
+          type: simple_ma_trend
+          parameters:
+            short_period: 10
+            long_period: 30
+        rsi:
+          type: rsi
+          parameters:
+            period: 14
+        atr:
+          type: atr
+          parameters:
+            period: 14
+      regime_thresholds:
+        trending_up:
+          ma_trend:
+            min: 0.01
+          rsi:
+            min: 55
+            max: 80
+        trending_down:
+          ma_trend:
+            max: -0.01
+          rsi:
+            min: 20
+            max: 45
+        volatile:
+          atr:
+            min: 0.5
+        default:
+          priority: 0
+
+  # Risk management
+  risk_manager:
+    class_path: src.risk.basic_risk_manager.BasicRiskManager
+    config:
+      max_position_size: 100
+      stop_loss_pct: 0.02
+
+  # Portfolio management
+  portfolio_manager:
+    class_path: src.risk.basic_portfolio.BasicPortfolio
+    config:
+      initial_cash: 100000
+      max_positions: 1
+
+  # Execution handler
+  execution_handler:
+    class_path: src.execution.simulated_execution_handler.SimulatedExecutionHandler
+    config:
+      latency_ms: 10
+
+  # Backtest runner
+  backtest_runner:
+    class_path: src.execution.backtest_runner.BacktestRunner
+    config:
+      start_date: "2024-01-01"
+      end_date: "2024-12-31"
