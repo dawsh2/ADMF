@@ -269,6 +269,45 @@ class OptimizationRunner(ComponentBase):
         
         return resolved_params
     
+    def execute(self) -> Dict[str, Any]:
+        """
+        Execute optimization (entrypoint method for Bootstrap).
+        
+        This method is called by Bootstrap when in optimization mode.
+        It runs the optimization based on the configuration.
+        
+        Returns:
+            Dictionary containing optimization results
+        """
+        self.logger.info("Starting optimization execution")
+        
+        # Get optimization configuration
+        opt_config = self.optimization_config.get('default', {})
+        
+        # Run the optimization
+        results = self.run_optimization(
+            target_name=opt_config.get('target', 'regime_strategy'),
+            method_name=opt_config.get('method', 'grid_search'),
+            metric_name=opt_config.get('metric', 'sharpe_ratio'),
+            sequence_name=opt_config.get('sequence', 'sequential')
+        )
+        
+        self.logger.info(f"Optimization completed with {len(results)} results")
+        
+        # Return the best result
+        if results:
+            best_result = max(results.values(), key=lambda x: x.get('metric_value', float('-inf')))
+            return {
+                'status': 'success',
+                'best_result': best_result,
+                'all_results': results
+            }
+        else:
+            return {
+                'status': 'no_results',
+                'message': 'Optimization produced no results'
+            }
+    
     def run_optimization(self,
                         sequence_name: str,
                         targets: List[str],
