@@ -1,0 +1,64 @@
+{
+  "strategy": "strategy",
+  "method": "GridSearch",
+  "metric": "sharpe_ratio",
+  "timestamp": "20250526_110726",
+  "regimes": {
+    "trending_up": {
+      "best_params": {
+        "short_window": 15,
+        "long_window": 20
+      },
+      "best_score": 2.4483914796774364,
+      "metadata": {
+        "win_rate": 0.3263157894736842,
+        "total_return": 517.8000000000168,
+        "trade_count": 95,
+        "regime": "trending_up",
+        "timestamp": "2025-05-26T11:07:26.426778"
+      }
+    },
+    "trending_down": {
+      "best_params": {
+        "short_window": 10,
+        "long_window": 30
+      },
+      "best_score": 0.0,
+      "metadata": {
+        "win_rate": 0.0,
+        "total_return": 0.0,
+        "trade_count": 24,
+        "regime": "trending_down",
+        "timestamp": "2025-05-26T11:07:26.426906"
+      }
+    },
+    "volatile": {
+      "best_params": {
+        "short_window": 10,
+        "long_window": 40
+      },
+      "best_score": 0.0,
+      "metadata": {
+        "win_rate": 0.0,
+        "total_return": 0.0,
+        "trade_count": 2,
+        "regime": "volatile",
+        "timestamp": "2025-05-26T11:07:26.427028"
+      }
+    },
+    "default": {
+      "best_params": {
+        "short_window": 15,
+        "long_window": 30
+      },
+      "best_score": -3.943754655325241,
+      "metadata": {
+        "win_rate": 0.2953020134228188,
+        "total_return": -944.6899999999971,
+        "trade_count": 149,
+        "regime": "default",
+        "timestamp": "2025-05-26T11:07:26.427157"
+      }
+    }
+  }
+}

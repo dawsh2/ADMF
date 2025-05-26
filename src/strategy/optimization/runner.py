@@ -448,7 +448,13 @@ class OptimizationRunner(ComponentBase):
                     }
                 else:
                     # Update if this is better
-                    if perf.get('sharpe_ratio', float('-inf')) > best_params_per_regime[regime]['sharpe_ratio']:
+                    current_sharpe = perf.get('sharpe_ratio')
+                    if current_sharpe is None:
+                        current_sharpe = float('-inf')
+                    best_sharpe = best_params_per_regime[regime].get('sharpe_ratio', float('-inf'))
+                    if best_sharpe is None:
+                        best_sharpe = float('-inf')
+                    if current_sharpe > best_sharpe:
                         best_params_per_regime[regime] = {
                             'parameters': params,
                             'sharpe_ratio': perf.get('sharpe_ratio', float('-inf')),

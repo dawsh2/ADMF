@@ -608,6 +608,23 @@ class Bootstrap:
         This allows components to be defined in the config file with their
         configuration inline, rather than requiring separate component definitions.
         """
+        # Check if we need to handle strategy switching for verification
+        cli_args = self.context.metadata.get('cli_args', {}) if self.context.metadata else {}
+        dataset = cli_args.get('dataset')
+        
+        # If we're in backtest mode with test dataset, check for regime_adaptive_strategy
+        if (self.context.run_mode == RunMode.BACKTEST and 
+            dataset == 'test' and 
+            'regime_adaptive_strategy' in config_components and
+            'strategy' in config_components):
+            # Use regime_adaptive_strategy instead of regular strategy for verification
+            self.context.logger.info("Using RegimeAdaptiveStrategy for test dataset verification")
+            # Replace strategy config with regime_adaptive_strategy config
+            config_components = config_components.copy()
+            config_components['strategy'] = config_components['regime_adaptive_strategy']
+            # Remove the regime_adaptive_strategy entry to avoid duplicate creation
+            del config_components['regime_adaptive_strategy']
+        
         for name, component_config in config_components.items():
             if not isinstance(component_config, dict):
                 continue

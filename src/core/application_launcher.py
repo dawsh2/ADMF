@@ -9,7 +9,7 @@ that's left to the configuration and Bootstrap.
 
 import argparse
 import logging
-from typing import List, Dict, Any
+from typing import List, Dict, Any, Optional
 
 from .config import SimpleConfigLoader
 from .bootstrap import Bootstrap, RunMode
@@ -54,9 +54,9 @@ class ApplicationLauncher:
             config = config_loader  # For now, use the loader directly
             self.logger.info(f"Configuration loaded from: {args.config}")
             
-            # Determine run mode from config (not from args!)
-            run_mode = self._determine_run_mode(config)
-            self.logger.info(f"Run mode from config: {run_mode.value}")
+            # Determine run mode from CLI args first, then config
+            run_mode = self._determine_run_mode(config, args)
+            self.logger.info(f"Run mode: {run_mode.value}")
             
             # Prepare metadata with CLI args for AppRunner
             metadata = {
@@ -78,8 +78,11 @@ class ApplicationLauncher:
                 # Set AppRunner as the entrypoint for this run mode
                 self._configure_entrypoint(bootstrap, run_mode)
                 
-                # Set up all components
-                bootstrap.setup_managed_components()
+                # Determine component overrides based on run mode
+                component_overrides = self._get_component_overrides(run_mode, args)
+                
+                # Set up all components with overrides
+                bootstrap.setup_managed_components(component_overrides=component_overrides)
                 
                 # Start all components
                 bootstrap.start_components()
@@ -153,13 +156,20 @@ class ApplicationLauncher:
             debug_file=args.debug_log
         )
             
-    def _determine_run_mode(self, config: SimpleConfigLoader) -> RunMode:
+    def _determine_run_mode(self, config: SimpleConfigLoader, args) -> RunMode:
         """
-        Determine run mode from configuration.
+        Determine run mode from CLI args first, then configuration.
         
-        This is the key insight - the config file determines what runs,
-        not command line arguments.
+        Priority order:
+        1. CLI --optimize flag (overrides config)
+        2. Config file run_mode setting
+        3. Default to backtest
         """
+        # Check CLI args first - --optimize flag takes precedence
+        if hasattr(args, 'optimize') and args.optimize:
+            self.logger.info("Optimization mode enabled via --optimize flag")
+            return RunMode.OPTIMIZATION
+            
         # Check if config explicitly sets the run mode (top-level)
         run_mode = config.get("run_mode")
         if run_mode:
@@ -182,6 +192,23 @@ class ApplicationLauncher:
             
         # Default to backtest
         return RunMode.BACKTEST
+        
+    def _get_component_overrides(self, run_mode: RunMode, args) -> Optional[Dict[str, str]]:
+        """
+        Get component overrides based on run mode and CLI args.
+        
+        This allows us to use different strategy implementations based on
+        whether we're optimizing or doing verification.
+        
+        Args:
+            run_mode: The current run mode
+            args: CLI arguments
+            
+        Returns:
+            Dictionary of component name -> class name overrides
+        """
+        # No overrides needed - we'll handle this in the config loading instead
+        return None
         
     def _register_app_runner(self, bootstrap: Bootstrap):
         """Register AppRunner as a component."""

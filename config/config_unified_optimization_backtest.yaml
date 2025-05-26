@@ -1,18 +1,17 @@
-# Configuration for regime-specific optimization with train/test split
-# Based on the working config_optimization_test.yaml
-
-# CLI execution:
-# python main_ultimate.py --config config/config_optimization_test_with_split.yaml --bars 5000
+# Unified configuration for both optimization and verification runs
+# This single config can be used for:
+# 1. Optimization: python main_ultimate.py --config config/config_unified_optimization_backtest.yaml --bars 10000 --optimize
+# 2. Verification: python main_ultimate.py --config config/config_unified_optimization_backtest.yaml --bars 10000 --dataset test
 
 # Core system configuration
 logging:
   level: INFO
   format: "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
 
-# Run mode - commented out to allow CLI override
-# run_mode: optimization
+# Run mode - will be overridden by --optimize flag if present
+run_mode: backtest
 
-# Optimization configuration
+# Optimization configuration (used when --optimize flag is present)
 optimization:
   strategy_name: strategy
   method: grid
@@ -39,32 +38,68 @@ components:
       csv_file_path: "data/SPY_1min.csv"
       symbol: "SPY"
       timestamp_column: "timestamp"
-      # train_test_split_ratio will be set by optimizer
+      # Train/test split ratio for both optimization and verification
+      train_test_split_ratio: 0.8
 
-  # Strategy - using the working CompositeMAStrategy
+  # Strategy configuration
+  # When running optimization (--optimize), this will be optimized
+  # When running verification (no --optimize), use RegimeAdaptiveStrategy for dynamic switching
   strategy:
-    class_path: src.strategy.implementations.composite_ma_strategy.CompositeMAStrategy
+    class_path: src.strategy.implementations.ensemble_strategy.EnsembleStrategy
     config:
-      fast_ma_period: 10
-      slow_ma_period: 20
-      signal_threshold: 0.0001
-      use_stops: false
-      # Keep RSI enabled but with fixed parameters
-      use_rsi_filter: true
-      rsi_period: 14  # Fixed
-      rsi_buy_threshold: 30  # Fixed
-      rsi_sell_threshold: 70  # Fixed
+      symbol: "SPY"
+      # Base MA parameters
+      ma_component:
+        short_window: 10
+        long_window: 20
+        signal_threshold: 0.0001
+      # RSI parameters
+      rsi_component:
+        period: 14
+        oversold_threshold: 30
+        overbought_threshold: 70
+      # Parameter constraints for optimization
       parameter_constraints:
-        fast_ma:
+        ma_component.short_window:
           min: 5
-          max: 10
-          values: [5, 10]
-        slow_ma:
+          max: 15
+          values: [5, 10, 15]
+        ma_component.long_window:
           min: 20
-          max: 30
-          values: [20, 30]
+          max: 40
+          values: [20, 30, 40]
+        rsi_component.period:
+          min: 10
+          max: 21
+          values: [10, 14, 21]
+        rsi_component.oversold_threshold:
+          min: 20
+          max: 40
+          values: [20, 30, 40]
+        rsi_component.overbought_threshold:
+          min: 60
+          max: 80
+          values: [60, 70, 80]
+
+  # Alternative strategy for verification with dynamic parameter switching
+  # This component will be aliased as 'strategy' when NOT optimizing
+  regime_adaptive_strategy:
+    class_path: src.strategy.regime_adaptive_strategy.RegimeAdaptiveStrategy
+    config:
+      symbol: "SPY"
+      # Path to optimized parameters (created by optimization run)
+      regime_params_file_path: "regime_optimized_parameters.json"
+      fallback_to_overall_best: true
+      # Base parameters (will be overridden by regime-specific params from file)
+      short_window: 10
+      long_window: 20
+      # RSI parameters
+      use_rsi_filter: true
+      rsi_period: 14
+      rsi_oversold_threshold: 30
+      rsi_overbought_threshold: 70
   
-  # Optimizer entry point
+  # Optimizer entry point (only used when --optimize flag is present)
   optimizer:
     class_path: src.execution.optimization_entrypoint.OptimizationEntrypoint
     config:
@@ -140,3 +175,4 @@ components:
     config:
       start_date: "2024-01-01"
       end_date: "2024-12-31"
+      # use_test_dataset is controlled by --dataset CLI flag

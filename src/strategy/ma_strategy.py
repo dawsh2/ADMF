@@ -8,6 +8,7 @@ import datetime
 
 from src.core.component_base import ComponentBase
 from src.core.event import Event, EventType
+from src.strategy.base.parameter import ParameterSpace, Parameter
 from src.core.exceptions import ConfigurationError
 
 class MAStrategy(ComponentBase):
@@ -151,16 +152,30 @@ class MAStrategy(ComponentBase):
             "symbol": self._symbol # Symbol is fixed per instance for now
         }
 
-    def get_parameter_space(self) -> Dict[str, List[Any]]:
+    def get_parameter_space(self) -> ParameterSpace:
         """
         Defines the parameter space for optimization.
         This can be made configurable later (e.g., from YAML).
         """
-        # Example space - make this more dynamic or load from config if needed for more flexibility
-        return {
-            "short_window": [5, 10],  # considering using 'range' (list(range(5, 7)))
-            "long_window": [20] # e.g., [20, 30, 40, 50, 60]
-        }
+        # Create ParameterSpace object
+        space = ParameterSpace(f"{self.instance_name}_space")
+        
+        # Add parameters with discrete values
+        space.add_parameter(Parameter(
+            name="short_window",
+            param_type="discrete",
+            values=[5, 10, 15],  # Values for grid search
+            default=self._short_window
+        ))
+        
+        space.add_parameter(Parameter(
+            name="long_window",
+            param_type="discrete", 
+            values=[20, 30, 40],  # Values for grid search
+            default=self._long_window
+        ))
+        
+        return space
 
     def setup(self):
         """Sets up the component, including re-initializing state based on current parameters."""
