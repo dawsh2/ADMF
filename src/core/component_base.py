@@ -8,11 +8,14 @@ COMPONENT_LIFECYCLE.md.
 """
 
 from abc import ABC, abstractmethod
-from typing import Dict, Any, Optional, List, Tuple
+from typing import Dict, Any, Optional, List, Tuple, TYPE_CHECKING
 from enum import Enum
 import logging
 
 from .subscription_manager import SubscriptionManager
+
+if TYPE_CHECKING:
+    from ..strategy.base.parameter import ParameterSpace
 
 
 class ComponentState(Enum):
@@ -314,3 +317,100 @@ class ComponentBase(ABC):
             f"initialized={self.initialized}, "
             f"running={self.running})"
         )
+        
+    # ===== Optimization Support Methods =====
+    # These methods support component-based optimization as described in
+    # OPTIMIZATION_FRAMEWORK.md and OPTIMIZATION_CHECKLIST.MD
+    
+    def get_parameter_space(self) -> Optional['ParameterSpace']:
+        """
+        Get the parameter space for this component.
+        
+        This method should be overridden by components that support optimization
+        to return their ParameterSpace object defining optimizable parameters.
+        
+        Returns:
+            ParameterSpace object or None if component has no optimizable parameters
+            
+        Example:
+            space = ParameterSpace(f"{self.instance_name}_space")
+            space.add_parameter(Parameter(
+                name="threshold",
+                param_type="continuous",
+                min_value=0.0,
+                max_value=1.0,
+                default=0.5
+            ))
+            return space
+        """
+        return None
+        
+    def get_optimizable_parameters(self) -> Dict[str, Any]:
+        """
+        Get current values of all optimizable parameters.
+        
+        This method should be overridden by components that support optimization
+        to return current parameter values in a flat dictionary format.
+        
+        Returns:
+            Dict mapping parameter names to their current values
+            
+        Example:
+            return {
+                "threshold": self.threshold,
+                "window_size": self.window_size
+            }
+        """
+        return {}
+        
+    def validate_parameters(self, parameters: Dict[str, Any]) -> Tuple[bool, Optional[str]]:
+        """
+        Validate a set of parameters for this component.
+        
+        This method should be overridden by components that support optimization
+        to validate parameter values before they are applied.
+        
+        Args:
+            parameters: Dictionary of parameter names to values
+            
+        Returns:
+            Tuple of (is_valid, error_message)
+            - is_valid: True if all parameters are valid
+            - error_message: Description of validation error if any
+            
+        Example:
+            if parameters.get("threshold", 0) < 0:
+                return False, "Threshold must be non-negative"
+            return True, None
+        """
+        return True, None
+        
+    def apply_parameters(self, parameters: Dict[str, Any]) -> None:
+        """
+        Apply a set of parameters to this component.
+        
+        This method should be overridden by components that support optimization
+        to update their internal state with new parameter values.
+        
+        Args:
+            parameters: Dictionary of parameter names to values
+            
+        Note:
+            - This method should validate parameters before applying them
+            - It should handle partial parameter updates (not all params need to be specified)
+            - It may need to reinitialize internal structures after parameter changes
+            
+        Example:
+            # Validate first
+            valid, error = self.validate_parameters(parameters)
+            if not valid:
+                raise ValueError(f"Invalid parameters: {error}")
+                
+            # Apply parameters
+            if "threshold" in parameters:
+                self.threshold = parameters["threshold"]
+            if "window_size" in parameters:
+                self.window_size = parameters["window_size"]
+                self._reinitialize_buffers()  # Reinitialize if needed
+        """
+        pass

@@ -1,0 +1,90 @@
+# Example configuration for config-driven optimization workflow
+# This demonstrates how to configure optimization to run a sequence of processes
+# as originally envisioned: "In my opinion, --optimize should trigger a process 
+# (or set of processes) that are defined in the config"
+
+system:
+  name: "ADMF-Trader"
+  version: "1.0.0"
+  description: "Workflow-based optimization example"
+  
+# Component definitions (abbreviated for example)
+components:
+  data_handler:
+    class: "CSVDataHandler"
+    module: "data.csv_data_handler"
+    config:
+      file_path: "data/SPY_1min.csv"
+      symbol: "SPY"
+      
+  portfolio_manager:
+    class: "BasicPortfolio"
+    module: "risk.basic_portfolio"
+    config:
+      initial_capital: 100000
+      
+  strategy:
+    class: "EnsembleSignalStrategy"
+    module: "strategy.implementations.ensemble_strategy"
+    config:
+      # Strategy configuration
+      
+  risk_manager:
+    class: "BasicRiskManager"
+    module: "risk.basic_risk_manager"
+    
+  execution_handler:
+    class: "SimulatedExecutionHandler"
+    module: "execution.simulated_execution_handler"
+    
+  # Register the workflow orchestrator
+  workflow_orchestrator:
+    class: "OptimizationWorkflowOrchestrator"
+    module: "strategy.optimization.workflow_orchestrator"
+    config:
+      # Workflow configuration is below
+      
+  # Also keep legacy optimizer for backward compatibility
+  optimizer:
+    class: "EnhancedOptimizer"
+    module: "strategy.optimization.enhanced_optimizer"
+    config:
+      metric_to_optimize: "sharpe_ratio"
+      
+# Optimization configuration with workflow
+optimization:
+  # Date ranges for train/test split
+  train_date_range: ["2023-01-01", "2023-06-30"]
+  test_date_range: ["2023-07-01", "2023-12-31"]
+  
+  # Define the optimization workflow
+  workflow:
+    # Step 1: Optimize individual rule components
+    - name: "component_optimization"
+      type: "rulewise"
+      targets:
+        - "rsi_indicator_*"    # Optimize all RSI indicators
+        - "ma_indicator_*"     # Optimize all MA indicators
+      method: "grid_search"    # Use grid search for components
+      
+    # Step 2: Optimize regime detection parameters
+    - name: "regime_optimization"
+      type: "regime_optimization"
+      regime_config:
+        regimes_to_optimize: ["TRENDING_UP", "TRENDING_DOWN", "VOLATILE", "DEFAULT"]
+        min_trades_per_regime: 10
+      method: "grid_search"
+      depends_on: ["component_optimization"]
+      
+    # Step 3: Optimize ensemble weights using genetic algorithm
+    - name: "ensemble_weight_optimization"
+      type: "ensemble_weights"
+      method: "genetic"        # Use genetic algorithm for weights
+      generations: 50
+      population_size: 100
+      depends_on: ["component_optimization", "regime_optimization"]
+      
+# Logging configuration
+logging:
+  level: "INFO"
+  format: "%(asctime)s - %(name)s - %(levelname)s - %(message)s"

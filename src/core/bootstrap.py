@@ -246,6 +246,13 @@ class Bootstrap:
             'config_key': 'components.genetic_optimizer',
             'required': False
         },
+        'workflow_orchestrator': {
+            'class': 'OptimizationWorkflowOrchestrator',
+            'module': 'src.strategy.optimization.workflow_orchestrator',
+            'dependencies': ['event_bus', 'container'],
+            'config_key': 'components.workflow_orchestrator',
+            'required': False
+        },
         'signal_consumer': {
             'class': 'DummyComponent',
             'module': 'src.core.dummy_component',

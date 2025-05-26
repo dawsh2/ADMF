@@ -99,7 +99,13 @@ class EnhancedOptimizer(BasicOptimizer):
         # Get the regime-specific performance metrics
         try:
             portfolio_manager: BasicPortfolio = self.container.resolve(self._portfolio_service_name)
-            regime_performance = portfolio_manager.get_performance_by_regime()
+            # Use the method that provides corrected Sharpe ratios based on portfolio returns
+            if hasattr(portfolio_manager, 'get_performance_by_regime_with_portfolio_sharpe'):
+                regime_performance = portfolio_manager.get_performance_by_regime_with_portfolio_sharpe()
+            else:
+                # Fallback to standard method if new method not available
+                regime_performance = portfolio_manager.get_performance_by_regime()
+                self.logger.warning("Using legacy get_performance_by_regime method - Sharpe ratios may be incorrect")
             
             # Log the regimes encountered for debugging
             trade_regimes = [r for r in regime_performance.keys() if not r.startswith('_')]

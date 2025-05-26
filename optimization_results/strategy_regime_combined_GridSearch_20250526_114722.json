@@ -1,0 +1,54 @@
+{
+  "strategy": "strategy",
+  "method": "GridSearch",
+  "metric": "sharpe_ratio",
+  "timestamp": "20250526_114722",
+  "regimes": {
+    "trending_up": {
+      "best_params": {},
+      "best_score": -Infinity,
+      "metadata": {
+        "regime": "trending_up",
+        "error": "No trades in regime",
+        "timestamp": "2025-05-26T11:47:22.440284"
+      }
+    },
+    "trending_down": {
+      "best_params": {},
+      "best_score": -Infinity,
+      "metadata": {
+        "regime": "trending_down",
+        "error": "No trades in regime",
+        "timestamp": "2025-05-26T11:47:22.440310"
+      }
+    },
+    "volatile": {
+      "best_params": {
+        "short_window": 15,
+        "long_window": 20
+      },
+      "best_score": -3.1513652246952666,
+      "metadata": {
+        "win_rate": 0.30434782608695654,
+        "total_return": -9848.020000000064,
+        "trade_count": 207,
+        "regime": "volatile",
+        "timestamp": "2025-05-26T11:47:22.440313"
+      }
+    },
+    "default": {
+      "best_params": {
+        "short_window": 5,
+        "long_window": 30
+      },
+      "best_score": -0.35343277846651755,
+      "metadata": {
+        "win_rate": 0.31014729950900166,
+        "total_return": -5622.999999998965,
+        "trade_count": 3666,
+        "regime": "default",
+        "timestamp": "2025-05-26T11:47:22.440430"
+      }
+    }
+  }
+}

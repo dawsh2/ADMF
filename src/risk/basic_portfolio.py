@@ -250,14 +250,16 @@ class BasicPortfolio(ComponentBase):
            (current_pos_qty < 0 and fill_direction_is_buy): # Closing/reducing existing position
             
             qty_closed = min(abs(current_pos_qty), quantity_filled)
-            segment_entry_price = pos['current_segment_entry_price']
+            # Use actual average entry price for P&L calculation, not segment entry price
+            actual_entry_price = pos['avg_entry_price']
+            segment_entry_price = pos['current_segment_entry_price']  # Keep for logging
 
             if current_pos_qty > 0: # Closing/reducing long
-                pnl_from_this_fill = (fill_price - segment_entry_price) * qty_closed
-                self.logger.info(f"Closed LONG segment {qty_closed:.2f} {symbol} at {fill_price:.2f} (entry {segment_entry_price:.2f}). PnL: {pnl_from_this_fill:.2f} in regime '{pos['current_segment_regime']}'.")
+                pnl_from_this_fill = (fill_price - actual_entry_price) * qty_closed
+                self.logger.info(f"Closed LONG segment {qty_closed:.2f} {symbol} at {fill_price:.2f} (entry {actual_entry_price:.2f}). PnL: {pnl_from_this_fill:.2f} in regime '{pos['current_segment_regime']}'.")
             else: # Covering/reducing short
-                pnl_from_this_fill = (segment_entry_price - fill_price) * qty_closed
-                self.logger.info(f"Covered SHORT segment {qty_closed:.2f} {symbol} at {fill_price:.2f} (entry {segment_entry_price:.2f}). PnL: {pnl_from_this_fill:.2f} in regime '{pos['current_segment_regime']}'.")
+                pnl_from_this_fill = (actual_entry_price - fill_price) * qty_closed
+                self.logger.info(f"Covered SHORT segment {qty_closed:.2f} {symbol} at {fill_price:.2f} (entry {actual_entry_price:.2f}). PnL: {pnl_from_this_fill:.2f} in regime '{pos['current_segment_regime']}'.")
             
             self.realized_pnl += pnl_from_this_fill
             # Track both entry and exit regimes for boundary trades
@@ -275,7 +277,7 @@ class BasicPortfolio(ComponentBase):
                 'entry_timestamp': pos['entry_timestamp'],
                 'exit_timestamp': timestamp,
                 'direction': 'LONG' if current_pos_qty > 0 else 'SHORT',
-                'entry_price': segment_entry_price,
+                'entry_price': actual_entry_price,  # Use actual entry price for accurate records
                 'exit_price': fill_price,
                 'quantity': qty_closed,
                 'commission': commission,
@@ -415,11 +417,9 @@ class BasicPortfolio(ComponentBase):
                 # If market regime changed and position's current segment regime is different
                 if pos['current_segment_regime'] != self._get_current_regime():
                     self.logger.info(f"Regime for open position {symbol} tracking update: from '{pos['current_segment_regime']}' to '{self._get_current_regime()}' at {timestamp}.")
-                    # This indicates a regime change happened between fills. 
-                    # For accurate segment P&L, one might close the old segment and start a new one.
-                    # For simplicity here, we update the segment's regime.
-                    # The entry price for this "new segment" would ideally be the current market price.
-                    pos['current_segment_entry_price'] = self._last_bar_prices[symbol] # Mark-to-market for new segment
+                    # Update the regime but DON'T reset the entry price
+                    # P&L should be calculated from actual entry price, not segment boundaries
+                    # pos['current_segment_entry_price'] = self._last_bar_prices[symbol]  # REMOVED - This was causing P&L calculation errors
                     pos['current_segment_regime'] = self._get_current_regime()
         
         self._update_portfolio_value(timestamp)
@@ -823,6 +823,168 @@ class BasicPortfolio(ComponentBase):
                 
                 # Add separation line between transitions
                 self.logger.info("    " + "-" * 40)
+    
+    def calculate_portfolio_sharpe_ratio(self, risk_free_rate: float = 0.0) -> Optional[float]:
+        """
+        Calculate Sharpe ratio based on portfolio value changes (returns).
+        
+        This is the correct way to calculate Sharpe ratio - from actual portfolio
+        returns, not from individual trade P&Ls.
+        
+        Args:
+            risk_free_rate: Annual risk-free rate (default 0.0)
+            
+        Returns:
+            Annualized Sharpe ratio or None if insufficient data
+        """
+        if len(self._portfolio_value_history) < 2:
+            self.logger.warning("Insufficient portfolio history for Sharpe ratio calculation")
+            return None
+            
+        # Calculate returns between each portfolio value update
+        returns = []
+        for i in range(1, len(self._portfolio_value_history)):
+            prev_time, prev_value = self._portfolio_value_history[i-1]
+            curr_time, curr_value = self._portfolio_value_history[i]
+            
+            if prev_value > 0:  # Avoid division by zero
+                period_return = (curr_value - prev_value) / prev_value
+                returns.append(period_return)
+                
+        if not returns:
+            return None
+            
+        # Calculate statistics
+        import numpy as np
+        returns_array = np.array(returns)
+        
+        # Average return
+        avg_return = np.mean(returns_array)
+        
+        # Standard deviation of returns
+        std_return = np.std(returns_array, ddof=1) if len(returns) > 1 else 0
+        
+        if std_return == 0:
+            self.logger.warning("Zero standard deviation in returns")
+            return None
+            
+        # Calculate time scaling factor
+        # Assume each bar is 1 minute for intraday data
+        # 252 trading days * 6.5 hours * 60 minutes = 98,280 bars per year
+        # But we'll use 252 * 390 minutes = 98,280 for consistency
+        bars_per_year = 252 * 390  # Standard trading minutes per year
+        
+        # Estimate bars per period from timestamps if available
+        if len(self._portfolio_value_history) > 1:
+            # Get average time between updates
+            time_diffs = []
+            for i in range(1, min(10, len(self._portfolio_value_history))):  # Sample first 10
+                if self._portfolio_value_history[i][0] and self._portfolio_value_history[i-1][0]:
+                    diff = (self._portfolio_value_history[i][0] - self._portfolio_value_history[i-1][0]).total_seconds()
+                    time_diffs.append(diff)
+                    
+            if time_diffs:
+                avg_seconds = sum(time_diffs) / len(time_diffs)
+                if avg_seconds > 0:
+                    # Assume 1-minute bars if average is around 60 seconds
+                    if 30 <= avg_seconds <= 90:
+                        annualization_factor = np.sqrt(bars_per_year)
+                    else:
+                        # For other timeframes, scale appropriately
+                        minutes_per_bar = avg_seconds / 60
+                        bars_per_year_adjusted = bars_per_year / minutes_per_bar
+                        annualization_factor = np.sqrt(bars_per_year_adjusted)
+                else:
+                    annualization_factor = np.sqrt(252)  # Default to daily
+            else:
+                annualization_factor = np.sqrt(252)  # Default to daily
+        else:
+            annualization_factor = np.sqrt(252)  # Default to daily
+            
+        # Calculate Sharpe ratio
+        # Annualized return
+        annualized_return = avg_return * bars_per_year
+        
+        # Annualized volatility
+        annualized_vol = std_return * annualization_factor
+        
+        # Sharpe ratio
+        sharpe_ratio = (annualized_return - risk_free_rate) / annualized_vol
+        
+        # Log calculation details
+        self.logger.info(
+            f"Portfolio Sharpe Ratio Calculation: "
+            f"Avg Return={avg_return:.6f}, Std Dev={std_return:.6f}, "
+            f"Annualization Factor={annualization_factor:.1f}, "
+            f"Sharpe={sharpe_ratio:.4f}"
+        )
+        
+        return sharpe_ratio
+        
+    def get_performance_metrics(self) -> Dict[str, Any]:
+        """
+        Get comprehensive performance metrics including both trade-based
+        and portfolio-based calculations.
+        
+        Returns:
+            Dictionary of performance metrics
+        """
+        metrics = {
+            'initial_value': self.initial_cash,
+            'final_value': self.current_total_value,
+            'total_return': (self.current_total_value - self.initial_cash) / self.initial_cash,
+            'total_return_pct': ((self.current_total_value - self.initial_cash) / self.initial_cash) * 100,
+            'realized_pnl': self.realized_pnl,
+            'unrealized_pnl': self.unrealized_pnl,
+            'num_trades': len(self._trade_log),
+            'portfolio_sharpe_ratio': self.calculate_portfolio_sharpe_ratio()
+        }
+        
+        # Add regime-based metrics
+        regime_performance = self._calculate_performance_by_regime()
+        metrics['regime_performance'] = regime_performance
+        
+        return metrics
+        
+    def get_performance_by_regime(self) -> Dict[str, Dict[str, Any]]:
+        """
+        Get regime-specific performance metrics.
+        
+        Note: This method returns trade-based Sharpe ratios which may be incorrect
+        due to the segment P&L calculation bug. Use get_performance_by_regime_with_portfolio_sharpe()
+        for corrected Sharpe ratios.
+        
+        Returns:
+            Dictionary mapping regime names to performance metrics
+        """
+        return self._calculate_performance_by_regime()
+        
+    def get_performance_by_regime_with_portfolio_sharpe(self) -> Dict[str, Dict[str, Any]]:
+        """
+        Get regime-specific performance metrics with corrected Sharpe ratios.
+        
+        This method provides regime performance but replaces the trade-based
+        Sharpe ratios with the correct portfolio-based Sharpe ratio.
+        
+        Returns:
+            Dictionary mapping regime names to performance metrics
+        """
+        # Get the standard regime performance (with incorrect Sharpe ratios)
+        regime_performance = self._calculate_performance_by_regime()
+        
+        # Calculate the correct portfolio-based Sharpe ratio
+        portfolio_sharpe = self.calculate_portfolio_sharpe_ratio()
+        
+        # For optimization purposes, we'll use the portfolio Sharpe for all regimes
+        # since the trade-based Sharpe ratios are incorrect due to the P&L bug
+        if portfolio_sharpe is not None:
+            for regime, metrics in regime_performance.items():
+                if regime != '_boundary_trades_summary' and isinstance(metrics, dict):
+                    # Replace the incorrect trade-based Sharpe with portfolio-based
+                    metrics['sharpe_ratio'] = portfolio_sharpe
+                    metrics['sharpe_ratio_source'] = 'portfolio_returns'
+                    
+        return regime_performance
     
     def teardown(self):
         """Clean up resources."""

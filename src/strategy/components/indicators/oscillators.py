@@ -1,82 +1,87 @@
 # src/strategy/components/indicators/oscillators.py
 import logging
-from typing import Dict, Any, List, Optional, Union # Added Union
+from typing import Dict, Any, List, Optional, Union, Tuple
 from collections import deque
-from src.core.component import BaseComponent # Using BaseComponent as per your project
+from src.core.component_base import ComponentBase
+from src.strategy.base.parameter import Parameter, ParameterSpace
 
-class RSIIndicator(BaseComponent):
+
+class RSIIndicator(ComponentBase):
     """
     Calculates the Relative Strength Index (RSI).
+    
+    This indicator is optimizable with the following parameters:
+    - period: The number of periods for RSI calculation (default: 14)
     """
-    def __init__(self, instance_name: str, config_loader, event_bus, component_config_key: Optional[str], parameters: Optional[Dict[str, Any]] = None): # component_config_key can be Optional
-        super().__init__(instance_name, config_loader, component_config_key)
-        # Using component.name for logger, assuming BaseComponent sets self.name
-        self.logger = logging.getLogger(f"component.{self.name}")
-
-        # Ensure parameters is a dict if None for safer access
-        current_params = parameters if isinstance(parameters, dict) else {}
+    def __init__(self, instance_name: str, config_key: Optional[str] = None):
+        """Initialize RSI indicator with minimal setup."""
+        super().__init__(instance_name, config_key)
         
-        # Try to get period from parameters, then from specific component config, then default
-        self.period: int = current_params.get('period')
-        if self.period is None:
-            self.period = self.get_specific_config('period', 14)
-
-        if not isinstance(self.period, int) or self.period <= 1:
-            self.logger.error(f"Invalid RSI period '{self.period}'. Must be an integer > 1. Defaulting to 14.")
-            self.period = 14
-
-        self._prices: deque[float] = deque(maxlen=self.period + 10) 
-        self._gains: deque[float] = deque(maxlen=self.period)
-        self._losses: deque[float] = deque(maxlen=self.period)
+        # Default parameter values
+        self._default_period = 14
+        self.period: int = self._default_period
         
+        # Internal state - will be initialized in _initialize
+        self._prices: Optional[deque[float]] = None
+        self._gains: Optional[deque[float]] = None
+        self._losses: Optional[deque[float]] = None
         self._avg_gain: Optional[float] = None
         self._avg_loss: Optional[float] = None
         self._current_value: Optional[float] = None
         self._initialized_smoothing = False
-
-    def setup(self):
-        """Sets up the component."""
-        super().setup() # Call BaseComponent's setup
-        self.reset_state()
-        self.logger.info(f"RSIIndicator '{self.name}' configured with period={self.period}.")
-        if self.state != BaseComponent.STATE_INITIALIZED:
-             self.state = BaseComponent.STATE_INITIALIZED
-        self.logger.info(f"RSIIndicator '{self.name}' setup complete. State: {self.state}")
-
-    def start(self) -> None:
-        """Starts the component's active operations."""
-        super().start()
-        if self.state != BaseComponent.STATE_STARTED: # Check state after super call
-            self.state = BaseComponent.STATE_STARTED
-        self.logger.info(f"RSIIndicator '{self.name}' started. State: {self.state}")
-
-    def stop(self) -> None:
-        """Stops the component's active operations and cleans up resources."""
-        super().stop()
-        self.reset_state() 
-        if self.state != BaseComponent.STATE_STOPPED: # Check state after super call
-            self.state = BaseComponent.STATE_STOPPED
-        self.logger.info(f"RSIIndicator '{self.name}' stopped. State: {self.state}")
-
-    def update(self, data_or_price: Union[Dict[str, Any], float]) -> Optional[float]: # MODIFIED: Accept Union
+        self._first_value_logged = False
+        
+    def _initialize(self) -> None:
+        """Component-specific initialization logic."""
+        # Get period from config or use default
+        self.period = self.get_specific_config('period', self._default_period)
+        
+        # Validate period
+        if not isinstance(self.period, int) or self.period <= 1:
+            self.logger.error(f"Invalid RSI period '{self.period}'. Must be an integer > 1. Using default {self._default_period}.")
+            self.period = self._default_period
+            
+        # Initialize internal state
+        self._reset_state()
+        self.logger.info(f"RSIIndicator '{self.instance_name}' initialized with period={self.period}")
+        
+    def _reset_state(self) -> None:
+        """Reset internal state structures."""
+        self._prices = deque(maxlen=self.period + 10)
+        self._gains = deque(maxlen=self.period)
+        self._losses = deque(maxlen=self.period)
+        self._avg_gain = None
+        self._avg_loss = None
+        self._current_value = None
+        self._initialized_smoothing = False
+        self._first_value_logged = False
+        
+    def reset(self) -> None:
+        """Reset component state."""
+        super().reset()
+        self._reset_state()
+        self.logger.debug(f"RSIIndicator '{self.instance_name}' reset to initial state")
+        
+    def update(self, data_or_price: Union[Dict[str, Any], float]) -> Optional[float]:
+        """Update RSI with new price data."""
         price_input: Optional[float] = None
-
+        
         if isinstance(data_or_price, dict):
             price_input = data_or_price.get('close')
             if not isinstance(price_input, (int, float)) or price_input is None:
-                self.logger.warning(f"Invalid or missing 'close' price in data dict for {self.name}: {data_or_price}")
+                self.logger.warning(f"Invalid or missing 'close' price in data dict for {self.instance_name}: {data_or_price}")
                 return self._current_value
         elif isinstance(data_or_price, (int, float)):
             price_input = float(data_or_price)
         else:
-            self.logger.warning(f"Invalid data/price type received by {self.name}: {type(data_or_price)}. Expected dict or float.")
+            self.logger.warning(f"Invalid data/price type received by {self.instance_name}: {type(data_or_price)}. Expected dict or float.")
             return self._current_value
-
+            
         # Store the new price and calculate change
-        if not self._prices: 
+        if not self._prices:
             self._prices.append(price_input)
             return None
-
+            
         # Calculate price change
         change = price_input - self._prices[-1]
         self._prices.append(price_input)
@@ -85,101 +90,122 @@ class RSIIndicator(BaseComponent):
         current_gain = change if change > 0 else 0.0
         current_loss = abs(change) if change < 0 else 0.0
         
-        # Add gain/loss to deques (deques automatically maintain maxlen)
+        # Add gain/loss to deques
         self._gains.append(current_gain)
         self._losses.append(current_loss)
         
-        # We need at least 'period' gains/losses to start calculating RSI
+        # Need at least 'period' gains/losses to start calculating RSI
         if len(self._gains) < self.period:
-            return None 
-
+            return None
+            
         if not self._initialized_smoothing:
-            if len(self._gains) == self.period: 
+            if len(self._gains) == self.period:
                 self._avg_gain = sum(self._gains) / self.period
                 self._avg_loss = sum(self._losses) / self.period
                 self._initialized_smoothing = True
-            else: 
-                return None # Should not happen if logic above is correct
+            else:
+                return None
         else:
-            # Ensure _avg_gain and _avg_loss are not None before using them
-            if self._avg_gain is None or self._avg_loss is None:
-                 # This case implies not enough data for smoothing yet, which should be caught earlier
-                 # or indicates a reset without full re-initialization. Re-calculating initial average.
-                if len(self._gains) == self.period:
-                    self._avg_gain = sum(self._gains) / self.period
-                    self._avg_loss = sum(self._losses) / self.period
-                    self._initialized_smoothing = True # Ensure it's set
-                else:
-                    self.logger.error(f"RSI '{self.name}': Smoothing not initialized and insufficient gains/losses. This should not happen.")
-                    return None # Cannot proceed
-
+            # Smoothed averages
             self._avg_gain = ((self._avg_gain * (self.period - 1)) + current_gain) / self.period
             self._avg_loss = ((self._avg_loss * (self.period - 1)) + current_loss) / self.period
-        
-        if self._avg_loss == 0: # Avoid division by zero
-            self._current_value = 100.0 if self._avg_gain > 0 else 50.0 # RSI is 100 if all losses are 0 and gains > 0, 50 if no change
+            
+        # Calculate RSI
+        if self._avg_loss == 0:
+            self._current_value = 100.0 if self._avg_gain > 0 else 50.0
         else:
             rs = self._avg_gain / self._avg_loss
             self._current_value = 100.0 - (100.0 / (1.0 + rs))
-        
-        # Log first valid RSI value for warm-up tracking
-        if not hasattr(self, '_first_value_logged') and self._current_value is not None:
+            
+        # Log first valid RSI value
+        if not self._first_value_logged and self._current_value is not None:
             self._first_value_logged = True
             timestamp = data_or_price.get('timestamp', 'Unknown') if isinstance(data_or_price, dict) else 'Unknown'
-            self.logger.info(f"RSI '{self.name}' first valid value: {self._current_value:.2f} at {timestamp} after {len(self._prices)} bars (period={self.period})")
-        
+            self.logger.info(f"RSI '{self.instance_name}' first valid value: {self._current_value:.2f} at {timestamp} after {len(self._prices)} bars")
+            
         return self._current_value
-
+        
     @property
     def value(self) -> Optional[float]:
+        """Get current RSI value."""
         return self._current_value
-
+        
     @property
     def ready(self) -> bool:
+        """Check if RSI has produced a valid value."""
         return self._current_value is not None
-
-    def get_parameters(self) -> Dict[str, Any]:
-        return {'period': self.period}
-
-    def set_parameters(self, params: Dict[str, Any]) -> bool: 
-        old_period = self.period
-        new_period_val = params.get('period', self.period) 
         
-        if not isinstance(new_period_val, int) or new_period_val <= 1:
-            self.logger.warning(f"Invalid RSI period {new_period_val} for {self.name}. Must be an integer > 1. Period not changed from {old_period}.")
-            return False
-
-        # Update period
-        self.period = new_period_val
-        
-        # Only reset state if period actually changed
-        if old_period != new_period_val:
-            self.logger.info(f"RSIIndicator '{self.name}' period changed from {old_period} to {self.period}. Resetting state.")
-            self.reset_state() # Reset internal deques and averages for new period
-        else:
-            self.logger.debug(f"RSIIndicator '{self.name}' period unchanged at {self.period}. Preserving state.")
-        
-        return True
-
-    def reset_state(self):
-        # Recreate deques with current period
-        self._prices: deque[float] = deque(maxlen=self.period + 10) 
-        self._gains: deque[float] = deque(maxlen=self.period)
-        self._losses: deque[float] = deque(maxlen=self.period)
-        self._avg_gain = None
-        self._avg_loss = None
-        self._current_value = None
-        self._initialized_smoothing = False
-        # Remove the debug flag for first value logging
-        if hasattr(self, '_first_value_logged'):
-            delattr(self, '_first_value_logged')
-        # self.logger.debug(f"RSIIndicator '{self.name}' state reset.")
+    # ===== Optimization Support Methods =====
     
-    def reset(self):
-        """Reset the indicator to its initial state."""
-        self.reset_state()
-        self.logger.debug(f"RSIIndicator '{self.name}' reset to initial state")
-
+    def get_parameter_space(self) -> ParameterSpace:
+        """Get the parameter space for RSI optimization."""
+        space = ParameterSpace(f"{self.instance_name}_space")
+        space.add_parameter(Parameter(
+            name="period",
+            param_type="discrete",
+            values=[9, 14, 21, 30],  # Common RSI periods
+            default=self._default_period,
+            description="Number of periods for RSI calculation"
+        ))
+        return space
+        
+    def get_optimizable_parameters(self) -> Dict[str, Any]:
+        """Get current values of optimizable parameters."""
+        return {
+            "period": self.period
+        }
+        
+    def validate_parameters(self, parameters: Dict[str, Any]) -> Tuple[bool, Optional[str]]:
+        """Validate RSI parameters."""
+        if "period" in parameters:
+            period = parameters["period"]
+            if not isinstance(period, int):
+                return False, f"Period must be an integer, got {type(period).__name__}"
+            if period <= 1:
+                return False, f"Period must be greater than 1, got {period}"
+                
+        return True, None
+        
+    def apply_parameters(self, parameters: Dict[str, Any]) -> None:
+        """Apply new parameters to RSI."""
+        # Validate first
+        valid, error = self.validate_parameters(parameters)
+        if not valid:
+            raise ValueError(f"Invalid parameters for {self.instance_name}: {error}")
+            
+        # Apply period if provided
+        if "period" in parameters:
+            old_period = self.period
+            self.period = parameters["period"]
+            
+            # Reset state if period changed
+            if old_period != self.period:
+                self.logger.info(f"RSI '{self.instance_name}' period changed from {old_period} to {self.period}. Resetting state.")
+                self._reset_state()
+            else:
+                self.logger.debug(f"RSI '{self.instance_name}' period unchanged at {self.period}")
+                
+    # ===== Legacy compatibility methods =====
+    
+    def get_parameters(self) -> Dict[str, Any]:
+        """Legacy method for getting parameters."""
+        return self.get_optimizable_parameters()
+        
+    def set_parameters(self, params: Dict[str, Any]) -> bool:
+        """Legacy method for setting parameters."""
+        try:
+            self.apply_parameters(params)
+            return True
+        except ValueError:
+            return False
+            
     @property
     def parameter_space(self) -> Dict[str, List[Any]]:
-        return {'period': [9, 14, 21]} # Example
+        """Legacy property for parameter space."""
+        space = self.get_parameter_space()
+        # Convert to legacy format
+        result = {}
+        for name, param in space._parameters.items():
+            if param.param_type == 'discrete' and param.values:
+                result[name] = param.values
+        return result

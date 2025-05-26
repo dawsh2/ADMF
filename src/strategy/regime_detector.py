@@ -124,13 +124,38 @@ class RegimeDetector(ComponentBase):
             IndicatorClass = self._get_indicator_class(indicator_type_str)
             if IndicatorClass:
                 try:
-                    self._regime_indicators[indicator_instance_name] = IndicatorClass(
-                        instance_name=f"{self.instance_name}_{indicator_instance_name}", 
-                        config_loader=self.config_loader or self.config,  # Pass config loader or config dict
-                        event_bus=self.event_bus,     
-                        component_config_key=None, # Indicators get params directly, not separate config block by key
-                        parameters=params_from_config
-                    )
+                    # Check if this is a new ComponentBase-style indicator (RSIIndicator)
+                    if indicator_type_str == "rsi":
+                        # New style initialization for ComponentBase indicators
+                        indicator = IndicatorClass(
+                            instance_name=f"{self.instance_name}_{indicator_instance_name}",
+                            config_key=None
+                        )
+                        # Initialize with context
+                        context = {
+                            'config_loader': self.config_loader or self.config,
+                            'config': self.config,
+                            'event_bus': self.event_bus,
+                            'container': self.container,
+                            'logger': self.logger
+                        }
+                        indicator.initialize(context)
+                        
+                        # Apply parameters directly if provided
+                        if params_from_config:
+                            indicator.apply_parameters(params_from_config)
+                            
+                        self._regime_indicators[indicator_instance_name] = indicator
+                    else:
+                        # Old style initialization for other indicators
+                        self._regime_indicators[indicator_instance_name] = IndicatorClass(
+                            instance_name=f"{self.instance_name}_{indicator_instance_name}", 
+                            config_loader=self.config_loader or self.config,
+                            event_bus=self.event_bus,     
+                            component_config_key=None,
+                            parameters=params_from_config
+                        )
+                    
                     self.logger.info(f"Initialized indicator '{indicator_instance_name}' of type '{indicator_type_str}' for {self.instance_name}.")
                 except Exception as e:
                     self.logger.error(f"Failed to initialize indicator '{indicator_instance_name}' for {self.instance_name}: {e}", exc_info=True)
@@ -147,9 +172,11 @@ class RegimeDetector(ComponentBase):
         """ Classify market data into a regime label. """
         current_bar_timestamp = data.get('timestamp', 'N/A') # Get timestamp for logging
         
+        # Track bar count for warm-up period detection
+        self._bar_count += 1
+        
         # Enhanced debugging for first 100 bars
-        if self._debug_mode and self._bar_count < 100:
-            self._bar_count += 1
+        if self._debug_mode and self._bar_count <= 100:
             self.logger.info(f"[REGIME_DEBUG] Bar #{self._bar_count} at {current_bar_timestamp}: Starting classification")
 
         if not self._regime_indicators or not self._regime_thresholds:
@@ -246,7 +273,11 @@ class RegimeDetector(ComponentBase):
                 if req_ind_name not in indicator_values or indicator_values[req_ind_name] is None:
                     all_required_indicators_available_for_this_regime = False
                     indicator_check_results[req_ind_name] = "missing or None"
-                    self.logger.info(f"RegimeDet '{self.instance_name}' at {current_bar_timestamp}: Regime '{regime_name}' requires '{req_ind_name}', which is not ready/available.")
+                    # Use DEBUG level for warm-up period (first 100 bars) to reduce noise
+                    if self._bar_count <= 100:
+                        self.logger.debug(f"RegimeDet '{self.instance_name}' at {current_bar_timestamp}: Regime '{regime_name}' requires '{req_ind_name}', which is not ready/available (warm-up period).")
+                    else:
+                        self.logger.info(f"RegimeDet '{self.instance_name}' at {current_bar_timestamp}: Regime '{regime_name}' requires '{req_ind_name}', which is not ready/available.")
                     break
             
             if not all_required_indicators_available_for_this_regime:
@@ -296,7 +327,12 @@ class RegimeDetector(ComponentBase):
                 trend_val = indicator_values.get('ma_trend', 'N/A')
                 vol_val = indicator_values.get('atr', 'N/A')
                 rsi_val = indicator_values.get('rsi', 'N/A')
-                self.logger.info(f"Regime classification: trend_strength={trend_val}, volatility={vol_val}, rsi_level={rsi_val} → regime={regime_name}")
+                
+                # Use DEBUG level during warm-up when RSI is not ready
+                if self._bar_count <= 100 and rsi_val == 'N/A':
+                    self.logger.debug(f"Regime classification (warm-up): trend_strength={trend_val}, volatility={vol_val}, rsi_level={rsi_val} → regime={regime_name}")
+                else:
+                    self.logger.info(f"Regime classification: trend_strength={trend_val}, volatility={vol_val}, rsi_level={rsi_val} → regime={regime_name}")
                 
                 self.logger.info(f"RegimeDet '{self.instance_name}' at {current_bar_timestamp}: Regime '{regime_name}' MATCHED. Indicator values: {indicator_values}")
                 if self._verbose_logging:
@@ -323,7 +359,12 @@ class RegimeDetector(ComponentBase):
         trend_val = indicator_values.get('ma_trend', 'N/A')
         vol_val = indicator_values.get('atr', 'N/A')
         rsi_val = indicator_values.get('rsi', 'N/A')
-        self.logger.info(f"Regime classification: trend_strength={trend_val}, volatility={vol_val}, rsi_level={rsi_val} → regime=default")
+        
+        # Use DEBUG level during warm-up to reduce noise
+        if self._bar_count <= 100 and rsi_val == 'N/A':
+            self.logger.debug(f"Regime classification (warm-up): trend_strength={trend_val}, volatility={vol_val}, rsi_level={rsi_val} → regime=default")
+        else:
+            self.logger.info(f"Regime classification: trend_strength={trend_val}, volatility={vol_val}, rsi_level={rsi_val} → regime=default")
         
         self.logger.debug(f"RegimeDet '{self.instance_name}' at {current_bar_timestamp}: No specific regime matched. Defaulting. Indicator values: {indicator_values}")
         return "default"

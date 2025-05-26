@@ -87,12 +87,45 @@ class AppRunner(ComponentBase):
             data_handler = self.container.get('data_handler')
             if data_handler and hasattr(data_handler, 'set_max_bars'):
                 data_handler.set_max_bars(self.max_bars)
-                
-        # Get optimizer component
+        
+        # Check if we have a workflow orchestrator configured
+        workflow_orchestrator = self.container.get('workflow_orchestrator')
+        if workflow_orchestrator:
+            # Use the new config-driven workflow system
+            self.logger.info("Using workflow orchestrator for config-driven optimization")
+            
+            # Get required components
+            data_handler = self.container.get('data_handler')
+            portfolio_manager = self.container.get('portfolio_manager')
+            strategy = self.container.get('strategy')
+            risk_manager = self.container.get('risk_manager')
+            execution_handler = self.container.get('execution_handler')
+            
+            # Get date ranges from config
+            opt_config = self._context.config.get("optimization", {})
+            train_dates = opt_config.get("train_date_range", ["2023-01-01", "2023-06-30"])
+            test_dates = opt_config.get("test_date_range", ["2023-07-01", "2023-12-31"])
+            
+            # Run the workflow
+            results = workflow_orchestrator.run_optimization_workflow(
+                data_handler=data_handler,
+                portfolio_manager=portfolio_manager,
+                strategy=strategy,
+                risk_manager=risk_manager,
+                execution_handler=execution_handler,
+                train_dates=tuple(train_dates),
+                test_dates=tuple(test_dates)
+            )
+            
+            return results
+        
+        # Fall back to legacy optimizer for backward compatibility
         optimizer = self.container.get('optimizer')
         if not optimizer:
-            raise DependencyNotFoundError("Optimizer component not found")
+            raise DependencyNotFoundError("Neither workflow_orchestrator nor optimizer component found")
             
+        self.logger.info("Using legacy optimizer (configure workflow_orchestrator for new features)")
+        
         # Run grid search
         self.logger.info("Starting grid search optimization")
         results = optimizer.run_grid_search()
