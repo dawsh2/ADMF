@@ -23,6 +23,7 @@ Classifiers follow these key principles:
 2. **Composability**: Classifiers can be used by strategies or optimization components
 3. **Standard Interface**: All classifiers follow a consistent interface
 4. **Integration with Component Architecture**: Classifiers extend the BaseComponent system
+5. **Event Broadcasting on Change**: Classifiers only emit events when their classification changes, not on every bar. This reduces redundant logging while maintaining full data availability - current state can always be queried, and historical analysis can reconstruct the full timeline from change events or by appending classifier state to bar data
 
 ## Implementation
 

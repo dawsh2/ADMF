@@ -31,31 +31,43 @@ def test_refactored_components():
         container = MagicMock()
         config_loader = MagicMock()
         
-        # Mock config loader responses
-        config_loader.get_component_config = MagicMock(side_effect=lambda key: {
-            "csv_data_handler": {
-                "symbol": "SPY",
-                "csv_file_path": "data/SPY_1min.csv",
-                "timestamp_column": "timestamp"
-            },
-            "portfolio": {
-                "initial_cash": 100000.0
-            },
-            "ma_strategy": {
-                "symbol": "SPY",
-                "short_window_default": 10,
-                "long_window_default": 20
-            }
-        }.get(key, {}))
+        # Mock config loader responses - return config regardless of key
+        config_loader.get_component_config = MagicMock(return_value={
+            "symbol": "SPY",
+            "csv_file_path": "data/SPY_1min.csv",
+            "timestamp_column": "timestamp",
+            "initial_cash": 100000.0,
+            "short_window_default": 10,
+            "long_window_default": 20
+        })
         
-        # Create context object
-        context = SimpleNamespace(
-            event_bus=event_bus,
-            container=container,
-            config_loader=config_loader,
-            logger=logger,
-            get=lambda key, default=None: {"max_bars": 100}.get(key, default)
-        )
+        # Mock full config object
+        config = {
+            "components": {
+                "csv_data_handler": {
+                    "symbol": "SPY",
+                    "csv_file_path": "data/SPY_1min.csv",
+                    "timestamp_column": "timestamp"
+                },
+                "portfolio": {
+                    "initial_cash": 100000.0
+                },
+                "ma_strategy": {
+                    "symbol": "SPY",
+                    "short_window_default": 10,
+                    "long_window_default": 20
+                }
+            }
+        }
+        
+        # Create context object with config
+        context = {
+            'event_bus': event_bus,
+            'container': container,
+            'config_loader': config_loader,
+            'config': config,
+            'logger': logger
+        }
         
         logger.info("Testing ComponentBase lifecycle...")
         
@@ -63,7 +75,7 @@ def test_refactored_components():
         logger.info("\n=== Testing CSVDataHandler ===")
         from src.data.csv_data_handler import CSVDataHandler
         
-        csv_handler = CSVDataHandler("csv_data_handler")
+        csv_handler = CSVDataHandler("csv_data_handler", config_key="csv_data_handler")
         logger.info(f"Created: {csv_handler}")
         
         csv_handler.initialize(context)
@@ -73,7 +85,7 @@ def test_refactored_components():
         logger.info("\n=== Testing BasicPortfolio ===")
         from src.risk.basic_portfolio import BasicPortfolio
         
-        portfolio = BasicPortfolio("portfolio")
+        portfolio = BasicPortfolio("portfolio", config_key="portfolio")
         logger.info(f"Created: {portfolio}")
         
         portfolio.initialize(context)
@@ -83,7 +95,7 @@ def test_refactored_components():
         logger.info("\n=== Testing MAStrategy ===")
         from src.strategy.ma_strategy import MAStrategy
         
-        strategy = MAStrategy("ma_strategy")
+        strategy = MAStrategy("ma_strategy", config_key="ma_strategy")
         logger.info(f"Created: {strategy}")
         
         strategy.initialize(context)
@@ -132,13 +144,13 @@ def test_refactored_components():
         portfolio.stop()
         logger.info(f"Portfolio after stop: running={portfolio.running}")
         
-        # Test dispose
-        logger.info("\nDispose phase...")
-        strategy.dispose()
-        logger.info(f"Strategy after dispose: initialized={strategy.initialized}")
+        # Test teardown
+        logger.info("\nTeardown phase...")
+        strategy.teardown()
+        logger.info(f"Strategy after teardown: initialized={strategy.initialized}")
         
-        portfolio.dispose()
-        logger.info(f"Portfolio after dispose: initialized={portfolio.initialized}")
+        portfolio.teardown()
+        logger.info(f"Portfolio after teardown: initialized={portfolio.initialized}")
         
         logger.info("\n✅ All tests passed!")
         return True

@@ -232,10 +232,17 @@ class Bootstrap:
             'required': False
         },
         'optimizer': {
-            'class': 'EnhancedOptimizerV3',
-            'module': 'strategy.optimization.enhanced_optimizer_v3',
+            'class': 'OptimizationRunner',
+            'module': 'strategy.optimization.optimization_runner',
             'dependencies': ['event_bus', 'container'],
             'config_key': 'components.optimizer',
+            'required': False
+        },
+        'genetic_optimizer': {
+            'class': 'GeneticOptimizer',
+            'module': 'strategy.optimization.genetic_optimizer',
+            'dependencies': ['event_bus', 'container'],
+            'config_key': 'components.genetic_optimizer',
             'required': False
         },
         'signal_consumer': {

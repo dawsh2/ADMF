@@ -4,9 +4,10 @@ import random
 import datetime
 from typing import Dict, Any, List, Optional, Tuple
 import copy
+import numpy as np
 
 from src.strategy.optimization.basic_optimizer import BasicOptimizer
-from src.core.component import BaseComponent
+
 
 class GeneticOptimizer(BasicOptimizer):
     """
@@ -15,10 +16,35 @@ class GeneticOptimizer(BasicOptimizer):
     determined optimal parameters for individual components.
     """
     
-    def __init__(self, instance_name: str, config_loader, event_bus, component_config_key: str, container):
-        super().__init__(instance_name, config_loader, event_bus, component_config_key, container)
+    def __init__(self, instance_name: str, config_key: Optional[str] = None):
+        """Minimal constructor following ComponentBase pattern."""
+        super().__init__(instance_name, config_key)
         
-        # GA specific settings
+        # Initialize GA specific settings with defaults
+        self._population_size = 50
+        self._generations = 20
+        self._mutation_rate = 0.1
+        self._crossover_rate = 0.7
+        self._elitism_count = 5
+        self._tournament_size = 3
+        
+        # Weight constraints
+        self._min_weight = 0.1
+        self._max_weight = 0.9
+        
+        # Store the best result
+        self._best_individual = None
+        self._best_fitness = None
+        
+        # Debug counter
+        self._debug_logged_count = 0
+    
+    def _initialize(self):
+        """Component-specific initialization logic."""
+        # Call parent's _initialize first
+        super()._initialize()
+        
+        # Load GA specific settings
         self._population_size = self.get_specific_config("population_size", 50)
         self._generations = self.get_specific_config("generations", 20)
         self._mutation_rate = self.get_specific_config("mutation_rate", 0.1)
@@ -26,20 +52,16 @@ class GeneticOptimizer(BasicOptimizer):
         self._elitism_count = self.get_specific_config("elitism_count", 5)
         self._tournament_size = self.get_specific_config("tournament_size", 3)
         
-        # DEBUG: Print actual config values being used
-        print(f"🔧 GA CONFIG: pop={self._population_size}, gen={self._generations}, mut={self._mutation_rate}, cross={self._crossover_rate}, elite={self._elitism_count}")
-        
         # Weight constraints
         self._min_weight = self.get_specific_config("min_weight", 0.1)
         self._max_weight = self.get_specific_config("max_weight", 0.9)
         
-        # Store the best result
-        self._best_individual = None
-        self._best_fitness = None
-        
         # Set up optimizer logger
-        self.opt_logger = logging.getLogger(f"{__name__}.{instance_name}")
+        self.opt_logger = logging.getLogger(f"{__name__}.{self.instance_name}")
         
+        # DEBUG: Print actual config values being used
+        self.logger.info(f"🔧 GA CONFIG: pop={self._population_size}, gen={self._generations}, "
+                        f"mut={self._mutation_rate}, cross={self._crossover_rate}, elite={self._elitism_count}")
 
     def _initialize_population(self) -> List[Dict[str, float]]:
         """
@@ -65,7 +87,7 @@ class GeneticOptimizer(BasicOptimizer):
     def _evaluate_fitness(self, individual: Dict[str, float], dataset_type: str = "train") -> float:
         """
         Evaluate fitness of an individual by running a backtest.
-        Uses the same _perform_single_backtest_run from BaseOptimizer.
+        Uses the same _perform_single_backtest_run from BasicOptimizer.
         
         Args:
             individual: Dictionary of parameter values (typically just weights)
@@ -77,7 +99,7 @@ class GeneticOptimizer(BasicOptimizer):
         # CRITICAL FIX: Merge regime parameters with weight parameters
         # The genetic optimizer only provides weights, but the strategy needs both
         # regime-specific parameters (MA windows, RSI thresholds) AND weights
-        strategy = self._container.resolve(self._strategy_service_name)
+        strategy = self.container.resolve(self._strategy_service_name)
         
         # CRITICAL FIX: Reset strategy state before evaluation to avoid carrying over
         # state from previous evaluations. This ensures each parameter combination
@@ -101,8 +123,6 @@ class GeneticOptimizer(BasicOptimizer):
         self.logger.info(f"🔧 Setting combined params: {combined_params}")
         
         # Debug: Log the first few fitness evaluations to verify parameters are different
-        if not hasattr(self, '_debug_logged_count'):
-            self._debug_logged_count = 0
         if self._debug_logged_count < 5:
             self.logger.info(f"GA Fitness Debug {self._debug_logged_count+1}:")
             self.logger.info(f"  Individual weights: {individual}")
@@ -114,6 +134,7 @@ class GeneticOptimizer(BasicOptimizer):
             self._debug_logged_count += 1
         
         self.logger.debug(f"Evaluating fitness with combined params: {combined_params} on {dataset_type} data")
+        
         # CRITICAL FIX: Handle the fact that EnhancedOptimizer returns a tuple (metric, regime_performance)
         # while BasicOptimizer returns just the metric
         result = self._perform_single_backtest_run(combined_params, dataset_type)
@@ -138,7 +159,7 @@ class GeneticOptimizer(BasicOptimizer):
         # that is more sensitive to weight changes
         
         # Get portfolio performance details if available
-        portfolio_manager = self._container.resolve(self._portfolio_service_name)
+        portfolio_manager = self.container.resolve(self._portfolio_service_name)
         
         try:
             # Try to get more detailed performance metrics for nuanced fitness
@@ -148,7 +169,6 @@ class GeneticOptimizer(BasicOptimizer):
                     # Calculate returns from trades
                     returns = [trade.get('pnl', 0) for trade in trades if 'pnl' in trade]
                     if len(returns) > 1:
-                        import numpy as np
                         returns_array = np.array(returns)
                         
                         # Calculate risk-adjusted fitness similar to GitHub sample
@@ -163,7 +183,8 @@ class GeneticOptimizer(BasicOptimizer):
                         else:
                             risk_adjusted_fitness = metric_value
                         
-                        self.logger.debug(f"Enhanced fitness: mean_ret={mean_return:.4f}, std={std_return:.4f}, downside={downside_penalty:.4f}, risk_adj={risk_adjusted_fitness:.4f}")
+                        self.logger.debug(f"Enhanced fitness: mean_ret={mean_return:.4f}, std={std_return:.4f}, "
+                                        f"downside={downside_penalty:.4f}, risk_adj={risk_adjusted_fitness:.4f}")
                         return risk_adjusted_fitness
         except Exception as e:
             self.logger.debug(f"Could not calculate enhanced fitness, using fallback: {e}")
@@ -178,10 +199,11 @@ class GeneticOptimizer(BasicOptimizer):
         adjusted_fitness = primary_fitness + uniqueness_factor
         
         # DEBUG: Add detailed logging to verify weights are actually being applied
-        self.logger.info(f"🔍 WEIGHT VERIFICATION: MA={ma_weight_val:.6f}, RSI={rsi_weight_val:.6f} -> Raw={primary_fitness:.4f}, Adjusted={adjusted_fitness:.4f}")
+        self.logger.info(f"🔍 WEIGHT VERIFICATION: MA={ma_weight_val:.6f}, RSI={rsi_weight_val:.6f} -> "
+                        f"Raw={primary_fitness:.4f}, Adjusted={adjusted_fitness:.4f}")
         
         # Additional verification: get strategy state after applying weights
-        strategy = self._container.resolve(self._strategy_service_name)
+        strategy = self.container.resolve(self._strategy_service_name)
         if hasattr(strategy, 'get_parameters'):
             current_strategy_params = strategy.get_parameters()
             actual_ma_weight = current_strategy_params.get('ma_rule.weight', 'NOT_SET')
@@ -199,525 +221,264 @@ class GeneticOptimizer(BasicOptimizer):
             fitness_values: List of fitness values corresponding to individuals
             
         Returns:
-            Two selected parent individuals
+            Tuple of two parent individuals
         """
-        selected_parents = []
-        
-        for _ in range(2):
-            # Randomly select individuals for tournament
-            indices = random.sample(range(len(population)), min(self._tournament_size, len(population)))
-            tournament_fitness = [fitness_values[i] for i in indices]
+        def tournament_select():
+            # Select random individuals for tournament
+            tournament_indices = random.sample(range(len(population)), self._tournament_size)
             
-            # Find winner index within tournament
+            # Find winner of tournament (highest fitness if higher_is_better)
             if self._higher_metric_is_better:
-                winner_tournament_idx = tournament_fitness.index(max(tournament_fitness))
+                winner_idx = max(tournament_indices, key=lambda i: fitness_values[i])
             else:
-                winner_tournament_idx = tournament_fitness.index(min(tournament_fitness))
+                winner_idx = min(tournament_indices, key=lambda i: fitness_values[i])
                 
-            winner_idx = indices[winner_tournament_idx]
-            selected_parents.append(copy.deepcopy(population[winner_idx]))
+            return population[winner_idx]
         
-        return selected_parents[0], selected_parents[1]
+        parent1 = tournament_select()
+        parent2 = tournament_select()
+        
+        return parent1, parent2
 
     def _crossover(self, parent1: Dict[str, float], parent2: Dict[str, float]) -> Tuple[Dict[str, float], Dict[str, float]]:
         """
-        Perform arithmetic crossover of two parents.
+        Perform crossover between two parents.
         
         Args:
-            parent1, parent2: Parent individuals
+            parent1: First parent individual
+            parent2: Second parent individual
             
         Returns:
-            Two child individuals
+            Tuple of two offspring individuals
         """
         if random.random() < self._crossover_rate:
-            # Arithmetic crossover - weighted average
-            alpha = random.random()
+            # Uniform crossover: randomly mix genes from both parents
+            offspring1 = {}
+            offspring2 = {}
             
-            # Create children with weights that sum to 1.0
-            child1_ma_weight = alpha * parent1["ma_rule.weight"] + (1-alpha) * parent2["ma_rule.weight"]
-            child2_ma_weight = (1-alpha) * parent1["ma_rule.weight"] + alpha * parent2["ma_rule.weight"]
+            for key in parent1.keys():
+                if random.random() < 0.5:
+                    offspring1[key] = parent1[key]
+                    offspring2[key] = parent2[key]
+                else:
+                    offspring1[key] = parent2[key]
+                    offspring2[key] = parent1[key]
             
-            # Create complete individuals
-            child1 = {
-                "ma_rule.weight": child1_ma_weight,
-                "rsi_rule.weight": 1.0 - child1_ma_weight
-            }
+            # Ensure weights sum to 1.0
+            self._normalize_weights(offspring1)
+            self._normalize_weights(offspring2)
             
-            child2 = {
-                "ma_rule.weight": child2_ma_weight,
-                "rsi_rule.weight": 1.0 - child2_ma_weight
-            }
-            
-            return child1, child2
-        
-        # No crossover - return copies of parents
-        return copy.deepcopy(parent1), copy.deepcopy(parent2)
+            return offspring1, offspring2
+        else:
+            # No crossover, return copies of parents
+            return copy.deepcopy(parent1), copy.deepcopy(parent2)
 
     def _mutate(self, individual: Dict[str, float]) -> Dict[str, float]:
         """
-        Perform mutation on an individual.
+        Apply mutation to an individual.
         
         Args:
-            individual: The individual to mutate
+            individual: Individual to mutate
             
         Returns:
             Mutated individual
         """
-        if random.random() < self._mutation_rate:
-            # Apply stronger Gaussian mutation to MA weight for more exploration
-            mutation_amount = random.gauss(0, 0.15)  # Increased standard deviation from 0.1 to 0.15
-            new_ma_weight = individual["ma_rule.weight"] + mutation_amount
-            
-            # Keep weight in valid range
-            new_ma_weight = max(self._min_weight, min(self._max_weight, new_ma_weight))
-            
-            # Update both weights to maintain sum = 1.0
-            old_ma_weight = individual["ma_rule.weight"]
-            individual["ma_rule.weight"] = new_ma_weight
-            individual["rsi_rule.weight"] = 1.0 - new_ma_weight
-            
-            self.logger.debug(f"🧬 MUTATION: MA {old_ma_weight:.3f} -> {new_ma_weight:.3f} (change: {new_ma_weight-old_ma_weight:+.3f})")
+        mutated = copy.deepcopy(individual)
         
-        return individual
+        for key in mutated.keys():
+            if random.random() < self._mutation_rate:
+                # Add Gaussian noise
+                mutation_strength = 0.1  # Adjust as needed
+                mutated[key] += random.gauss(0, mutation_strength)
+                
+                # Ensure within bounds
+                mutated[key] = max(self._min_weight, min(self._max_weight, mutated[key]))
+        
+        # Ensure weights sum to 1.0
+        self._normalize_weights(mutated)
+        
+        return mutated
 
-    def _create_generation_summary(self, population: List[Dict[str, float]], fitness_values: List[float], generation: int) -> Dict[str, Any]:
+    def _normalize_weights(self, individual: Dict[str, float]) -> None:
         """
-        Create a summary of the current generation's statistics.
+        Normalize weights in an individual to sum to 1.0.
         
         Args:
-            population: Current population
-            fitness_values: Fitness values for each individual
-            generation: Current generation number
-            
-        Returns:
-            Dictionary with generation statistics
+            individual: Individual to normalize (modified in place)
         """
-        if not fitness_values:
-            return {
-                "generation": generation,
-                "best_fitness": None,
-                "avg_fitness": None,
-                "best_individual": None
-            }
-            
-        # Find best individual in current generation
-        if self._higher_metric_is_better:
-            best_idx = fitness_values.index(max(fitness_values))
-            best_fitness = max(fitness_values)
-        else:
-            best_idx = fitness_values.index(min(fitness_values))
-            best_fitness = min(fitness_values)
-            
-        best_individual = copy.deepcopy(population[best_idx])
+        weight_keys = [k for k in individual.keys() if k.endswith('.weight')]
+        total_weight = sum(individual[k] for k in weight_keys)
         
-        # Calculate average fitness
-        valid_fitness = [f for f in fitness_values if f is not None and f != float('-inf') and f != float('inf')]
-        avg_fitness = sum(valid_fitness) / len(valid_fitness) if valid_fitness else None
+        if total_weight > 0:
+            for k in weight_keys:
+                individual[k] /= total_weight
+
+    def run_genetic_optimization(self) -> Optional[Dict[str, Any]]:
+        """
+        Run the genetic algorithm optimization.
         
-        return {
-            "generation": generation,
-            "best_fitness": best_fitness,
-            "avg_fitness": avg_fitness,
-            "best_individual": best_individual
+        Returns:
+            Dict containing optimization results
+        """
+        self.logger.info(f"--- {self.instance_name}: Starting Genetic Algorithm Optimization ---")
+        self.logger.info(f"Population size: {self._population_size}, Generations: {self._generations}")
+        
+        # Initialize population
+        population = self._initialize_population()
+        self.logger.info(f"Initialized population with {len(population)} individuals")
+        
+        best_fitness_history = []
+        avg_fitness_history = []
+        
+        # Evolution loop
+        for generation in range(self._generations):
+            self.logger.info(f"\n--- Generation {generation + 1}/{self._generations} ---")
+            
+            # Evaluate fitness for all individuals
+            fitness_values = []
+            for i, individual in enumerate(population):
+                fitness = self._evaluate_fitness(individual)
+                fitness_values.append(fitness)
+                self.logger.debug(f"Individual {i}: {individual}, Fitness: {fitness}")
+            
+            # Track best and average fitness
+            if self._higher_metric_is_better:
+                best_fitness = max(fitness_values)
+                best_idx = fitness_values.index(best_fitness)
+            else:
+                best_fitness = min(fitness_values)
+                best_idx = fitness_values.index(best_fitness)
+            
+            avg_fitness = sum(fitness_values) / len(fitness_values)
+            best_fitness_history.append(best_fitness)
+            avg_fitness_history.append(avg_fitness)
+            
+            # Update global best
+            if self._best_fitness is None or \
+               (self._higher_metric_is_better and best_fitness > self._best_fitness) or \
+               (not self._higher_metric_is_better and best_fitness < self._best_fitness):
+                self._best_fitness = best_fitness
+                self._best_individual = copy.deepcopy(population[best_idx])
+                self.logger.info(f"New best individual found! Weights: {self._best_individual}, Fitness: {self._best_fitness}")
+            
+            self.logger.info(f"Generation {generation + 1} - Best fitness: {best_fitness:.4f}, Average: {avg_fitness:.4f}")
+            
+            # Create next generation
+            next_population = []
+            
+            # Elitism: carry over best individuals
+            sorted_indices = sorted(range(len(fitness_values)), 
+                                  key=lambda i: fitness_values[i], 
+                                  reverse=self._higher_metric_is_better)
+            
+            for i in range(self._elitism_count):
+                if i < len(population):
+                    next_population.append(copy.deepcopy(population[sorted_indices[i]]))
+            
+            # Generate rest of population through selection, crossover, and mutation
+            while len(next_population) < self._population_size:
+                parent1, parent2 = self._select_parents(population, fitness_values)
+                offspring1, offspring2 = self._crossover(parent1, parent2)
+                offspring1 = self._mutate(offspring1)
+                offspring2 = self._mutate(offspring2)
+                
+                next_population.append(offspring1)
+                if len(next_population) < self._population_size:
+                    next_population.append(offspring2)
+            
+            population = next_population[:self._population_size]
+        
+        # Final evaluation on test set if available
+        test_fitness = None
+        if self._best_individual:
+            self.logger.info("\n--- Evaluating best individual on test set ---")
+            test_fitness = self._evaluate_fitness(self._best_individual, dataset_type="test")
+            self.logger.info(f"Test set fitness: {test_fitness}")
+        
+        # Prepare results
+        results = {
+            "best_individual": self._best_individual,
+            "best_fitness": self._best_fitness,
+            "test_fitness": test_fitness,
+            "best_fitness_history": best_fitness_history,
+            "avg_fitness_history": avg_fitness_history,
+            "final_population": population,
+            "generations": self._generations,
+            "population_size": self._population_size
         }
+        
+        self.logger.info(f"\n--- Genetic Algorithm Complete ---")
+        self.logger.info(f"Best weights found: {self._best_individual}")
+        self.logger.info(f"Best training fitness: {self._best_fitness}")
+        if test_fitness is not None:
+            self.logger.info(f"Test fitness: {test_fitness}")
+        
+        return results
 
-    def run_random_search(self, regime_name: str = "UNKNOWN") -> Dict[str, Any]:
+    def run_random_search(self, regime_name: str = None) -> Optional[Dict[str, Any]]:
         """
-        Simple random search baseline for comparison with genetic algorithm.
-        Evaluates random weight combinations and tracks the best found.
-        Uses same number of evaluations as GA for fair comparison.
+        Run random search optimization (simplified GA with only random generation).
+        Used for quick weight optimization per regime.
         
         Args:
-            regime_name: Name of the regime being optimized (for logging)
+            regime_name: Optional regime name for logging
             
         Returns:
-            Dictionary with random search results
+            Dict containing optimization results
         """
-        import random
+        regime_label = f" for regime '{regime_name}'" if regime_name else ""
+        self.logger.info(f"--- {self.instance_name}: Starting Random Search{regime_label} ---")
+        self.logger.info(f"Evaluating {self._population_size} random weight combinations")
         
-        # Use 50 evaluations for thorough overnight search
-        num_evaluations = 50
-        min_weight = self._min_weight  
-        max_weight = self._max_weight
-            
-        print(f"🎯 REGIME [{regime_name.upper()}] - Starting random search with {num_evaluations} evaluations...")
-        print(f"🔧 RANDOM SEARCH CONFIG: evaluations={num_evaluations}, weight_range=({min_weight:.1f}, {max_weight:.1f})")
-        
+        # Generate and evaluate random individuals
         best_individual = None
         best_fitness = float('-inf') if self._higher_metric_is_better else float('inf')
         
-        for i in range(num_evaluations):
-            # Generate random weight combination using config-specific weights
-            ma_weight = random.uniform(min_weight, max_weight)
+        for i in range(self._population_size):
+            # Generate random individual
+            ma_weight = random.uniform(self._min_weight, self._max_weight)
+            rsi_weight = 1.0 - ma_weight
+            
             individual = {
                 "ma_rule.weight": ma_weight,
-                "rsi_rule.weight": 1.0 - ma_weight
+                "rsi_rule.weight": rsi_weight
             }
             
             # Evaluate fitness
             fitness = self._evaluate_fitness(individual)
             
-            # Track best
-            is_new_best = (self._higher_metric_is_better and fitness > best_fitness) or \
-                         (not self._higher_metric_is_better and fitness < best_fitness)
+            self.logger.debug(f"Random {i+1}/{self._population_size}: MA={ma_weight:.4f}, RSI={rsi_weight:.4f}, Fitness={fitness:.4f}")
             
-            if is_new_best:
+            # Update best if better
+            if (self._higher_metric_is_better and fitness > best_fitness) or \
+               (not self._higher_metric_is_better and fitness < best_fitness):
                 best_fitness = fitness
                 best_individual = individual.copy()
-                print(f"🎯 [{regime_name.upper()}] Eval {i+1:3d}/{num_evaluations}: *** NEW BEST: {best_fitness:.2f} (MA={ma_weight:.3f}, RSI={1-ma_weight:.3f}) ***")
-            elif (i+1) % 100 == 0:  # Progress update every 100 evaluations
-                print(f"🎯 [{regime_name.upper()}] Eval {i+1:3d}/{num_evaluations}: Current best {best_fitness:.2f}")
+                self.logger.info(f"New best found! MA={ma_weight:.4f}, RSI={rsi_weight:.4f}, Fitness={fitness:.4f}")
         
-        # Test the best individual
-        test_fitness = self._evaluate_fitness(best_individual, dataset_type="test")
+        # Test best on test set
+        test_fitness = None
+        if best_individual:
+            test_fitness = self._evaluate_fitness(best_individual, dataset_type="test")
+            self.logger.info(f"Test set fitness: {test_fitness}")
         
-        print(f"\n=== RANDOM SEARCH COMPLETE FOR REGIME [{regime_name.upper()}] ===")
-        print(f"Best weights: MA={best_individual['ma_rule.weight']:.4f}, RSI={best_individual['rsi_rule.weight']:.4f}")  
-        print(f"Training fitness: {best_fitness:.4f}")
-        print(f"Test fitness: {test_fitness:.4f}")
-        
-        return {
+        results = {
             "best_individual": best_individual,
             "best_fitness": best_fitness,
             "test_fitness": test_fitness,
-            "num_evaluations": num_evaluations
+            "num_evaluations": self._population_size
         }
+        
+        self.logger.info(f"Random search complete{regime_label}. Best: {best_individual}, Fitness: {best_fitness}")
+        
+        return results
 
-    def run_genetic_optimization(self) -> Dict[str, Any]:
-        """
-        Run genetic algorithm optimization using current strategy parameters.
-        This assumes parameters have already been optimized via grid search.
-        
-        Returns:
-            Dictionary with optimization results
-        """
-        print(f"Starting genetic optimization with {self._population_size} individuals, {self._generations} generations...")
-        self.state = BaseComponent.STATE_STARTED
-        
-        # Set generous timeouts to prevent hanging but allow completion
-        import time
-        import threading
-        
-        class TimeoutException(Exception):
-            pass
-        
-        # Use thread-based timeout instead of signal-based to avoid interfering with other components
-        timeout_seconds = 300  # 5 minutes
-        start_time = time.time()
-        optimization_cancelled = threading.Event()
-        
-        # Reset best values
+    def teardown(self):
+        """Clean up resources during component teardown."""
+        # Clear GA-specific state
         self._best_individual = None
-        self._best_fitness = None if self._higher_metric_is_better else float('inf')
-        if self._higher_metric_is_better:
-            self._best_fitness = float('-inf')
-        else:
-            self._best_fitness = float('inf')
+        self._best_fitness = None
+        self._debug_logged_count = 0
         
-        results_summary = {
-            "best_individual": None,
-            "best_fitness": None,
-            "test_fitness": None,
-            "generations": [],
-            "population_size": self._population_size,
-            "mutation_rate": self._mutation_rate,
-            "crossover_rate": self._crossover_rate,
-            "higher_is_better": self._higher_metric_is_better
-        }
-        
-        try:
-            # Check timeout using thread-based approach
-            if time.time() - start_time > timeout_seconds:
-                raise TimeoutException("Genetic optimization timed out after 5 minutes")
-            
-            data_handler_instance = self._container.resolve(self._data_handler_service_name)
-            strategy_to_optimize = self._container.resolve(self._strategy_service_name)
-            
-            # Check if we have an ensemble strategy that supports weights
-            # Debug: log what attributes the strategy actually has
-            strategy_attrs = [attr for attr in dir(strategy_to_optimize) if not attr.startswith('_')]
-            self.logger.info(f"Strategy attributes: {strategy_attrs[:10]}...")  # Show first 10 attrs
-            
-            # Check for weight-related attributes (use more flexible checking)
-            has_ma_weight = hasattr(strategy_to_optimize, '_ma_weight') or hasattr(strategy_to_optimize, 'ma_weight')
-            has_rsi_rule = hasattr(strategy_to_optimize, 'rsi_rule') or hasattr(strategy_to_optimize, '_rsi_rule')
-            
-            if not has_ma_weight or not has_rsi_rule:
-                self.logger.warning(f"Strategy may not support weights properly. MA weight: {has_ma_weight}, RSI rule: {has_rsi_rule}")
-                # Continue anyway - let's see what happens
-            
-            # Initialize population
-            population = self._initialize_population()
-            self.logger.info(f"Initialized population of {len(population)} individuals")
-            
-            # Main evolution loop
-            for generation in range(self._generations):
-                # Check timeout before each generation
-                if time.time() - start_time > timeout_seconds:
-                    self.logger.warning(f"Genetic optimization timed out after {timeout_seconds} seconds at generation {generation+1}")
-                    break
-                    
-                print(f"Generation {generation+1}/{self._generations}: Evaluating {len(population)} individuals...", end="", flush=True)
-                
-                # Evaluate fitness of all individuals
-                fitness_values = []
-                fitness_weight_pairs = []  # Track fitness-weight pairs for debugging
-                for idx, individual in enumerate(population):
-                    # Check timeout during fitness evaluation (most time-consuming part)
-                    if time.time() - start_time > timeout_seconds:
-                        self.logger.warning(f"Genetic optimization timed out during fitness evaluation at generation {generation+1}, individual {idx+1}")
-                        break
-                    
-                    # Get weights and evaluate fitness
-                    ma_w = individual.get("ma_rule.weight", 0.5)
-                    rsi_w = individual.get("rsi_rule.weight", 0.5)
-                        
-                    fitness = self._evaluate_fitness(individual)
-                    fitness_values.append(fitness)
-                    fitness_weight_pairs.append((fitness, ma_w, rsi_w))
-                
-                # Check for low diversity (only warn if severe)
-                unique_fitness_values = set(round(f, 4) for f in fitness_values)
-                if len(unique_fitness_values) <= 3:
-                    self.logger.warning(f"🚨 LOW DIVERSITY: Only {len(unique_fitness_values)} unique fitness values: {sorted(unique_fitness_values)}")
-                
-                # Also log if we find the exact same fitness multiple times
-                if generation == 0:
-                    exact_same_count = sum(1 for f in fitness_values if abs(f - fitness_values[0]) < 0.01) if fitness_values else 0
-                    if exact_same_count > len(fitness_values) // 2:  # More than half are identical
-                        self.logger.warning(f"Generation {generation+1}: {exact_same_count}/{len(fitness_values)} individuals have nearly identical fitness ({fitness_values[0]:.2f}) - possible parameter application issue")
-                
-                # Calculate fitness diversity for convergence detection (but don't log)
-                if fitness_values:
-                    fitness_range = max(fitness_values) - min(fitness_values) if len(fitness_values) > 1 else 0
-                
-                # Break outer loop if inner loop was interrupted by timeout
-                if time.time() - start_time > timeout_seconds:
-                    break
-                
-                # Create and save generation summary
-                generation_summary = self._create_generation_summary(population, fitness_values, generation + 1)
-                results_summary["generations"].append(generation_summary)
-                
-                # DEBUG: Log population weights for debugging convergence (debug mode only)
-                weight_info = []
-                for i, individual in enumerate(population):
-                    ma_w = individual.get('ma_rule.weight', 0.5)
-                    weight_info.append(f"Ind{i+1}:MA={ma_w:.3f}")
-                self.logger.debug(f"🧬 Gen {generation + 1} Population weights: {', '.join(weight_info)}")
-                
-                # Add population diversity stats
-                ma_weights = [ind.get("ma_rule.weight", 0.5) for ind in population]
-                diversity_stats = {
-                    "ma_weight_min": min(ma_weights),
-                    "ma_weight_max": max(ma_weights),
-                    "ma_weight_range": max(ma_weights) - min(ma_weights),
-                    "ma_weight_std": sum((w - sum(ma_weights)/len(ma_weights))**2 for w in ma_weights)**0.5 / len(ma_weights)
-                }
-                generation_summary["diversity"] = diversity_stats
-                
-                # Update best individual overall
-                current_best_fitness = generation_summary["best_fitness"]
-                current_best = generation_summary["best_individual"]
-                
-                # Show generation results
-                if current_best_fitness is not None and current_best is not None:
-                    ma_weight = current_best.get('ma_rule.weight', 0.5)
-                    rsi_weight = current_best.get('rsi_rule.weight', 0.5)
-                    
-                    # Handle case where weights might be strings
-                    try:
-                        ma_val = float(ma_weight) if ma_weight != 'N/A' else 0.5
-                        rsi_val = float(rsi_weight) if rsi_weight != 'N/A' else 0.5
-                        diversity = generation_summary.get("diversity", {})
-                        range_val = diversity.get("ma_weight_range", 0.0)
-                        print(f" Best: {current_best_fitness:.2f} (MA={ma_val:.3f}, RSI={rsi_val:.3f}, Pop Range={range_val:.3f})")
-                    except (ValueError, TypeError):
-                        print(f" Best: {current_best_fitness:.2f} (weights parsing error)")
-                    
-                    # Update global best
-                    if self._higher_metric_is_better:
-                        if self._best_fitness is None or current_best_fitness > self._best_fitness:
-                            self._best_individual = copy.deepcopy(current_best)
-                            self._best_fitness = current_best_fitness
-                            print(f"*** NEW BEST: {self._best_fitness:.2f} ***")
-                    else:
-                        if self._best_fitness is None or current_best_fitness < self._best_fitness:
-                            self._best_individual = copy.deepcopy(current_best)
-                            self._best_fitness = current_best_fitness
-                            print(f"*** NEW BEST: {self._best_fitness:.2f} ***")
-                else:
-                    print(" No valid fitness values this generation")
-                
-                # Break if this is the last generation
-                if generation == self._generations - 1:
-                    break
-                
-                # Create next generation
-                next_generation = []
-                
-                # Elitism - copy best individuals directly
-                sorted_indices = sorted(range(len(fitness_values)), 
-                                       key=lambda i: fitness_values[i],
-                                       reverse=self._higher_metric_is_better)
-                                       
-                for i in range(min(self._elitism_count, len(population))):
-                    elite_idx = sorted_indices[i]
-                    next_generation.append(copy.deepcopy(population[elite_idx]))
-                    self.logger.debug(f"Added elite individual {i+1} with fitness: {fitness_values[elite_idx]}")
-                
-                # Check if we need diversity injection (low fitness range or low weight diversity)
-                diversity_stats = generation_summary.get("diversity", {})
-                weight_range = diversity_stats.get("ma_weight_range", 1.0)
-                fitness_range = max(fitness_values) - min(fitness_values) if len(fitness_values) > 1 else 0
-                
-                # Inject random individuals if diversity is too low - AGGRESSIVE DIVERSITY INJECTION
-                diversity_injection_needed = (weight_range < 0.3 or fitness_range < 100.0) and generation > 1
-                if diversity_injection_needed:
-                    # Replace some individuals with completely random ones (silently)
-                    injection_count = max(3, self._population_size // 5)  # At least 3, up to 20% of population
-                    self.logger.debug(f"🚨 DIVERSITY INJECTION: Adding {injection_count} random individuals (weight_range={weight_range:.3f}, fitness_range={fitness_range:.1f})")
-                    
-                    # Create random individuals
-                    for _ in range(injection_count):
-                        ma_weight = random.uniform(self._min_weight, self._max_weight)
-                        random_individual = {
-                            "ma_rule.weight": ma_weight,
-                            "rsi_rule.weight": 1.0 - ma_weight
-                        }
-                        next_generation.append(random_individual)
-                
-                # Fill rest of next generation with offspring
-                max_attempts = 100  # Prevent infinite loops
-                attempts = 0
-                
-                while len(next_generation) < self._population_size and attempts < max_attempts:
-                    attempts += 1
-                    # Select parents
-                    parent1, parent2 = self._select_parents(population, fitness_values)
-                    
-                    # Crossover
-                    child1, child2 = self._crossover(parent1, parent2)
-                    
-                    # Mutation - apply more aggressive mutation if diversity is low
-                    if diversity_injection_needed:
-                        # Temporarily increase mutation strength
-                        old_mutation_rate = self._mutation_rate
-                        self._mutation_rate = min(0.8, self._mutation_rate * 2)
-                        child1 = self._mutate(child1)
-                        child2 = self._mutate(child2)
-                        self._mutation_rate = old_mutation_rate
-                    else:
-                        child1 = self._mutate(child1)
-                        child2 = self._mutate(child2)
-                    
-                    # Add to next generation
-                    next_generation.append(child1)
-                    if len(next_generation) < self._population_size:
-                        next_generation.append(child2)
-                
-                # Replace population with next generation
-                population = next_generation
-                self.logger.debug(f"Created new generation with {len(population)} individuals")
-            
-            # Evaluate best individual on test data if available
-            test_fitness = None
-            if hasattr(data_handler_instance, 'test_df_exists_and_is_not_empty') and data_handler_instance.test_df_exists_and_is_not_empty:
-                self.logger.info(f"Testing best weights on test data: {self._best_individual}")
-                test_fitness = self._evaluate_fitness(self._best_individual, dataset_type="test")
-                self.logger.info(f"Test fitness: {test_fitness}")
-            else:
-                self.logger.warning("No test data available. Skipping test evaluation.")
-            
-            # Update results summary
-            results_summary["best_individual"] = self._best_individual
-            results_summary["best_fitness"] = self._best_fitness
-            results_summary["test_fitness"] = test_fitness
-            
-            # Final log output
-            print(f"\n=== GENETIC OPTIMIZATION COMPLETE ===")
-            if self._best_individual and self._best_fitness is not None:
-                ma_weight = self._best_individual.get('ma_rule.weight', 0.5)
-                rsi_weight = self._best_individual.get('rsi_rule.weight', 0.5)
-                
-                try:
-                    ma_val = float(ma_weight) if ma_weight != 'N/A' else 0.5
-                    rsi_val = float(rsi_weight) if rsi_weight != 'N/A' else 0.5
-                    print(f"Best weights after {self._generations} generations:")
-                    print(f"  MA weight: {ma_val:.4f}")
-                    print(f"  RSI weight: {rsi_val:.4f}")
-                    print(f"  Final fitness: {self._best_fitness:.4f}")
-                    if test_fitness is not None:
-                        print(f"  Test fitness: {test_fitness:.4f}")
-                except (ValueError, TypeError):
-                    print(f"Best weights after {self._generations} generations: parsing error")
-                    print(f"  Raw weights: {self._best_individual}")
-                    print(f"  Final fitness: {self._best_fitness:.4f}")
-            else:
-                print("No valid solution found")
-            print("=" * 40)
-            
-            self.logger.info(f"--- GeneticOptimizer completed after {self._generations} generations ---")
-            self.logger.info(f"Best individual: {self._best_individual}")
-            self.logger.info(f"Best fitness (train): {self._best_fitness}")
-            self.logger.info(f"Fitness on test data: {test_fitness}")
-            
-            self.state = BaseComponent.STATE_STOPPED
-            return results_summary
-            
-        except TimeoutException as e:
-            self.logger.error(f"Genetic optimization timed out after {timeout_seconds} seconds. Returning best result so far.")
-            results_summary["error"] = f"Timeout during genetic optimization: {str(e)}"
-            results_summary["best_individual"] = self._best_individual
-            results_summary["best_fitness"] = self._best_fitness
-            self.state = BaseComponent.STATE_FAILED
-            return results_summary
-        except Exception as e:
-            self.logger.error(f"Error during genetic optimization: {e}", exc_info=True)
-            self.state = BaseComponent.STATE_FAILED
-            results_summary["error"] = str(e)
-            return results_summary
-        finally:
-            # Cleanup - no signal alarm to disable with thread-based timeout
-            pass
-            
-    def _visualize_optimization_results(self, results_summary: Dict[str, Any]) -> None:
-        """
-        Create visualization of optimization progress.
-        
-        Args:
-            results_summary: Optimization results dictionary
-        """
-        try:
-            import matplotlib
-            matplotlib.use('Agg')  # Non-interactive backend
-            import matplotlib.pyplot as plt
-            
-            # Extract data
-            generations = [gen["generation"] for gen in results_summary["generations"]]
-            best_fitness = [gen["best_fitness"] for gen in results_summary["generations"]]
-            avg_fitness = [gen["avg_fitness"] for gen in results_summary["generations"]]
-            
-            # Create plot
-            plt.figure(figsize=(10, 6))
-            plt.plot(generations, best_fitness, 'b-', label='Best Fitness')
-            plt.plot(generations, avg_fitness, 'r-', label='Average Fitness')
-            plt.xlabel('Generation')
-            plt.ylabel('Fitness')
-            plt.title('Genetic Algorithm Optimization Progress')
-            plt.legend()
-            plt.grid(True)
-            
-            # Save plot
-            plt.savefig('genetic_optimization_results.png')
-            self.logger.info("Saved optimization visualization to genetic_optimization_results.png")
-            
-        except ImportError:
-            self.logger.warning("Matplotlib not available. Skipping visualization.")
-        except Exception as e:
-            self.logger.error(f"Error creating visualization: {e}")
-            
-    def start(self):
-        """Start the genetic optimizer."""
-        self.logger.info(f"{self.name} started. Call run_genetic_optimization() to begin optimization.")
-        self.state = BaseComponent.STATE_STARTED
+        # Call parent teardown
+        super().teardown()

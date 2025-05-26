@@ -53,6 +53,13 @@ class MAStrategy(ComponentBase):
     
     def get_specific_config(self, key: str, default=None):
         """Helper method to get configuration values."""
+        # First try component_config set by ComponentBase
+        if hasattr(self, 'component_config') and self.component_config:
+            value = self.component_config.get(key, None)
+            if value is not None:
+                return value
+        
+        # Fall back to config_loader
         if not self.config_loader:
             return default
         config_key = self.config_key or self.instance_name
@@ -72,7 +79,7 @@ class MAStrategy(ComponentBase):
     def _initialize_parameter_dependent_state(self):
         """Re-initializes state that depends on window parameters."""
         # Preserve existing price history if it exists (for adaptive testing)
-        if hasattr(self, '_prices') and len(self._prices) > 0:
+        if hasattr(self, '_prices') and self._prices is not None and len(self._prices) > 0:
             # Keep existing prices but adjust deque size for new long_window
             existing_prices = list(self._prices)
             self._prices = deque(existing_prices, maxlen=self._long_window)
@@ -336,9 +343,9 @@ class MAStrategy(ComponentBase):
         super().stop()
         self.logger.info(f"MAStrategy '{self.instance_name}' stopped.")
     
-    def dispose(self):
+    def teardown(self):
         """Clean up resources."""
-        super().dispose()
+        super().teardown()
         if self._prices:
             self._prices.clear()
         self._prev_short_ma = None

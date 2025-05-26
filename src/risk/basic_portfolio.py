@@ -56,6 +56,13 @@ class BasicPortfolio(ComponentBase):
     
     def get_specific_config(self, key: str, default=None):
         """Helper method to get configuration values."""
+        # First try component_config set by ComponentBase
+        if hasattr(self, 'component_config') and self.component_config:
+            value = self.component_config.get(key, None)
+            if value is not None:
+                return value
+        
+        # Fall back to config_loader
         if not self.config_loader:
             return default
         config_key = self.config_key or self.instance_name
@@ -112,7 +119,7 @@ class BasicPortfolio(ComponentBase):
         self.logger.info(f"Portfolio '{self.instance_name}' reset successfully. Cash: {self.current_cash:.2f}, Total Value: {self.current_total_value:.2f}")
 
     def setup(self):
-        super().setup() 
+        """Set up the portfolio."""
         self.logger.info(f"Setting up BasicPortfolio '{self.instance_name}'...")
         if self.event_bus:
             self.event_bus.subscribe(EventType.FILL, self.on_fill)
@@ -812,9 +819,9 @@ class BasicPortfolio(ComponentBase):
                 # Add separation line between transitions
                 self.logger.info("    " + "-" * 40)
     
-    def dispose(self):
+    def teardown(self):
         """Clean up resources."""
-        super().dispose()
+        super().teardown()
         self.open_positions.clear()
         self._trade_log.clear()
         self._portfolio_value_history.clear()

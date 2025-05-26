@@ -4,8 +4,7 @@ import itertools
 import datetime
 from typing import Dict, Any, List, Optional, Tuple
 
-from src.core.component import BaseComponent
-from src.core.container import Container
+from src.core.component_base import ComponentBase
 from src.core.exceptions import ConfigurationError, ComponentError, DependencyNotFoundError
 
 from src.data.csv_data_handler import CSVDataHandler
@@ -15,7 +14,7 @@ from src.execution.simulated_execution_handler import SimulatedExecutionHandler
 from src.risk.basic_portfolio import BasicPortfolio
 
 
-class BasicOptimizer(BaseComponent):
+class BasicOptimizer(ComponentBase):
     """
     A basic grid search optimizer for trading strategies.
     Performs optimization on a training dataset and evaluates the best parameters
@@ -23,35 +22,49 @@ class BasicOptimizer(BaseComponent):
     before splitting data into train/test.
     """
 
-    def __init__(self, instance_name: str, config_loader, event_bus, component_config_key: str, container: Container):
-        super().__init__(instance_name, config_loader, component_config_key)
+    def __init__(self, instance_name: str, config_key: Optional[str] = None):
+        """Minimal constructor following ComponentBase pattern."""
+        super().__init__(instance_name, config_key)
         
-        self._container = container
-        self._event_bus = event_bus
-
-        self._strategy_service_name: str = self.get_specific_config("strategy_service_name", "strategy")
-        self._portfolio_service_name: str = self.get_specific_config("portfolio_service_name", "portfolio_manager")
-        self._data_handler_service_name: str = self.get_specific_config("data_handler_service_name", "data_handler")
-        self._risk_manager_service_name: str = self.get_specific_config("risk_manager_service_name", "risk_manager")
-        self._exec_handler_service_name: str = self.get_specific_config("execution_handler_service_name", "execution_handler")
+        # Initialize internal state
+        self._strategy_service_name: str = "strategy"
+        self._portfolio_service_name: str = "portfolio_manager"
+        self._data_handler_service_name: str = "data_handler"
+        self._risk_manager_service_name: str = "risk_manager"
+        self._exec_handler_service_name: str = "execution_handler"
         
-        self._metric_to_optimize: str = self.get_specific_config("metric_to_optimize", "get_final_portfolio_value")
-        self._higher_metric_is_better: bool = self.get_specific_config("higher_metric_is_better", True)
-
-        self.logger.info(
-            f"{self.name} initialized. Optimizing strategy '{self._strategy_service_name}' "
-            f"using metric '{self._metric_to_optimize}' from '{self._portfolio_service_name}'. "
-            f"Higher is better: {self._higher_metric_is_better}."
-        )
+        self._metric_to_optimize: str = "get_final_portfolio_value"
+        self._higher_metric_is_better: bool = True
+        
         self._best_params_from_train: Optional[Dict[str, Any]] = None
         self._best_training_metric_value: Optional[float] = None
         self._test_metric_for_best_params: Optional[float] = None
 
+    def _initialize(self):
+        """Component-specific initialization logic."""
+        # Load configuration
+        self._strategy_service_name = self.get_specific_config("strategy_service_name", "strategy")
+        self._portfolio_service_name = self.get_specific_config("portfolio_service_name", "portfolio_manager")
+        self._data_handler_service_name = self.get_specific_config("data_handler_service_name", "data_handler")
+        self._risk_manager_service_name = self.get_specific_config("risk_manager_service_name", "risk_manager")
+        self._exec_handler_service_name = self.get_specific_config("execution_handler_service_name", "execution_handler")
+        
+        self._metric_to_optimize = self.get_specific_config("metric_to_optimize", "get_final_portfolio_value")
+        self._higher_metric_is_better = self.get_specific_config("higher_metric_is_better", True)
+
+        self.logger.info(
+            f"{self.instance_name} initialized. Optimizing strategy '{self._strategy_service_name}' "
+            f"using metric '{self._metric_to_optimize}' from '{self._portfolio_service_name}'. "
+            f"Higher is better: {self._higher_metric_is_better}."
+        )
 
     def setup(self):
-        self.logger.info(f"Setting up {self.name}...")
+        """Validate that all required components are available."""
+        super().setup()
+        
+        self.logger.info(f"Setting up {self.instance_name}...")
         try:
-            data_handler_check: CSVDataHandler = self._container.resolve(self._data_handler_service_name)
+            data_handler_check: CSVDataHandler = self.container.resolve(self._data_handler_service_name)
             if not hasattr(data_handler_check, "set_active_dataset"):
                 raise ConfigurationError(
                     f"DataHandler '{self._data_handler_service_name}' does not support 'set_active_dataset' method, "
@@ -62,14 +75,14 @@ class BasicOptimizer(BaseComponent):
                     f"DataHandler '{self._data_handler_service_name}' needs 'test_df_exists_and_is_not_empty' property."
                 )
 
-            portfolio_check: BasicPortfolio = self._container.resolve(self._portfolio_service_name)
+            portfolio_check: BasicPortfolio = self.container.resolve(self._portfolio_service_name)
             metric_method_on_portfolio = getattr(portfolio_check, self._metric_to_optimize, None)
             if not callable(metric_method_on_portfolio):
                 raise ConfigurationError(
                     f"PortfolioManager '{self._portfolio_service_name}' does not have callable metric method '{self._metric_to_optimize}'."
                 )
             
-            strategy_check: MAStrategy = self._container.resolve(self._strategy_service_name)
+            strategy_check: MAStrategy = self.container.resolve(self._strategy_service_name)
             if not (hasattr(strategy_check, "get_parameter_space") and
                     hasattr(strategy_check, "set_parameters") and
                     hasattr(strategy_check, "get_parameters")):
@@ -77,16 +90,15 @@ class BasicOptimizer(BaseComponent):
 
         except DependencyNotFoundError as e:
             self.logger.error(f"Optimizer setup check failed to resolve critical component: {e}")
-            self.state = BaseComponent.STATE_FAILED
+            self.state = self.ComponentState.FAILED
             raise
             
-        self.state = BaseComponent.STATE_INITIALIZED
-        self.logger.info(f"{self.name} setup complete.")
+        self.logger.info(f"{self.instance_name} setup complete.")
 
     def _generate_parameter_combinations(self, param_space: Dict[str, List[Any]]) -> List[Dict[str, Any]]:
         if not param_space:
             self.logger.warning("Parameter space is empty, will use current/default strategy parameters for one run.")
-            strategy_instance: MAStrategy = self._container.resolve(self._strategy_service_name)
+            strategy_instance: MAStrategy = self.container.resolve(self._strategy_service_name)
             return [strategy_instance.get_parameters()] if hasattr(strategy_instance, "get_parameters") else [{}]
             
         keys = list(param_space.keys())
@@ -105,11 +117,11 @@ class BasicOptimizer(BaseComponent):
         components_for_this_run = []
 
         try:
-            data_handler = self._container.resolve(self._data_handler_service_name)
-            strategy = self._container.resolve(self._strategy_service_name)
-            portfolio_manager = self._container.resolve(self._portfolio_service_name)
-            risk_manager = self._container.resolve(self._risk_manager_service_name)
-            execution_handler = self._container.resolve(self._exec_handler_service_name)
+            data_handler = self.container.resolve(self._data_handler_service_name)
+            strategy = self.container.resolve(self._strategy_service_name)
+            portfolio_manager = self.container.resolve(self._portfolio_service_name)
+            risk_manager = self.container.resolve(self._risk_manager_service_name)
+            execution_handler = self.container.resolve(self._exec_handler_service_name)
             
             if not all([data_handler, strategy, portfolio_manager, risk_manager, execution_handler]):
                 self.logger.error("Optimizer: Failed to resolve one or more core components for backtest run.")
@@ -143,26 +155,26 @@ class BasicOptimizer(BaseComponent):
             
             # CRITICAL FIX: Set parameters BEFORE component setup to avoid race conditions
             if not strategy.set_parameters(params_to_test):
-                self.logger.error(f"Optimizer: Failed to set parameters {params_to_test} on strategy {strategy.name}. Skipping {dataset_type} run.")
+                self.logger.error(f"Optimizer: Failed to set parameters {params_to_test} on strategy {strategy.instance_name}. Skipping {dataset_type} run.")
                 return None
             
             for comp in components_for_this_run:
-                self.logger.debug(f"Optimizer: Setting up component '{comp.name}' for '{dataset_type}' run with correct parameters.")
+                self.logger.debug(f"Optimizer: Setting up component '{comp.instance_name}' for '{dataset_type}' run with correct parameters.")
                 comp.setup() 
-                if comp.get_state() == BaseComponent.STATE_FAILED:
-                    self.logger.error(f"Optimizer: Component '{comp.name}' failed setup. Skipping {dataset_type} run.")
+                if comp.state == self.ComponentState.FAILED:
+                    self.logger.error(f"Optimizer: Component '{comp.instance_name}' failed setup. Skipping {dataset_type} run.")
                     return None
             
             data_handler.set_active_dataset(dataset_type)
             
             for comp in components_for_this_run:
-                if comp.get_state() == BaseComponent.STATE_INITIALIZED:
+                if comp.state == self.ComponentState.INITIALIZED:
                     comp.start()
-                    if comp.get_state() == BaseComponent.STATE_FAILED:
-                        self.logger.error(f"Optimizer: Component '{comp.name}' failed to start. Skipping {dataset_type} run.")
+                    if comp.state == self.ComponentState.FAILED:
+                        self.logger.error(f"Optimizer: Component '{comp.instance_name}' failed to start. Skipping {dataset_type} run.")
                         return None
                 else:
-                     self.logger.error(f"Optimizer: Component '{comp.name}' not INITIALIZED before start (State: {comp.get_state()}). Error in setup?. Skipping {dataset_type} run.")
+                     self.logger.error(f"Optimizer: Component '{comp.instance_name}' not INITIALIZED before start (State: {comp.state}). Error in setup?. Skipping {dataset_type} run.")
                      return None
             
             self.logger.debug(f"Optimizer: Data streaming complete for '{dataset_type}' run with {params_to_test}.")
@@ -196,11 +208,10 @@ class BasicOptimizer(BaseComponent):
                     try:
                         comp.stop()
                     except Exception as e:
-                        self.logger.error(f"Optimizer: Error stopping component '{comp.name}': {e}")
+                        self.logger.error(f"Optimizer: Error stopping component '{comp.instance_name}': {e}")
 
     def run_grid_search(self) -> Optional[Dict[str, Any]]:
-        self.logger.info(f"--- {self.name}: Starting Grid Search Optimization with Train/Test Split ---")
-        self.state = BaseComponent.STATE_STARTED
+        self.logger.info(f"--- {self.instance_name}: Starting Grid Search Optimization with Train/Test Split ---")
         self._best_params_from_train = None
         self._best_training_metric_value = -float('inf') if self._higher_metric_is_better else float('inf')
         self._test_metric_for_best_params = None 
@@ -213,8 +224,8 @@ class BasicOptimizer(BaseComponent):
         }
 
         try:
-            strategy_to_optimize: MAStrategy = self._container.resolve(self._strategy_service_name)
-            data_handler_instance: CSVDataHandler = self._container.resolve(self._data_handler_service_name) 
+            strategy_to_optimize: MAStrategy = self.container.resolve(self._strategy_service_name)
+            data_handler_instance: CSVDataHandler = self.container.resolve(self._data_handler_service_name) 
             
             param_space = strategy_to_optimize.get_parameter_space()
             current_strategy_params = strategy_to_optimize.get_parameters() 
@@ -227,7 +238,6 @@ class BasicOptimizer(BaseComponent):
 
             if not param_combinations : 
                  self.logger.warning("No parameter combinations to test (parameter space might be empty or produced no combinations).")
-                 self.state = BaseComponent.STATE_STOPPED
                  return results_summary
 
             self.logger.info(f"--- Training Phase: Testing {len(param_combinations)} parameter combinations ---")
@@ -288,25 +298,33 @@ class BasicOptimizer(BaseComponent):
             else:
                 self.logger.error("Grid Search Optimization (Training Phase) failed to find any valid best parameters.")
             
-            self.state = BaseComponent.STATE_STOPPED
             return results_summary
 
         except Exception as e:
             self.logger.error(f"Critical error during grid search optimization: {e}", exc_info=True)
-            self.state = BaseComponent.STATE_FAILED
             # Ensure results_summary still reflects any partial progress or error state
             results_summary["error"] = str(e) 
             return results_summary # Return partial results with error, or just None
         finally:
-            if self.state not in [BaseComponent.STATE_STOPPED, BaseComponent.STATE_FAILED]:
-                self.state = BaseComponent.STATE_STOPPED
-            self.logger.info(f"--- {self.name} Grid Search with Train/Test Ended. State: {self.state} ---")
+            self.logger.info(f"--- {self.instance_name} Grid Search with Train/Test Ended ---")
 
     def start(self):
-        self.logger.info(f"{self.name} started. Call run_grid_search() to begin train/test optimization.")
-        self.state = BaseComponent.STATE_STARTED
+        """Start the optimizer component."""
+        super().start()
+        self.logger.info(f"{self.instance_name} started. Call run_grid_search() to begin train/test optimization.")
 
     def stop(self):
-        self.logger.info(f"Stopping {self.name} (Optimizer)...")
-        self.state = BaseComponent.STATE_STOPPED
-        self.logger.info(f"{self.name} stopped.")
+        """Stop the optimizer component."""
+        self.logger.info(f"Stopping {self.instance_name} (Optimizer)...")
+        super().stop()
+        self.logger.info(f"{self.instance_name} stopped.")
+    
+    def teardown(self):
+        """Clean up resources during component teardown."""
+        # Clear optimization results
+        self._best_params_from_train = None
+        self._best_training_metric_value = None
+        self._test_metric_for_best_params = None
+        
+        # Call parent teardown
+        super().teardown()

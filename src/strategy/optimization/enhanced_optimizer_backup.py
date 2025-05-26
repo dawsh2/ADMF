@@ -21,15 +21,8 @@ class EnhancedOptimizer(BasicOptimizer):
     per-regime performance metrics from BasicPortfolio.
     """
     
-    def __init__(self, instance_name: str, config_key: Optional[str] = None):
-        """Minimal constructor following ComponentBase pattern."""
-        super().__init__(instance_name, config_key)
-
-    
-    def _initialize(self):
-        """Component-specific initialization logic."""
-        # Call parent's _initialize first
-        super()._initialize()
+    def __init__(self, instance_name: str, config_loader, event_bus, component_config_key: str, container):
+        super().__init__(instance_name, config_loader, event_bus, component_config_key, container)
         
         # Settings specific to enhanced optimizer
         self._min_trades_per_regime = self.get_specific_config("min_trades_per_regime", 5)
@@ -45,10 +38,8 @@ class EnhancedOptimizer(BasicOptimizer):
         self._best_metric_per_regime: Dict[str, float] = {}
         self._regimes_encountered: Set[str] = set()
         
-        
-        
         self.logger.info(
-            f"{self.instance_name} initialized as EnhancedOptimizer. Will optimize strategy '{self._strategy_service_name}' "
+            f"{self.name} initialized as EnhancedOptimizer. Will optimize strategy '{self._strategy_service_name}' "
             f"per-regime using metric '{self._regime_metric}' from '{self._portfolio_service_name}'. "
             f"Higher is better: {self._higher_metric_is_better}. "
             f"Min trades per regime: {self._min_trades_per_regime}. "
@@ -70,8 +61,8 @@ class EnhancedOptimizer(BasicOptimizer):
         
         # Ensure RegimeDetector is available and reset it properly
         try:
-            regime_detector = self.container.resolve("MyPrimaryRegimeDetector")
-            self.logger.info(f"Found regime detector for optimization: {regime_detector.instance_name}")
+            regime_detector = self._container.resolve("MyPrimaryRegimeDetector")
+            self.logger.info(f"Found regime detector for optimization: {regime_detector.name}")
             
             # IMPORTANT: Reset the regime detector to ensure clean state for each run
             if hasattr(regime_detector, 'reset') and callable(getattr(regime_detector, 'reset')):
@@ -98,7 +89,7 @@ class EnhancedOptimizer(BasicOptimizer):
             
         # Get the regime-specific performance metrics
         try:
-            portfolio_manager: BasicPortfolio = self.container.resolve(self._portfolio_service_name)
+            portfolio_manager: BasicPortfolio = self._container.resolve(self._portfolio_service_name)
             regime_performance = portfolio_manager.get_performance_by_regime()
             
             # Log the regimes encountered for debugging
@@ -107,7 +98,7 @@ class EnhancedOptimizer(BasicOptimizer):
             
             # Also log regimes detected by detector but with no trades
             try:
-                regime_detector = self.container.resolve("MyPrimaryRegimeDetector")
+                regime_detector = self._container.resolve("MyPrimaryRegimeDetector")
                 if regime_detector and hasattr(regime_detector, 'get_statistics'):
                     detector_regimes = list(regime_detector.get_statistics().get('regime_counts', {}).keys())
                     all_regimes = set(trade_regimes)
@@ -272,8 +263,8 @@ class EnhancedOptimizer(BasicOptimizer):
         # Create specialized logger for optimization output
         self.opt_logger = create_optimization_logger("optimization")
         
-        self.logger.info(f"--- {self.instance_name}: Starting Enhanced Grid Search Optimization with Train/Test Split ---")
-        self.state = self.ComponentState.RUNNING
+        self.logger.info(f"--- {self.name}: Starting Enhanced Grid Search Optimization with Train/Test Split ---")
+        self.state = BasicOptimizer.STATE_STARTED
         
         # Reset all tracking variables
         self._best_params_from_train = None
@@ -304,8 +295,8 @@ class EnhancedOptimizer(BasicOptimizer):
             # Ensure the RegimeDetector is available
             regime_detector = None
             try:
-                regime_detector = self.container.resolve("MyPrimaryRegimeDetector")
-                self.logger.info(f"EnhancedOptimizer found RegimeDetector: {regime_detector.instance_name}")
+                regime_detector = self._container.resolve("MyPrimaryRegimeDetector")
+                self.logger.info(f"EnhancedOptimizer found RegimeDetector: {regime_detector.name}")
                 
                 # Log the regime detector thresholds for debugging
                 if hasattr(regime_detector, '_regime_thresholds'):
@@ -313,8 +304,8 @@ class EnhancedOptimizer(BasicOptimizer):
             except Exception as e:
                 self.logger.warning(f"Could not resolve RegimeDetector: {e}. Regime-specific optimization may not work correctly.")
             
-            strategy_to_optimize = self.container.resolve(self._strategy_service_name)
-            data_handler_instance = self.container.resolve(self._data_handler_service_name)
+            strategy_to_optimize = self._container.resolve(self._strategy_service_name)
+            data_handler_instance = self._container.resolve(self._data_handler_service_name)
             
             # Check if we're in rule-wise mode and handle it specially
             import sys
@@ -339,7 +330,7 @@ class EnhancedOptimizer(BasicOptimizer):
                 
             if not param_combinations:
                 self.logger.warning("No parameter combinations to test (parameter space might be empty or produced no combinations).")
-                self.state = self.ComponentState.STOPPED
+                self.state = BasicOptimizer.STATE_STOPPED
                 return results_summary
                 
             total_combinations = len(param_combinations)
@@ -433,7 +424,7 @@ class EnhancedOptimizer(BasicOptimizer):
                     self.opt_logger.info(f"Testing rank #{rank+1} parameters: {param_str} (train score: {train_metric:.4f})")
                     
                     # Verify data handler is using test data
-                    data_handler = self.container.resolve(self._data_handler_service_name)
+                    data_handler = self._container.resolve(self._data_handler_service_name)
                     if hasattr(data_handler, '_active_df'):
                         active_size = len(data_handler._active_df) if data_handler._active_df is not None else 0
                         train_size = len(data_handler._train_df) if hasattr(data_handler, '_train_df') and data_handler._train_df is not None else 0
@@ -503,19 +494,19 @@ class EnhancedOptimizer(BasicOptimizer):
             
             self._save_results_to_file(results_summary)
             
-            self.state = self.ComponentState.STOPPED
+            self.state = BasicOptimizer.STATE_STOPPED
             return results_summary
             
         except Exception as e:
             self.logger.error(f"Critical error during enhanced grid search optimization: {e}", exc_info=True)
-            self.state = self.ComponentState.FAILED
+            self.state = BasicOptimizer.STATE_FAILED
             # Ensure results_summary still reflects any partial progress or error state
             results_summary["error"] = str(e)
             return results_summary
         finally:
-            if self.state not in [self.ComponentState.STOPPED, self.ComponentState.FAILED]:
-                self.state = self.ComponentState.STOPPED
-            self.logger.info(f"--- {self.instance_name} Enhanced Grid Search with Train/Test Ended. State: {self.state} ---")
+            if self.state not in [BasicOptimizer.STATE_STOPPED, BasicOptimizer.STATE_FAILED]:
+                self.state = BasicOptimizer.STATE_STOPPED
+            self.logger.info(f"--- {self.name} Enhanced Grid Search with Train/Test Ended. State: {self.state} ---")
             
     def run_per_regime_genetic_optimization(self, results_summary: Dict[str, Any]) -> Dict[str, Any]:
         """
@@ -536,7 +527,7 @@ class EnhancedOptimizer(BasicOptimizer):
         
         try:
             # Get genetic optimizer if available
-            genetic_optimizer = self.container.resolve("genetic_optimizer_service")
+            genetic_optimizer = self._container.resolve("genetic_optimizer_service")
         except Exception as e:
             self.logger.warning(f"Genetic optimizer not available: {e}. Skipping per-regime weight optimization.")
             return results_summary
@@ -563,7 +554,7 @@ class EnhancedOptimizer(BasicOptimizer):
             self.logger.info(f"Using parameters for regime '{regime}': {regime_params}")
             
             # Get strategy and set regime-specific parameters (EXCLUDING weights which will be optimized)
-            strategy = self.container.resolve(self._strategy_service_name)
+            strategy = self._container.resolve(self._strategy_service_name)
             
             # Filter out weight parameters - genetic algorithm will optimize these
             regime_params_no_weights = {k: v for k, v in regime_params.items() 
@@ -585,7 +576,7 @@ class EnhancedOptimizer(BasicOptimizer):
             try:
                 # Set up genetic optimizer
                 genetic_optimizer.setup()
-                if genetic_optimizer.state == genetic_optimizer.STATE_INITIALIZED:
+                if genetic_optimizer.get_state() == genetic_optimizer.STATE_INITIALIZED:
                     genetic_optimizer.start()
                     
                     # Run genetic optimization
@@ -644,7 +635,7 @@ class EnhancedOptimizer(BasicOptimizer):
         
         try:
             # Get genetic optimizer (it contains the random search method)
-            genetic_optimizer = self.container.resolve("genetic_optimizer_service")
+            genetic_optimizer = self._container.resolve("genetic_optimizer_service")
         except Exception as e:
             self.logger.warning(f"Genetic optimizer not available: {e}. Skipping per-regime weight optimization.")
             return results_summary
@@ -671,7 +662,7 @@ class EnhancedOptimizer(BasicOptimizer):
             
             try:
                 # Set regime-specific parameters in the genetic optimizer
-                strategy = self.container.resolve(self._strategy_service_name)
+                strategy = self._container.resolve(self._strategy_service_name)
                 
                 # Filter out weight parameters from regime params
                 regime_params_no_weights = {k: v for k, v in regime_params.items() if not k.endswith('.weight')}
@@ -682,7 +673,7 @@ class EnhancedOptimizer(BasicOptimizer):
                 
                 # Setup and start genetic optimizer for this regime
                 genetic_optimizer.setup()
-                if genetic_optimizer.state == genetic_optimizer.STATE_INITIALIZED:
+                if genetic_optimizer.get_state() == genetic_optimizer.STATE_INITIALIZED:
                     genetic_optimizer.start()
                     
                     # Run random search optimization with regime identification
@@ -729,7 +720,7 @@ class EnhancedOptimizer(BasicOptimizer):
         self._setup_adaptive_mode(results_summary)
         
         # Make sure we have a valid data handler
-        data_handler_instance = self.container.resolve(self._data_handler_service_name)
+        data_handler_instance = self._container.resolve(self._data_handler_service_name)
         
         if data_handler_instance.test_df_exists_and_is_not_empty:
             self.logger.debug("DEBUG - About to run regime-adaptive test")
@@ -996,7 +987,7 @@ class EnhancedOptimizer(BasicOptimizer):
                             
                             # Try to get regime duration statistics
                             try:
-                                regime_detector = self.container.resolve("MyPrimaryRegimeDetector")
+                                regime_detector = self._container.resolve("MyPrimaryRegimeDetector")
                                 if hasattr(regime_detector, 'get_statistics'):
                                     regime_stats = regime_detector.get_statistics()
                                     regime_counts = regime_stats.get('regime_counts', {})
@@ -1035,7 +1026,7 @@ class EnhancedOptimizer(BasicOptimizer):
         """
         try:
             # Get the strategy instance
-            strategy_to_optimize = self.container.resolve(self._strategy_service_name)
+            strategy_to_optimize = self._container.resolve(self._strategy_service_name)
             
             # Check if the strategy supports adaptive mode
             has_adaptive_mode = (hasattr(strategy_to_optimize, "enable_adaptive_mode") and 
@@ -1151,10 +1142,10 @@ class EnhancedOptimizer(BasicOptimizer):
         try:
             # Get all necessary components with proper error handling
             self.logger.debug("Resolving all required components for regime-adaptive test")
-            data_handler = self.container.resolve(self._data_handler_service_name)
+            data_handler = self._container.resolve(self._data_handler_service_name)
             self.logger.debug(f"Resolved data handler: {data_handler.name if hasattr(data_handler, 'name') else 'unknown'}")
             
-            portfolio_manager = self.container.resolve(self._portfolio_service_name)
+            portfolio_manager = self._container.resolve(self._portfolio_service_name)
             self.logger.debug(f"Resolved portfolio manager: {portfolio_manager.name if hasattr(portfolio_manager, 'name') else 'unknown'}")
             
             # CRITICAL FIX: Use the stored adaptive strategy instance instead of resolving a new one
@@ -1166,7 +1157,7 @@ class EnhancedOptimizer(BasicOptimizer):
                 strategy_to_optimize = self._adaptive_strategy_instance
                 self.logger.debug(f"🔧 USING STORED ADAPTIVE STRATEGY INSTANCE: {strategy_to_optimize.name if hasattr(strategy_to_optimize, 'name') else 'unknown'}")
             else:
-                strategy_to_optimize = self.container.resolve(self._strategy_service_name)
+                strategy_to_optimize = self._container.resolve(self._strategy_service_name)
                 self.logger.debug(f"⚠️ FALLBACK: Using freshly resolved strategy (adaptive mode may not work): {strategy_to_optimize.name if hasattr(strategy_to_optimize, 'name') else 'unknown'}")
             
             self.logger.debug(f"Resolved strategy: {strategy_to_optimize.name if hasattr(strategy_to_optimize, 'name') else 'unknown'}")
@@ -1175,15 +1166,15 @@ class EnhancedOptimizer(BasicOptimizer):
             
             # Try to get risk manager if it exists
             try:
-                risk_manager = self.container.resolve(self._risk_manager_service_name)
+                risk_manager = self._container.resolve(self._risk_manager_service_name)
                 self.logger.info(f"Found risk manager for adaptive test: {risk_manager.name if hasattr(risk_manager, 'name') else 'unknown'}")
             except Exception as e:
                 self.logger.warning(f"Risk manager not available: {e}. Will proceed without explicit risk management.")
             
             # Get regime detector with proper error handling
             try:
-                regime_detector = self.container.resolve("MyPrimaryRegimeDetector")
-                self.logger.info(f"Found regime detector for adaptive test: {regime_detector.instance_name if hasattr(regime_detector, 'name') else 'unknown'}")
+                regime_detector = self._container.resolve("MyPrimaryRegimeDetector")
+                self.logger.info(f"Found regime detector for adaptive test: {regime_detector.name if hasattr(regime_detector, 'name') else 'unknown'}")
                 
                 # Validate that the detector has required methods
                 if not hasattr(regime_detector, 'get_current_classification') or not callable(getattr(regime_detector, 'get_current_classification')):
@@ -1233,7 +1224,7 @@ class EnhancedOptimizer(BasicOptimizer):
             self.logger.debug("Stopping all components in reverse dependency order")
             for component_name in component_dependencies:
                 try:
-                    component = self.container.resolve(component_name)
+                    component = self._container.resolve(component_name)
                     if hasattr(component, "stop") and callable(getattr(component, "stop")):
                         self.logger.debug(f"Stopping component: {component.name if hasattr(component, 'name') else 'unknown'}")
                         component.stop()
@@ -1313,7 +1304,7 @@ class EnhancedOptimizer(BasicOptimizer):
             self.logger.debug("Starting all components in correct dependency order")
             for component_name in component_start_order:
                 try:
-                    component = self.container.resolve(component_name)
+                    component = self._container.resolve(component_name)
                     # Components are already initialized - no need to call setup() again
                     # Calling setup() would reset the CSVDataHandler's _active_df = None
                     
@@ -1329,7 +1320,7 @@ class EnhancedOptimizer(BasicOptimizer):
             # Verify component states
             for component_name in component_start_order:
                 try:
-                    component = self.container.resolve(component_name)
+                    component = self._container.resolve(component_name)
                     if hasattr(component, "state"):
                         self.logger.debug(f"Component {component_name} state: {component.state}")
                 except Exception:
@@ -1448,7 +1439,7 @@ class EnhancedOptimizer(BasicOptimizer):
             self.logger.debug("Stopping all components again for adaptive strategy test")
             for component_name in component_dependencies:
                 try:
-                    component = self.container.resolve(component_name)
+                    component = self._container.resolve(component_name)
                     if hasattr(component, "stop") and callable(getattr(component, "stop")):
                         self.logger.debug(f"Stopping component: {component.name if hasattr(component, 'name') else 'unknown'}")
                         component.stop()
@@ -1535,7 +1526,7 @@ class EnhancedOptimizer(BasicOptimizer):
             # Subscribe to classification events
             from src.core.event import EventType
             self.logger.info("Subscribing to CLASSIFICATION events")
-            self.event_bus.subscribe(EventType.CLASSIFICATION, on_classification_change)
+            self._event_bus.subscribe(EventType.CLASSIFICATION, on_classification_change)
             self.logger.debug("Successfully subscribed to CLASSIFICATION events")
             
             # ==========================================
@@ -1557,7 +1548,7 @@ class EnhancedOptimizer(BasicOptimizer):
             self.logger.debug("Stopping all components to clear state from previous test runs")
             for component_name in component_start_order:
                 try:
-                    component = self.container.resolve(component_name)
+                    component = self._container.resolve(component_name)
                     if hasattr(component, "stop") and callable(getattr(component, "stop")):
                         self.logger.debug(f"Stopping component: {component.name if hasattr(component, 'name') else 'unknown'}")
                         component.stop()
@@ -1567,11 +1558,11 @@ class EnhancedOptimizer(BasicOptimizer):
             
             # NOTE: Do NOT reset portfolio here - we want to measure the portfolio that's receiving trades
             # The portfolio should have been reset at the start of the grid search process
-            portfolio_manager = self.container.resolve(self._portfolio_service_name)
+            portfolio_manager = self._container.resolve(self._portfolio_service_name)
             self.logger.debug(f"Using existing portfolio for adaptive test - Portfolio ID: {id(portfolio_manager)}")
             
             # Reset regime detector
-            regime_detector = self.container.resolve("MyPrimaryRegimeDetector")
+            regime_detector = self._container.resolve("MyPrimaryRegimeDetector")
             if hasattr(regime_detector, "reset") and callable(getattr(regime_detector, "reset")):
                 self.logger.debug("Resetting regime detector")
                 regime_detector.reset()
@@ -1581,7 +1572,7 @@ class EnhancedOptimizer(BasicOptimizer):
             self.logger.debug("Starting all components for adaptive test in dependency order")
             for component_name in component_start_order:
                 try:
-                    component = self.container.resolve(component_name)
+                    component = self._container.resolve(component_name)
                     # Components are already initialized - no need to call setup() again
                     # Calling setup() would reset the CSVDataHandler's _active_df = None
                     
@@ -1597,7 +1588,7 @@ class EnhancedOptimizer(BasicOptimizer):
             # Verify all components are properly started
             for component_name in component_start_order:
                 try:
-                    component = self.container.resolve(component_name)
+                    component = self._container.resolve(component_name)
                     if hasattr(component, "state"):
                         self.logger.debug(f"Component {component_name} state: {component.state}")
                 except Exception:
@@ -1704,12 +1695,12 @@ class EnhancedOptimizer(BasicOptimizer):
                     classification_payload = {
                         'classification': current_regime,
                         'timestamp': datetime.datetime.now(datetime.timezone.utc),
-                        'detector_name': regime_detector.instance_name if hasattr(regime_detector, 'name') else 'unknown',
+                        'detector_name': regime_detector.name if hasattr(regime_detector, 'name') else 'unknown',
                         'source': 'manual_trigger_from_optimizer'
                     }
                     classification_event = Event(EventType.CLASSIFICATION, classification_payload)
                     self.logger.debug("REGIME_DEBUG: Publishing manual classification event to event bus")
-                    self.event_bus.publish(classification_event)
+                    self._event_bus.publish(classification_event)
                     self.logger.debug(f"REGIME_DEBUG: Manually published initial CLASSIFICATION event for regime '{current_regime}'")
                 except Exception as e:
                     self.logger.error(f"Error publishing manual classification event: {e}", exc_info=True)
@@ -1840,7 +1831,7 @@ class EnhancedOptimizer(BasicOptimizer):
             
             # Unsubscribe from classification events
             self.logger.debug("Unsubscribing from CLASSIFICATION events")
-            self.event_bus.unsubscribe(EventType.CLASSIFICATION, on_classification_change)
+            self._event_bus.unsubscribe(EventType.CLASSIFICATION, on_classification_change)
             self.logger.debug("Successfully unsubscribed from CLASSIFICATION events")
             
             # Calculate improvement over best overall (skipped since we're only running adaptive test)
@@ -1898,7 +1889,7 @@ class EnhancedOptimizer(BasicOptimizer):
             self.logger.debug("Performing final cleanup - stopping all components")
             for component_name in component_dependencies:
                 try:
-                    component = self.container.resolve(component_name)
+                    component = self._container.resolve(component_name)
                     if hasattr(component, "stop") and callable(getattr(component, "stop")):
                         self.logger.debug(f"Stopping component: {component.name if hasattr(component, 'name') else 'unknown'}")
                         component.stop()
@@ -2006,7 +1997,7 @@ class EnhancedOptimizer(BasicOptimizer):
             sys.argv.append('--optimize-ma')
             
             # Get MA parameter space
-            strategy_to_optimize = self.container.resolve(self._strategy_service_name)
+            strategy_to_optimize = self._container.resolve(self._strategy_service_name)
             
             # Set rule isolation mode for MA-only optimization
             if hasattr(strategy_to_optimize, 'set_rule_isolation_mode'):
@@ -2103,7 +2094,7 @@ class EnhancedOptimizer(BasicOptimizer):
             results_summary["regimes_encountered"] = list(self._regimes_encountered)
             
             # Run test phase if test data exists
-            data_handler_instance = self.container.resolve(self._data_handler_service_name)
+            data_handler_instance = self._container.resolve(self._data_handler_service_name)
             if data_handler_instance.test_df_exists_and_is_not_empty:
                 # Get top N performers and test them
                 top_performers = self._get_top_n_performers(all_results, n=self._top_n_to_test, higher_is_better=self._higher_metric_is_better)

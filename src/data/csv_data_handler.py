@@ -41,6 +41,10 @@ class CSVDataHandler(ComponentBase):
         self._csv_file_path = self.get_specific_config("csv_file_path")
         self._timestamp_column = self.get_specific_config("timestamp_column", "timestamp")
         
+        # Debug logging
+        if hasattr(self, 'logger') and self.logger:
+            self.logger.debug(f"CSVDataHandler._initialize: symbol={self._symbol}, csv_file_path={self._csv_file_path}")
+        
         if not self._symbol or not self._csv_file_path:
             raise ConfigurationError(f"Missing 'symbol' or 'csv_file_path' for {self.instance_name}")
         
@@ -62,6 +66,13 @@ class CSVDataHandler(ComponentBase):
     
     def get_specific_config(self, key: str, default=None):
         """Helper method to get configuration values."""
+        # First try component_config set by ComponentBase
+        if hasattr(self, 'component_config') and self.component_config:
+            value = self.component_config.get(key, None)
+            if value is not None:
+                return value
+        
+        # Fall back to config_loader
         if not self.config_loader:
             return default
         config_key = self.config_key or self.instance_name
@@ -311,9 +322,9 @@ class CSVDataHandler(ComponentBase):
         self._data_iterator = None
         self.logger.info(f"CSVDataHandler '{self.instance_name}' stopped.")
 
-    def dispose(self):
+    def teardown(self):
         """Clean up resources."""
-        super().dispose()
+        super().teardown()
         self._data_for_run = None
         self._train_df = None
         self._test_df = None

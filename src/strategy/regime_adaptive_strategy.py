@@ -6,6 +6,7 @@ from typing import Dict, Any, Optional, List, Tuple
 
 from src.strategy.ma_strategy import MAStrategy
 from src.core.exceptions import ConfigurationError
+from src.core.event import Event, EventType
 
 class RegimeAdaptiveStrategy(MAStrategy):
     """
@@ -16,67 +17,25 @@ class RegimeAdaptiveStrategy(MAStrategy):
     automatically switches to the optimal parameters for the new regime.
     """
     
-    def __init__(self, instance_name: str, config_loader, event_bus, container, component_config_key: Optional[str] = None):
-        # Safety check for required configuration
-        self.logger = logging.getLogger(f"{self.__class__.__name__}.{instance_name}")
-        try:
-            # Try to get the symbol from the config - needed by MAStrategy
-            if component_config_key:
-                symbol = config_loader.get_config_value(f"{component_config_key}.symbol", None)
-                if not symbol:
-                    self.logger.warning(f"No symbol found in config for {component_config_key}")
-                else:
-                    self.logger.info(f"Found symbol in config: {symbol}")
-        except Exception as e:
-            self.logger.warning(f"Error checking config for symbol: {e}")
-            
-        # Initialize with a default symbol if needed
-        self._symbol = "SPY"  # Default fallback symbol
+    def __init__(self, instance_name: str, config_key: Optional[str] = None):
+        """Minimal constructor following ComponentBase pattern."""
+        # Initialize parent MAStrategy first
+        super().__init__(instance_name, config_key)
         
-        # Try to initialize the parent MAStrategy
-        try:
-            # Create a simple configuration and set it directly before parent initialization
-            if component_config_key:
-                try:
-                    self._symbol = config_loader.get_config_value(f"{component_config_key}.symbol", "SPY")
-                except:
-                    self.logger.warning(f"Using default symbol {self._symbol}")
-                    
-            # Now initialize the parent with our prepared configuration
-            super().__init__(instance_name, config_loader, event_bus, component_config_key)
-            
-        except Exception as e:
-            self.logger.error(f"Error initializing MAStrategy parent: {e}")
-            # Initialize basic properties that would normally be set by the parent
-            from src.core.component import Component
-            Component.__init__(self, instance_name, config_loader, event_bus, component_config_key)
-            # Set up minimal required properties
-            self._parameters = {"symbol": self._symbol}
-            self.logger.warning(f"Initialized with minimal configuration and symbol: {self._symbol}")
-            
-        # Additional initialization for regime adaptation
-        self._container = container
-        self._regime_detector_key: str = self.get_specific_config('regime_detector_service_name', "MyPrimaryRegimeDetector")
+        # Initialize internal state for regime adaptation
+        self._regime_detector_key: str = "MyPrimaryRegimeDetector"
         self._regime_detector = None
         self._current_regime: str = "default"
-        self._is_subscribed_to_classification = False  # Flag to track subscription status
         
-        # Load regime-specific parameters
-        self._params_file_path: str = self.get_specific_config('regime_params_file_path', "regime_optimized_parameters.json")
-        self._fallback_to_overall_best: bool = self.get_specific_config('fallback_to_overall_best', True)
+        # Parameters file settings
+        self._params_file_path: str = "regime_optimized_parameters.json"
+        self._fallback_to_overall_best: bool = True
         self._regime_specific_params: Dict[str, Dict[str, Any]] = {}
         self._overall_best_params: Optional[Dict[str, Any]] = None
         
         # Track parameter changes
         self._active_params: Dict[str, Any] = {}
         self._last_applied_regime: Optional[str] = None
-        
-        # Load parameters from file
-        try:
-            self._load_parameters_from_file()
-        except Exception as e:
-            self.logger.error(f"Error loading regime parameters: {e}", exc_info=True)
-            # We'll continue with default parameters and try to load the detector during setup
     
     def _load_parameters_from_file(self) -> None:
         """
@@ -124,6 +83,33 @@ class RegimeAdaptiveStrategy(MAStrategy):
             self.logger.error(f"Error parsing regime parameters file: {e}", exc_info=True)
             raise
     
+    def _initialize(self):
+        """Component-specific initialization logic."""
+        # Call parent's _initialize first
+        super()._initialize()
+        
+        # Load regime-specific configuration
+        self._regime_detector_key = self.get_specific_config('regime_detector_service_name', "MyPrimaryRegimeDetector")
+        self._params_file_path = self.get_specific_config('regime_params_file_path', "regime_optimized_parameters.json")
+        self._fallback_to_overall_best = self.get_specific_config('fallback_to_overall_best', True)
+        
+        # Load parameters from file
+        try:
+            self._load_parameters_from_file()
+        except Exception as e:
+            self.logger.error(f"Error loading regime parameters: {e}", exc_info=True)
+            # Continue with default parameters
+    
+    def initialize_event_subscriptions(self):
+        """Set up event subscriptions."""
+        # Call parent's event subscriptions first
+        super().initialize_event_subscriptions()
+        
+        # Add our classification subscription
+        if self.subscription_manager:
+            self.subscription_manager.subscribe(EventType.CLASSIFICATION, self.on_classification_change)
+            self.logger.info(f"'{self.instance_name}' subscribed to CLASSIFICATION events.")
+    
     def setup(self):
         """
         Overridden to also set up the regime detector connection.
@@ -132,8 +118,8 @@ class RegimeAdaptiveStrategy(MAStrategy):
         
         # Resolve the regime detector
         try:
-            if self._container:
-                self._regime_detector = self._container.resolve(self._regime_detector_key)
+            if self.container:
+                self._regime_detector = self.container.resolve(self._regime_detector_key)
                 if hasattr(self._regime_detector, 'get_current_classification') and callable(getattr(self._regime_detector, 'get_current_classification')):
                     initial_regime = self._regime_detector.get_current_classification()
                     self._current_regime = initial_regime if initial_regime else "default"
@@ -151,35 +137,35 @@ class RegimeAdaptiveStrategy(MAStrategy):
         """
         Handle regime classification changes by updating parameters.
         """
-        self.logger.info(f"'{self.name}' received classification event: {event}")
+        self.logger.info(f"'{self.instance_name}' received classification event: {event}")
         
         if not hasattr(event, 'payload'):
-            self.logger.warning(f"'{self.name}' received event without payload attribute: {event}")
+            self.logger.warning(f"'{self.instance_name}' received event without payload attribute: {event}")
             return
             
         if not event.payload:
-            self.logger.warning(f"'{self.name}' received event with empty payload: {event}")
+            self.logger.warning(f"'{self.instance_name}' received event with empty payload: {event}")
             return
             
         payload = event.payload
-        self.logger.info(f"'{self.name}' classification event payload: {payload}")
+        self.logger.info(f"'{self.instance_name}' classification event payload: {payload}")
         
         if not isinstance(payload, dict):
-            self.logger.warning(f"'{self.name}' received non-dict payload: {payload}")
+            self.logger.warning(f"'{self.instance_name}' received non-dict payload: {payload}")
             return
             
         new_regime = payload.get('classification')
-        self.logger.info(f"'{self.name}' extracted classification from payload: {new_regime}")
+        self.logger.info(f"'{self.instance_name}' extracted classification from payload: {new_regime}")
         
         if not new_regime:
-            self.logger.warning(f"'{self.name}' missing 'classification' in payload: {payload}")
+            self.logger.warning(f"'{self.instance_name}' missing 'classification' in payload: {payload}")
             return
             
         if new_regime == self._current_regime:
-            self.logger.info(f"'{self.name}' regime unchanged: {new_regime}")
+            self.logger.info(f"'{self.instance_name}' regime unchanged: {new_regime}")
             return
             
-        self.logger.info(f"'{self.name}' market regime changed from '{self._current_regime}' to '{new_regime}'.")
+        self.logger.info(f"'{self.instance_name}' market regime changed from '{self._current_regime}' to '{new_regime}'.")
         self._current_regime = new_regime
         
         # Apply new parameters for the new regime
@@ -254,29 +240,29 @@ class RegimeAdaptiveStrategy(MAStrategy):
     
     def start(self):
         """
-        Overridden to subscribe to classification events.
+        Start the regime adaptive strategy.
         """
         super().start()
-        
-        # Subscribe to classification events to adapt to regime changes
-        if self._event_bus and not self._is_subscribed_to_classification:
-            from src.core.event import EventType
-            self._event_bus.subscribe(EventType.CLASSIFICATION, self.on_classification_change)
-            self._is_subscribed_to_classification = True
-            self.logger.info(f"'{self.name}' subscribed to CLASSIFICATION events.")
+        # Event subscriptions are now handled by initialize_event_subscriptions()
+        self.logger.info(f"'{self.instance_name}' started with regime adaptation enabled.")
     
     def stop(self):
         """
-        Overridden to unsubscribe from classification events.
+        Stop the regime adaptive strategy.
         """
-        # Unsubscribe from classification events
-        if self._event_bus and self._is_subscribed_to_classification:
-            try:
-                from src.core.event import EventType
-                self._event_bus.unsubscribe(EventType.CLASSIFICATION, self.on_classification_change)
-                self._is_subscribed_to_classification = False
-                self.logger.info(f"'{self.name}' unsubscribed from CLASSIFICATION events.")
-            except Exception as e:
-                self.logger.error(f"Error unsubscribing from CLASSIFICATION events: {e}", exc_info=True)
-                
+        # Event unsubscription is now handled by subscription_manager in teardown()
         super().stop()
+        self.logger.info(f"'{self.instance_name}' stopped.")
+    
+    def teardown(self):
+        """
+        Clean up resources during component teardown.
+        """
+        # Clear regime-specific state
+        self._regime_detector = None
+        self._regime_specific_params.clear()
+        self._overall_best_params = None
+        self._active_params.clear()
+        
+        # Call parent teardown
+        super().teardown()

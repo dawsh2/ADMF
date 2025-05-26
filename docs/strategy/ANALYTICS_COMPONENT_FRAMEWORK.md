@@ -189,6 +189,12 @@ class AnalyticsComponent(BaseComponent):
 
 ### Classifier Component
 
+**Event Broadcasting Design**: Classifiers implement a change-based event broadcasting pattern. Events are only emitted when the classification changes, not on every bar. This design decision:
+- Dramatically reduces event traffic and logging noise
+- Maintains full data availability (current state is always queryable)
+- Enables efficient historical reconstruction from change events
+- Follows reactive programming best practices
+
 ```python
 from .base import AnalyticsComponent
 from typing import Dict, Any, Optional, List

@@ -9,9 +9,19 @@ COMPONENT_LIFECYCLE.md.
 
 from abc import ABC, abstractmethod
 from typing import Dict, Any, Optional, List, Tuple
+from enum import Enum
 import logging
 
 from .subscription_manager import SubscriptionManager
+
+
+class ComponentState(Enum):
+    """Component lifecycle states per COMPONENT_LIFECYCLE.md"""
+    CREATED = "created"
+    INITIALIZED = "initialized"
+    RUNNING = "running"
+    STOPPED = "stopped"
+    DISPOSED = "disposed"
 
 
 class ComponentBase(ABC):
@@ -44,6 +54,7 @@ class ComponentBase(ABC):
         """
         self.instance_name = instance_name
         self.config_key = config_key
+        self._state = ComponentState.CREATED
         self.initialized = False
         self.running = False
         
@@ -55,6 +66,12 @@ class ComponentBase(ABC):
         self.logger = None
         self.component_config = {}
         self.subscription_manager: Optional[SubscriptionManager] = None
+        self._context = {}
+        
+    @property
+    def state(self) -> ComponentState:
+        """Get current component state."""
+        return self._state
         
     def initialize(self, context: Dict[str, Any]) -> None:
         """
@@ -81,6 +98,9 @@ class ComponentBase(ABC):
         self.container = context.get('container')
         self.logger = context.get('logger') or logging.getLogger(self.instance_name)
         
+        # Store context for subclasses
+        self._context = context
+        
         # Get component-specific config
         if self.config_key and self.config:
             self.component_config = self.config.get('components', {}).get(self.config_key, {})
@@ -99,6 +119,7 @@ class ComponentBase(ABC):
         self._validate_configuration()
         
         self.initialized = True
+        self._state = ComponentState.INITIALIZED
         self.logger.info(f"Component {self.instance_name} initialized")
         
     @abstractmethod
@@ -111,6 +132,33 @@ class ComponentBase(ABC):
         - Setting up internal data structures
         - Initializing indicators or models
         - Preparing resources
+        """
+        pass
+        
+    def _start(self) -> None:
+        """
+        Component-specific start logic.
+        
+        Subclasses can override this to perform specific actions when starting.
+        Called after the component state is set to RUNNING.
+        """
+        pass
+        
+    def _stop(self) -> None:
+        """
+        Component-specific stop logic.
+        
+        Subclasses can override this to perform specific actions when stopping.
+        Called before the component state is set to STOPPED.
+        """
+        pass
+        
+    def _cleanup(self) -> None:
+        """
+        Component-specific cleanup logic.
+        
+        Subclasses can override this to perform specific cleanup actions.
+        Called during teardown before state is set to DISPOSED.
         """
         pass
         
@@ -156,6 +204,8 @@ class ComponentBase(ABC):
             )
             
         self.running = True
+        self._state = ComponentState.RUNNING
+        self._start()
         self.logger.info(f"Component {self.instance_name} started")
         
     def stop(self) -> None:
@@ -167,7 +217,9 @@ class ComponentBase(ABC):
         - Stopping background threads or tasks
         - Preserving state for potential restart
         """
+        self._stop()
         self.running = False
+        self._state = ComponentState.STOPPED
         self.logger.info(f"Component {self.instance_name} stopped")
         
     def reset(self) -> None:
@@ -198,9 +250,17 @@ class ComponentBase(ABC):
         if self.subscription_manager:
             self.subscription_manager.unsubscribe_all()
             
+        # Call component-specific cleanup
+        self._cleanup()
+            
         self.initialized = False
         self.running = False
+        self._state = ComponentState.DISPOSED
         self.logger.info(f"Component {self.instance_name} teardown complete")
+        
+    def dispose(self) -> None:
+        """Alias for teardown() for compatibility with test."""
+        self.teardown()
         
     @property
     def name(self) -> str:
@@ -223,6 +283,19 @@ class ComponentBase(ABC):
             'has_event_bus': self.event_bus is not None,
             'has_container': self.container is not None
         }
+        
+    def get_specific_config(self, key: str, default: Any = None) -> Any:
+        """
+        Get a specific configuration value for this component.
+        
+        Args:
+            key: Configuration key
+            default: Default value if key not found
+            
+        Returns:
+            Configuration value or default
+        """
+        return self.component_config.get(key, default)
         
     def __repr__(self) -> str:
         """String representation of component."""
