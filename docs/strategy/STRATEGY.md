@@ -107,16 +107,16 @@ This design ensures that:
     * **Majority Vote**: Binary decision based on the majority direction of component signals
     * **Threshold-based**: Requires minimum agreement ratio before generating signals
 
-### D. Parameter Management
+### F. Parameter Management
 
 * A crucial aspect of strategy design is managing parameters. This includes standardized access, validation, handling of default values, and defining a parameter space for optimization.
 * The `ParameterSet` class is envisioned for this, providing a structured way to manage parameter schemas, values, validation, and type conversions.
 
-### E. Strategy Factory
+### G. Strategy Factory
 
 * A `StrategyFactory` is intended to manage the discovery, instantiation, and configuration of strategy instances, simplifying their creation and setup.
 
-### F. Signal Processing Pipeline
+### H. Signal Processing Pipeline
 
 The complete signal flow through the system:
 ```
