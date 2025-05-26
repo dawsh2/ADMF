@@ -1,4 +1,3 @@
-Markdown
 # ADMF Core: Performance and Resource Optimization
 
 ## 1. Overview
@@ -46,9 +45,11 @@ def expensive_calculation(param1, param2):
 # Accessing cache controls:
 # expensive_calculation.cache.clear()
 # stats = expensive_calculation.cache.stats()
+```
+
 The implementation of this framework (Cache, CacheKey, CacheEntry, @cached decorator) would reside in a dedicated caching utility module within src/core/performance/.
 
-2.2. Incremental Calculation Framework
+### 2.2. Incremental Calculation Framework
 
 For operations where results can be updated based on new data without full recomputation (e.g., moving averages, running totals).
 

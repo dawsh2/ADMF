@@ -78,36 +78,41 @@ class Event:
     def get_metadata(self) -> Dict[str, Any]:
         """Get event metadata."""
         return self.metadata
+```
+
 Your src/core/event.py implements Event with type, timestamp, and payload attributes, which aligns well with this.
 
-3.2. Event Types (EventType)
+### 3.2. Event Types (EventType)
 
 The system defines standard event types to categorize events and facilitate targeted subscriptions.
 
 Standard Event Types (Conceptual Enum):
 
-Python
-# from enum import Enum # Ideal
-# class EventType(Enum):
-#     BAR = "BAR"               # Market data bar event
-#     SIGNAL = "SIGNAL"         # Strategy signal event
-#     ORDER = "ORDER"           # Order request event
-#     FILL = "FILL"             # Order fill event
-#     PORTFOLIO = "PORTFOLIO"   # Portfolio update event
-#     ERROR = "ERROR"           # Error event
-#     SYSTEM = "SYSTEM"         # System control event
-#     LIFECYCLE = "LIFECYCLE"   # Component lifecycle event (from COMPONENT_LIFECYCLE.MD)
-#     CLASSIFICATION = "CLASSIFICATION" # From CLASSIFIER.MD
-#     REGIME_CHANGE = "REGIME_CHANGE" # From REGIME_OPTIMIZATION_IMPLEMENTATION.md
-#     META_LABEL = "META_LABEL" # From ANALYTICS_COMPONENT_FRAMEWORK.md
-#     RETRY = "RETRY" # From ERROR_HANDLING.md
-#     RETRY_EXHAUSTED = "RETRY_EXHAUSTED" # From ERROR_HANDLING.md
-#     ALERT = "ALERT" # From LOGGING_MONITORING.MD
-#     BACKTEST_START = "BACKTEST_START"
-#     BACKTEST_END = "BACKTEST_END"
+```python
+from enum import Enum # Ideal
+
+class EventType(Enum):
+    BAR = "BAR"               # Market data bar event
+    SIGNAL = "SIGNAL"         # Strategy signal event
+    ORDER = "ORDER"           # Order request event
+    FILL = "FILL"             # Order fill event
+    PORTFOLIO = "PORTFOLIO"   # Portfolio update event
+    ERROR = "ERROR"           # Error event
+    SYSTEM = "SYSTEM"         # System control event
+    LIFECYCLE = "LIFECYCLE"   # Component lifecycle event (from COMPONENT_LIFECYCLE.MD)
+    CLASSIFICATION = "CLASSIFICATION" # From CLASSIFIER.MD
+    REGIME_CHANGE = "REGIME_CHANGE" # From REGIME_OPTIMIZATION_IMPLEMENTATION.md
+    META_LABEL = "META_LABEL" # From ANALYTICS_COMPONENT_FRAMEWORK.md
+    RETRY = "RETRY" # From ERROR_HANDLING.md
+    RETRY_EXHAUSTED = "RETRY_EXHAUSTED" # From ERROR_HANDLING.md
+    ALERT = "ALERT" # From LOGGING_MONITORING.MD
+    BACKTEST_START = "BACKTEST_START"
+    BACKTEST_END = "BACKTEST_END"
+```
+
 Your src/core/event.py defines EventType as a class with string constants. While functional, using a Python Enum is often preferred for better type safety and clarity.
 
-3.3. EventBus
+### 3.3. EventBus
 
 The EventBus is the central dispatcher for all events. Components publish events to the bus, and the bus delivers them to all subscribed handlers.
 
@@ -132,20 +137,23 @@ unsubscribe(event_type, handler, context=None): Unsubscribes and removes from tr
 unsubscribe_all(): Iterates through all tracked subscriptions and unsubscribes them from the EventBus. This is typically called in a component's teardown() method.
 This is correctly implemented and used in src/core/component_base.py.
 
-4. Standard Event Flow
+## 4. Standard Event Flow
+
 The primary data processing pipeline in ADMF-Trader follows a standard sequence of events:
 
-BAR Event: The DataHandler loads/receives market data and emits BAR events for each new data point (e.g., a one-minute bar).
-SIGNAL Event: Strategy components subscribe to BAR events. Upon receiving a bar, they update indicators and apply their logic to generate trading signals, which are then published as SIGNAL events.
-ORDER Event: The RiskManager subscribes to SIGNAL events. It processes these signals, applies position sizing rules and risk limits, and if appropriate, generates an ORDER event.
-FILL Event: The ExecutionHandler (e.g., SimulatedBroker or a live broker interface) subscribes to ORDER events. It processes these orders, simulates or executes them, and upon execution (full or partial), publishes FILL events.
-PORTFOLIO Event: The PortfolioManager subscribes to FILL events to update positions, cash, and P&L. It may also subscribe to BAR events for mark-to-market calculations. It can publish PORTFOLIO events to signal updates to its state.
+1. **BAR Event**: The DataHandler loads/receives market data and emits BAR events for each new data point (e.g., a one-minute bar).
+2. **SIGNAL Event**: Strategy components subscribe to BAR events. Upon receiving a bar, they update indicators and apply their logic to generate trading signals, which are then published as SIGNAL events.
+3. **ORDER Event**: The RiskManager subscribes to SIGNAL events. It processes these signals, applies position sizing rules and risk limits, and if appropriate, generates an ORDER event.
+4. **FILL Event**: The ExecutionHandler (e.g., SimulatedBroker or a live broker interface) subscribes to ORDER events. It processes these orders, simulates or executes them, and upon execution (full or partial), publishes FILL events.
+5. **PORTFOLIO Event**: The PortfolioManager subscribes to FILL events to update positions, cash, and P&L. It may also subscribe to BAR events for mark-to-market calculations. It can publish PORTFOLIO events to signal updates to its state.
+
 This event-driven flow decouples the modules significantly.
 
-5. Event Handlers
+## 5. Event Handlers
+
 Components that need to react to events define handler methods. These methods are then registered with the EventBus for specific event types via the SubscriptionManager, typically during the component's initialize_event_subscriptions() phase.
 
-Python
+```python
 # Example in a Strategy component
 # (from docs/core/communication/EVENT_SYSTEM.md)
 class Strategy(ComponentBase):
@@ -157,16 +165,20 @@ class Strategy(ComponentBase):
     def on_bar(self, event: Event): # Type hint with your Event class
         bar_data = event.payload # Or event.get_data()
         # ... process bar data and generate signals ...
-6. Event Isolation (EventContext) [Idealized Design]
+```
+
+## 6. Event Isolation (EventContext) [Idealized Design]
+
 To ensure reliable and deterministic results, especially during parallel operations like optimization or multiple backtests, event isolation is critical. This prevents events from one execution context (e.g., one optimization trial) from interfering with another.
 
-6.1. EventContext Class
+### 6.1. EventContext Class
 
-Purpose: Defines a scope for events.
-Mechanism: Used as a context manager (with EventContext("backtest_run_1"):).
-__enter__: Sets itself as the "current context" (e.g., using thread-local storage).
-__exit__: Restores the previous context.
-6.2. Current Context Tracking
+* **Purpose**: Defines a scope for events.
+* **Mechanism**: Used as a context manager (`with EventContext("backtest_run_1"):`).
+* **`__enter__`**: Sets itself as the "current context" (e.g., using thread-local storage).
+* **`__exit__`**: Restores the previous context.
+
+### 6.2. Current Context Tracking
 
 A mechanism (typically using threading.local()) to store and retrieve the active EventContext for the current thread of execution.
 

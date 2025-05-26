@@ -49,6 +49,7 @@ from ..strategy.regime_detector import RegimeDetector
 
 # Import optimization components
 from ..strategy.optimization.basic_optimizer import BasicOptimizer
+from ..execution.optimization_entrypoint import OptimizationEntrypoint
 from ..strategy.optimization.genetic_optimizer import GeneticOptimizer
 
 # Import dependency graph for validation
@@ -265,6 +266,13 @@ class Bootstrap:
             'dependencies': ['event_bus', 'container'],  # Remove data_handler dependency so it starts first
             'config_key': 'components.backtest_runner',
             'required': False
+        },
+        'optimization_entrypoint': {
+            'class': 'OptimizationEntrypoint',
+            'module': 'src.execution.optimization_entrypoint',
+            'dependencies': ['event_bus', 'container'],
+            'config_key': 'components.optimization_entrypoint',
+            'required': False
         }
     }
     
@@ -446,6 +454,13 @@ class Bootstrap:
             self.components[name] = component
             self.lifecycle_tracker.set_state(name, ComponentState.CREATED)
             
+            # Store the override config for use during initialization
+            if override_config and hasattr(component, '_override_config'):
+                component._override_config = override_config
+            elif override_config:
+                # Store it as an attribute even if the component doesn't expect it
+                component._bootstrap_override_config = override_config
+            
             # Register in container
             self.context.container.register(name, component)
             
@@ -526,6 +541,7 @@ class Bootstrap:
                         'event_bus': self.context.event_bus,
                         'logger': self.context.logger,
                         'metadata': self.context.metadata,  # Include metadata with CLI args
+                        'bootstrap': self,  # Add reference to Bootstrap for optimization
                         # Add any component-specific dependencies
                         'portfolio_manager': self.components.get('portfolio_manager'),
                         'data_handler': self.components.get('data_handler'),
@@ -571,15 +587,72 @@ class Bootstrap:
                     elif class_name == 'GeneticOptimizer':
                         self.component_definitions[name]['module'] = 'strategy.optimization.genetic_optimizer'
                         
-        # Create components based on run mode
+        # First, try to load components from config file
+        config_components = self.context.config.get("components", {})
+        if config_components:
+            self._load_components_from_config(config_components)
+        
+        # Then create standard components based on run mode (if not already created)
         components_to_create = self._get_components_for_mode(self.context.run_mode)
         
         for name in components_to_create:
-            if name in self.component_definitions:
+            if name not in self.components and name in self.component_definitions:
                 self.create_component(name, self.component_definitions[name])
                 
         return self.components
         
+    def _load_components_from_config(self, config_components: Dict[str, Any]) -> None:
+        """
+        Load components directly from the config file.
+        
+        This allows components to be defined in the config file with their
+        configuration inline, rather than requiring separate component definitions.
+        """
+        for name, component_config in config_components.items():
+            if not isinstance(component_config, dict):
+                continue
+                
+            # Skip if component already created
+            if name in self.components:
+                continue
+                
+            # Get class path from config
+            class_path = component_config.get('class_path')
+            if not class_path:
+                self.context.logger.warning(f"Component {name} missing class_path, skipping")
+                continue
+                
+            # Parse module and class from class_path
+            parts = class_path.rsplit('.', 1)
+            if len(parts) != 2:
+                self.context.logger.warning(f"Invalid class_path for {name}: {class_path}")
+                continue
+                
+            module_path, class_name = parts
+            
+            # Create component definition
+            component_def = {
+                'class': class_name,
+                'module': module_path,
+                'dependencies': component_config.get('dependencies', []),
+                'config_key': f'components.{name}',
+                'required': component_config.get('required', True)
+            }
+            
+            # Store in definitions for future reference
+            self.component_definitions[name] = component_def
+            
+            # Create the component
+            try:
+                # The actual configuration values are under the 'config' key
+                actual_config = component_config.get('config', {})
+                self.create_component(name, component_def, override_config=actual_config)
+                self.context.logger.debug(f"Created component {name} from config")
+            except Exception as e:
+                self.context.logger.error(f"Failed to create component {name} from config: {e}")
+                if component_def.get('required', True):
+                    raise
+    
     def _get_components_for_mode(self, run_mode: RunMode) -> List[str]:
         """
         Determine which components to create based on run mode.

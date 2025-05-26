@@ -48,39 +48,47 @@ if cycles:
     logger.error(f"Circular dependencies found: {cycles}")
 
 init_order = dg.get_initialization_order()
-4. Enhanced DI Container
+```
+
+## 4. Enhanced DI Container
+
 The DI Container (building upon src/core/container.py) is central to managing component instances. The idealized Container integrates deeply with the DependencyGraph for robust dependency management.
 
-4.1. Idealized Features
+### 4.1. Idealized Features
 
-Registration with Dependency Information: When components are registered (register_type, register_instance, register_factory), their declared dependencies should also be registered with the DependencyGraph.
-Real-time Cycle Detection during Resolution: The container.get(name, resolution_path) method should use the resolution_path to detect circular dependencies as it tries to resolve a component and its transitive dependencies. This provides immediate feedback if a problematic cycle is encountered during instantiation.
-Current src/core/container.py does not implement the resolution_path for on-the-fly cycle detection during resolve; cycle detection relies on analyzing the DependencyGraph separately, often done by Bootstrap.
-Automatic Constructor Injection: Resolve and inject dependencies based on constructor parameter names and type hints. If a constructor parameter foo: FooService exists, the container attempts to resolve a component registered as "FooService" or "foo".
-Support for Scoped Containers: The Container design should be suitable for instantiation within different scopes (see Section 5).
-Analysis and Reporting: Methods like analyze_dependencies() and generate_dependency_report() providing insights into the container's state and component relationships.
-4.2. Container.reset() and State
+* **Registration with Dependency Information**: When components are registered (register_type, register_instance, register_factory), their declared dependencies should also be registered with the DependencyGraph.
+* **Real-time Cycle Detection during Resolution**: The container.get(name, resolution_path) method should use the resolution_path to detect circular dependencies as it tries to resolve a component and its transitive dependencies. This provides immediate feedback if a problematic cycle is encountered during instantiation.
+  * Current src/core/container.py does not implement the resolution_path for on-the-fly cycle detection during resolve; cycle detection relies on analyzing the DependencyGraph separately, often done by Bootstrap.
+* **Automatic Constructor Injection**: Resolve and inject dependencies based on constructor parameter names and type hints. If a constructor parameter foo: FooService exists, the container attempts to resolve a component registered as "FooService" or "foo".
+* **Support for Scoped Containers**: The Container design should be suitable for instantiation within different scopes (see Section 5).
+* **Analysis and Reporting**: Methods like analyze_dependencies() and generate_dependency_report() providing insights into the container's state and component relationships.
+
+### 4.2. Container.reset() and State
 
 The reset() method in src/core/container.py clears cached singleton instances. This is vital for scenarios where the same container is reused across multiple isolated operations (e.g., within CleanBacktestEngine for different parameter sets in an optimization), ensuring that subsequent resolutions get fresh singleton instances where appropriate.
 
-5. Scoped Containers for Enhanced State Isolation
+## 5. Scoped Containers for Enhanced State Isolation
+
 For operations requiring stringent state isolation (e.g., individual optimization trials, parallel backtest executions), "Scoped Containers" provide a powerful mechanism.
 
-5.1. Purpose and Mechanism
+### 5.1. Purpose and Mechanism
 
-Purpose: To ensure that each distinct operational scope (like a single backtest run in an optimization loop) has its own completely isolated set of component instances. This definitively prevents state from one scope inadvertently affecting another.
-Mechanism:
-An orchestrator (e.g., an Optimizer, ParallelBacktestManager, or the CleanBacktestEngine) takes responsibility for creating a new, independent Container instance for each operational scope or trial.
-All components necessary for that single trial (e.g., a specific strategy instance, its own portfolio, data handler view, execution simulator) are registered within this new, trial-specific container.
-Dependencies for these components are resolved only from this scoped container.
-Shared services (like a global configuration object, or a connection to a read-only historical database if truly shareable without side effects) could potentially be registered as existing instances passed into the scoped container, but mutable, stateful components critical to the trial's independent execution (Portfolio, Strategy state, etc.) must be fresh instances within the scope.
-Even the EventBus can be a fresh instance within each scoped container, naturally isolating event flow between scopes without needing complex EventContextIsolation rules between scopes. EventContextIsolation would then only be relevant for finer-grained isolation within a single scope/trial, if needed.
-Upon completion of the trial/scope, the entire scoped Container can be discarded, along with all the component instances it created and managed (that are not externally referenced). This provides a very clean and complete teardown of state.
-5.2. Contrast with Component.reset()
+**Purpose**: To ensure that each distinct operational scope (like a single backtest run in an optimization loop) has its own completely isolated set of component instances. This definitively prevents state from one scope inadvertently affecting another.
 
-Component.reset(): Aims to revert a single, existing component instance to a clean state, typically its post-initialization state, while keeping its configuration. This is useful for sequential operations within the same container/scope.
-Scoped Containers: Offer a more robust isolation by providing entirely new component instances within a new container for each scope. This is generally preferred for parallelism or when absolute certainty against state pollution is required (as in optimization trials).
-5.3. Integration with Bootstrap and Orchestrators
+**Mechanism**:
+* An orchestrator (e.g., an Optimizer, ParallelBacktestManager, or the CleanBacktestEngine) takes responsibility for creating a new, independent Container instance for each operational scope or trial.
+* All components necessary for that single trial (e.g., a specific strategy instance, its own portfolio, data handler view, execution simulator) are registered within this new, trial-specific container.
+* Dependencies for these components are resolved only from this scoped container.
+* Shared services (like a global configuration object, or a connection to a read-only historical database if truly shareable without side effects) could potentially be registered as existing instances passed into the scoped container, but mutable, stateful components critical to the trial's independent execution (Portfolio, Strategy state, etc.) must be fresh instances within the scope.
+* Even the EventBus can be a fresh instance within each scoped container, naturally isolating event flow between scopes without needing complex EventContextIsolation rules between scopes. EventContextIsolation would then only be relevant for finer-grained isolation within a single scope/trial, if needed.
+* Upon completion of the trial/scope, the entire scoped Container can be discarded, along with all the component instances it created and managed (that are not externally referenced). This provides a very clean and complete teardown of state.
+
+### 5.2. Contrast with Component.reset()
+
+* **Component.reset()**: Aims to revert a single, existing component instance to a clean state, typically its post-initialization state, while keeping its configuration. This is useful for sequential operations within the same container/scope.
+* **Scoped Containers**: Offer a more robust isolation by providing entirely new component instances within a new container for each scope. This is generally preferred for parallelism or when absolute certainty against state pollution is required (as in optimization trials).
+
+### 5.3. Integration with Bootstrap and Orchestrators
 
 The main Bootstrap system initializes the primary application container.
 For features like optimization, the Optimizer component (itself managed by the primary Bootstrap) would act as an orchestrator. For each optimization trial, the Optimizer (or a helper like CleanBacktestEngine) would:
@@ -115,16 +123,19 @@ Reporting: Generates a report of all validation errors.
 Status: The Bootstrap.validate_dependencies() in src/core/bootstrap.py performs some of these checks (cycles, missing dependencies using the graph). A separate, more comprehensive DependencyValidator class as detailed in the docs is a more advanced feature.
 7. Dependency Injection Patterns & Best Practices
 Constructor Injection: Preferred for mandatory dependencies. Components declare what they need in their __init__ (for type hinting and clarity) but receive them in initialize(context).
-Python
-# class MyComponent(ComponentBase):
-#     # __init__ might hint at dependencies
-#     # def __init__(self, instance_name, config_key, data_service: DataService):
-#     #    super().__init__(instance_name, config_key)
-#     #    self._data_service = data_service # This is conceptual for type hint
 
-#     def initialize(self, context):
-#         super().initialize(context)
-#         self._data_service = context.container.resolve("DataService") # Actual injection
+```python
+class MyComponent(ComponentBase):
+    # __init__ might hint at dependencies
+    # def __init__(self, instance_name, config_key, data_service: DataService):
+    #    super().__init__(instance_name, config_key)
+    #    self._data_service = data_service # This is conceptual for type hint
+
+    def initialize(self, context):
+        super().initialize(context)
+        self._data_service = context.container.resolve("DataService") # Actual injection
+```
+
 Setter/Method Injection: Can be used for optional dependencies, allowing them to be set after construction/initialization if available.
 Interface-Based Dependencies: Depend on abstractions (ABCs, protocols) rather than concrete classes where possible, promoting flexibility. (See 1_CORE_CONCEPTS_AND_ARCHITECTURE.md).
 Explicit Dependency Registration: Components (or their registration metadata) should clearly declare their dependencies for the DependencyGraph. src/core/bootstrap.py's STANDARD_COMPONENTS and ComponentDiscovery mechanisms handle this.

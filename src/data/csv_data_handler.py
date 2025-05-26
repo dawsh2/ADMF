@@ -36,6 +36,13 @@ class CSVDataHandler(ComponentBase):
     
     def _initialize(self):
         """Component-specific initialization logic."""
+        # Debug the configuration
+        if hasattr(self, 'logger') and self.logger:
+            self.logger.debug(f"CSVDataHandler._initialize called for {self.instance_name}")
+            self.logger.debug(f"config_key: {self.config_key}")
+            self.logger.debug(f"component_config: {self.component_config}")
+            self.logger.debug(f"config type: {type(self.config)}")
+            
         # Load configuration
         self._symbol = self.get_specific_config("symbol")
         self._csv_file_path = self.get_specific_config("csv_file_path")

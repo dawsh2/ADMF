@@ -153,3 +153,22 @@ The use of Scoped Containers, as demonstrated by `CleanBacktestEngine`, is a key
 * **Clear Dependency Chains**: Define dependencies explicitly so the `DependencyGraph` can accurately determine initialization and teardown order.
 * **Minimal `main.py`**: The main entry point (`main.py`) should delegate almost all logic to `ApplicationLauncher` and `Bootstrap`.
 * **Idempotent Lifecycle Methods**: Ensure `initialize`, `start`, `stop`, `reset`, and `teardown` can be safely called if the component is already in the target state or can handle repeated calls gracefully.
+
+## 7. Example Bootstrap Configuration
+
+```python
+# Example bootstrap configuration
+bootstrap_config = {
+    "run_mode": "BACKTEST",
+    "components": {
+        "data_handler": {
+            "class": "CSVDataHandler",
+            "config": {"file_path": "data/prices.csv"}
+        },
+        "strategy": {
+            "class": "MovingAverageStrategy",
+            "config": {"fast_period": 10, "slow_period": 30}
+        }
+    }
+}
+```

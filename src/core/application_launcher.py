@@ -158,7 +158,15 @@ class ApplicationLauncher:
         This is the key insight - the config file determines what runs,
         not command line arguments.
         """
-        # Check if config explicitly sets the application mode
+        # Check if config explicitly sets the run mode (top-level)
+        run_mode = config.get("run_mode")
+        if run_mode:
+            try:
+                return RunMode(run_mode)
+            except ValueError:
+                self.logger.warning(f"Invalid run_mode '{run_mode}' in config")
+                
+        # Check if config explicitly sets the application mode (legacy)
         app_mode = config.get("system.application_mode")
         if app_mode:
             try:

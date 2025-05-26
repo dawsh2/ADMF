@@ -102,18 +102,16 @@ class ComponentBase(ABC):
         self._context = context
         
         # Get component-specific config
-        if self.config_key and self.config:
-            # Handle nested config keys like 'components.data_handler_csv'
-            if '.' in self.config_key:
-                parts = self.config_key.split('.')
-                config_section = self.config
-                for part in parts:
-                    config_section = config_section.get(part, {})
-                    if not isinstance(config_section, dict):
-                        break
-                self.component_config = config_section if isinstance(config_section, dict) else {}
-            else:
+        # First check if we have an override config from Bootstrap
+        if hasattr(self, '_bootstrap_override_config'):
+            self.component_config = self._bootstrap_override_config
+        elif self.config_key and self.config:
+            # Handle both dict and SimpleConfigLoader
+            if hasattr(self.config, 'get'):
+                # It's either a dict or SimpleConfigLoader
                 self.component_config = self.config.get(self.config_key, {})
+            else:
+                self.component_config = {}
         else:
             self.component_config = {}
             

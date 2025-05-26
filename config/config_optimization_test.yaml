@@ -1,0 +1,75 @@
+# Test configuration for optimization
+run_mode: optimization
+
+# Optimization configuration
+optimization:
+  strategy_name: strategy  # Name of strategy component to optimize
+  method: grid            # Optimization method: grid, random
+  metric: sharpe_ratio    # Metric to optimize: sharpe_ratio, total_return, max_drawdown
+  results_dir: optimization_results
+  
+  # Optional: limit iterations for testing
+  n_iterations: 20        # For random search
+
+# Components configuration
+components:
+  # Data handler
+  data_handler:
+    class_path: src.data.csv_data_handler.CSVDataHandler
+    config:
+      csv_file_path: data/SPY_1min.csv
+      symbol: SPY
+      bars_limit: 1000  # Limit data for faster testing
+      train_test_split:
+        train_ratio: 0.8
+
+  # Strategy - using the new composite architecture
+  strategy:
+    class_path: src.strategy.implementations.composite_ma_strategy.CompositeMAStrategy
+    config:
+      fast_ma_period: 10
+      slow_ma_period: 20
+      use_rsi_filter: false  # Start simple
+      aggregation_method: weighted
+
+  # Portfolio manager
+  portfolio_manager:
+    class_path: src.risk.basic_portfolio.BasicPortfolio
+    config:
+      initial_cash: 100000
+
+  # Risk manager
+  risk_manager:
+    class_path: src.risk.basic_risk_manager.BasicRiskManager
+    config:
+      target_trade_quantity: 100
+      portfolio_manager_key: portfolio_manager
+
+  # Execution handler
+  execution_handler:
+    class_path: src.execution.simulated_execution_handler.SimulatedExecutionHandler
+    config:
+      default_quantity: 100
+      commission: 0.005
+      passthrough: false
+
+  # Backtest runner (used by optimization)
+  backtest_runner:
+    class_path: src.execution.backtest_runner.BacktestRunner
+    config:
+      use_test_dataset: false
+      close_positions_at_end: true
+
+  # Optimizer component (named 'optimizer' as expected by Bootstrap)
+  optimizer:
+    class_path: src.execution.optimization_entrypoint.OptimizationEntrypoint
+    config:
+      strategy_name: strategy
+      method: grid
+      metric: total_return  # Simple metric for testing
+      regime_specific: false
+
+# Logging configuration
+logging:
+  level: INFO
+  format: "%(asctime)s - %(name)s - %(levelname)s - %(message)s"

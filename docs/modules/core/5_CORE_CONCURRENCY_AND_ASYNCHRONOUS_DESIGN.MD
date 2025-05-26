@@ -39,20 +39,23 @@ class ThreadSafeDict(Generic[K, V]):
         with self._lock:
             self._dict[key] = value
     # ... other methods (pop, clear, update, items, etc.) would also be wrapped with self._lock ...
-2.3. Thread-Safe Component Design Guidelines
+```
 
-Components managing shared state that can be accessed concurrently must implement internal locking.
-Critical sections should be minimized to reduce contention.
-Favor thread-safe collections or design components to minimize shared mutable state where possible.
-2.4. Atomic Operations
+### 2.3. Thread-Safe Component Design Guidelines
+
+* Components managing shared state that can be accessed concurrently must implement internal locking.
+* Critical sections should be minimized to reduce contention.
+* Favor thread-safe collections or design components to minimize shared mutable state where possible.
+
+### 2.4. Atomic Operations
 
 For simple state updates (e.g., counters, flags), using Python's atomic operations (like for int assignment, list.append) or specialized atomic classes (like AtomicCounter from the design) can be more efficient than explicit locks. AtomicCounter would use an internal lock for its operations.
 
-2.5. Thread-Safe Lazy Initialization
+### 2.5. Thread-Safe Lazy Initialization
 
 A double-checked locking pattern or a similar mechanism should be used for lazy initialization of shared resources in a thread-safe manner.
 
-Python
+```python
 class LazyInitializer:
     def __init__(self, initializer):
         self._initializer = initializer
@@ -68,14 +71,17 @@ class LazyInitializer:
                     self._value = self._initializer()
                     self._initialized = True
         return self._value
-2.6. Thread Safety Best Practices
+```
 
-Lock Ordering: Establish and adhere to a global order for acquiring multiple locks to prevent deadlocks.
-Minimize Lock Scope: Hold locks for the shortest possible duration.
-Lock Granularity: Choose appropriate lock granularity (coarse vs. fine-grained) based on contention and complexity.
-Immutable Objects: Use immutable objects for shared data where possible to eliminate the need for locks.
-Thread-Local Storage: Use threading.local() for data that should be specific to each thread.
-3. Context-Aware Thread Safety [Idealized Design]
+### 2.6. Thread Safety Best Practices
+
+* **Lock Ordering**: Establish and adhere to a global order for acquiring multiple locks to prevent deadlocks.
+* **Minimize Lock Scope**: Hold locks for the shortest possible duration.
+* **Lock Granularity**: Choose appropriate lock granularity (coarse vs. fine-grained) based on contention and complexity.
+* **Immutable Objects**: Use immutable objects for shared data where possible to eliminate the need for locks.
+* **Thread-Local Storage**: Use threading.local() for data that should be specific to each thread.
+
+## 3. Context-Aware Thread Safety [Idealized Design]
 To optimize performance in single-threaded scenarios (like basic backtesting) while ensuring safety in multi-threaded ones (optimization, live trading), a context-aware thread safety mechanism is designed.
 
 3.1. Motivation
@@ -88,30 +94,34 @@ An ExecutionContext class (distinct from EventContext which is for event flow) w
 The Bootstrap system would establish the appropriate ExecutionContext based on the RunMode.
 Components can query this context to determine if full thread-safety measures are required.
 Your src/core/bootstrap.py defines RunMode and SystemContext. SystemContext.run_mode can be used to infer the threading requirements, but a more explicit ThreadingMode within SystemContext or a dedicated ExecutionContext would align closer with this design.
-3.3. ThreadSafetyFactory
 
-A factory responsible for creating synchronization primitives (locks, collections) appropriate for the current ExecutionContext's threading mode.
-If in SINGLE_THREADED mode, it might return standard Python collections and a DummyLock.
-If in MULTI_THREADED mode, it returns thread-safe collections (like the idealized ThreadSafeDict) and real threading.RLock instances.
-3.4. DummyLock
+### 3.3. ThreadSafetyFactory
+
+* A factory responsible for creating synchronization primitives (locks, collections) appropriate for the current ExecutionContext's threading mode.
+* If in SINGLE_THREADED mode, it might return standard Python collections and a DummyLock.
+* If in MULTI_THREADED mode, it returns thread-safe collections (like the idealized ThreadSafeDict) and real threading.RLock instances.
+
+### 3.4. DummyLock
 
 A no-operation lock implementation for single-threaded contexts to avoid locking overhead.
 
-Python
+```python
 class DummyLock:
     def __enter__(self): return self
     def __exit__(self, exc_type, exc_val, exc_tb): pass
     def acquire(self, blocking=True, timeout=-1): return True
     def release(self): pass
-3.5. Context-Aware Collections
+```
+
+### 3.5. Context-Aware Collections
 
 Collections that internally use the ThreadSafetyFactory or directly check the ExecutionContext to decide whether to apply locking for their operations.
 
-3.6. Thread Detection Utility
+### 3.6. Thread Detection Utility
 
 A utility (ThreadDetector) can be used for runtime checks of thread activity if the AUTO_DETECT threading mode is implemented.
 
-4. Parallel Execution Primitives [Conceptual from docs/core/concurrency/PARALLEL_EXECUTION.md]
+## 4. Parallel Execution Primitives [Conceptual from docs/core/concurrency/PARALLEL_EXECUTION.md]
 While full parallel execution frameworks for optimization or backtesting are higher-level, the Core module might provide or rely on fundamental primitives that enable such parallelism.
 
 Distinction between Thread-Based and Process-Based Parallelism:
