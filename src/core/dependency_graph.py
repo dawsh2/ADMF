@@ -226,9 +226,9 @@ class DependencyGraph:
         in_degree = {node: 0 for node in self._nodes}
         
         # Calculate in-degrees
+        # For each node, count how many nodes it depends on (not how many depend on it)
         for node in self._nodes:
-            for dep in self._edges.get(node, set()):
-                in_degree[dep] += 1
+            in_degree[node] = len(self._edges.get(node, set()))
                 
         # Queue of nodes with no dependencies
         queue = [node for node, degree in in_degree.items() if degree == 0]
@@ -240,13 +240,20 @@ class DependencyGraph:
             node = queue.pop(0)
             result.append(node)
             
-            # Remove edges from this node
+            # For each node that depends on the current node
             for dependent in self._reverse_edges.get(node, set()):
-                in_degree[dependent] -= 1
-                if in_degree[dependent] == 0:
+                # Decrease its in-degree (one less dependency to wait for)
+                deps_remaining = sum(1 for dep in self._edges.get(dependent, set()) if dep not in result)
+                if deps_remaining == 0 and dependent not in result:
                     queue.append(dependent)
                     
         if len(result) != len(self._nodes):
+            # Debug information
+            missing = set(self._nodes.keys()) - set(result)
+            self.logger.error(f"Topological sort incomplete. Processed: {len(result)}, Total nodes: {len(self._nodes)}")
+            self.logger.error(f"Missing nodes: {missing}")
+            self.logger.error(f"In-degrees: {in_degree}")
+            self.logger.error(f"Edges: {self._edges}")
             raise ValueError("Failed to determine initialization order - graph may have cycles")
             
         return result

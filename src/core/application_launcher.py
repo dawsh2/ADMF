@@ -184,15 +184,7 @@ class ApplicationLauncher:
         
     def _configure_entrypoint(self, bootstrap: Bootstrap, run_mode: RunMode):
         """Configure AppRunner as the entrypoint for the current run mode."""
-        # Ensure the config has the right structure
-        config = bootstrap.get_context().config
-        
-        if not config.get("system"):
-            config.set("system", {})
-        if not config.get("system.run_modes"):
-            config.set("system.run_modes", {})
-            
-        # Set AppRunner as the entrypoint for this mode
-        config.set(f"system.run_modes.{run_mode.value}", {
-            "entrypoint_component": "app_runner"
-        })
+        # Since SimpleConfigLoader is read-only, we can't modify config at runtime
+        # The entrypoint should be configured in the YAML file or handled differently
+        # For now, we'll skip this and rely on Bootstrap to handle the entrypoint
+        pass

@@ -12,6 +12,8 @@ The module supports a component-based architecture where strategies can be built
 
 **All strategy components in ADMF-Trader are designed to be optimizable by default.** This is a fundamental architectural decision that ensures seamless integration with the optimization framework. Rather than using separate mixins or interfaces, the optimization methods are built directly into the base classes of all strategy components.
 
+**Important: While all components CAN be optimized, not all components HAVE parameters.** The base classes provide sensible default implementations of the optimization methods that assume no parameters. Components with parameters override these defaults.
+
 ### B. Base Strategy (`StrategyBase` or `Strategy`)
 
 * **Purpose**: Provides a foundational class for all trading strategies, defining a common interface and functionality for event handling, parameter management, signal generation, and optimization.
@@ -22,12 +24,13 @@ The module supports a component-based architecture where strategies can be built
     * Lifecycle methods: Manages its lifecycle through `initialize`, `reset`, and `teardown` methods.
     * Indicator management: Handles the update of internal indicators via `_update_indicators`.
     * Component Composition: Supports building complex strategies by adding sub-components (Indicators, Features, Rules, or other Strategies) using an `add_component` method.
-* **Built-in Optimization Interface** (required for all strategies):
-    * `get_parameter_space()`: Abstract method that returns a dictionary defining optimizable parameters and their possible values (ranges, discrete choices, etc.)
-    * `set_parameters(params)`: Applies a set of parameters to the strategy
-    * `get_parameters()`: Returns current parameter values as a dictionary
-    * `validate_parameters(params)`: Validates that a parameter set is valid, returns (bool, error_message)
-    * These methods ensure every strategy can seamlessly work with the `OptimizationManager` and related optimization components
+* **Built-in Optimization Interface**:
+    * `get_parameter_space()`: Returns a dictionary defining optimizable parameters and their possible values. Default: returns {} (no parameters)
+    * `set_parameters(params)`: Applies a set of parameters to the strategy. Default: no-op
+    * `get_parameters()`: Returns current parameter values as a dictionary. Default: returns {}
+    * `validate_parameters(params)`: Validates that a parameter set is valid, returns (bool, error_message). Default: returns (True, "")
+    * Components with parameters should override these methods as needed
+    * This design ensures every strategy can work with the optimization framework, even if it has no parameters to optimize
 
 ### C. Strategy Building Blocks
 
@@ -39,11 +42,11 @@ Strategies are constructed using several types of composable components, each wi
         * `calculate(value, timestamp)`: Initial calculation
         * `update(value, timestamp)`: Incremental updates
         * Properties: `value` (current reading), `ready` (has enough data)
-    * **Built-in Optimization Interface**:
-        * `get_parameter_space()`: Returns optimizable parameters (e.g., {'period': [10, 20, 30]})
-        * `set_parameters(params)`: Updates indicator parameters
-        * `get_parameters()`: Returns current parameters
-        * `validate_parameters(params)`: Ensures valid parameter combinations
+    * **Built-in Optimization Interface** (with default implementations):
+        * `get_parameter_space()`: Returns optimizable parameters (e.g., {'period': [10, 20, 30]}). Default: {}
+        * `set_parameters(params)`: Updates indicator parameters. Default: no-op
+        * `get_parameters()`: Returns current parameters. Default: {}
+        * `validate_parameters(params)`: Ensures valid parameter combinations. Default: (True, "")
 
 2.  **Features (`FeatureBase`)**:
     * **Purpose**: Represent higher-level market characteristics derived from one or more indicators or raw market data (e.g., Trend Strength, Momentum, identified Regime).
@@ -54,17 +57,18 @@ Strategies are constructed using several types of composable components, each wi
     * **Core Interface**:
         * `evaluate(data)`: Returns (is_triggered, signal_strength) tuple
         * `weight`: Property for use in ensemble strategies
-    * **Built-in Optimization Interface**:
-        * `get_parameter_space()`: Defines rule parameters (thresholds, windows, etc.)
-        * `set_parameters(params)`: Updates rule parameters
-        * `get_parameters()`: Returns current parameters
-        * `validate_parameters(params)`: Validates rule-specific constraints
+    * **Built-in Optimization Interface** (with default implementations):
+        * `get_parameter_space()`: Defines rule parameters (thresholds, windows, etc.). Default: {}
+        * `set_parameters(params)`: Updates rule parameters. Default: no-op
+        * `get_parameters()`: Returns current parameters. Default: {}
+        * `validate_parameters(params)`: Validates rule-specific constraints. Default: (True, "")
 
 ### D. Example Implementation
 
 ```python
+# Example 1: Rule with parameters (overrides optimization methods)
 class MACrossoverRule(RuleBase):
-    """Example rule showing built-in optimization support"""
+    """Example rule with parameters showing optimization support"""
     
     def __init__(self, fast_window=10, slow_window=30):
         super().__init__()
@@ -90,13 +94,29 @@ class MACrossoverRule(RuleBase):
         """Trading logic implementation"""
         # ... implementation
         pass
+
+# Example 2: Rule without parameters (uses default optimization methods)
+class BuyOnMondayRule(RuleBase):
+    """Example rule with no parameters - uses default optimization methods"""
+    
+    def evaluate(self, data):
+        """Buy signal on Mondays only"""
+        is_monday = data['timestamp'].weekday() == 0
+        return is_monday, 1.0 if is_monday else 0.0
+    
+    # No need to override optimization methods - defaults handle it:
+    # get_parameter_space() returns {}
+    # set_parameters() does nothing
+    # get_parameters() returns {}
+    # validate_parameters() returns (True, "")
 ```
 
 This design ensures that:
-1. **Every component is optimizable** - No need to check if a component supports optimization
+1. **Every component is optimizable** - Even parameter-less components work with the optimization framework
 2. **Consistent interface** - All components use the same optimization methods
-3. **Type safety** - The abstract base classes enforce implementation of optimization methods
-4. **Seamless integration** - Components automatically work with the optimization framework
+3. **Minimal boilerplate** - Components without parameters don't need to implement empty methods
+4. **Type safety** - The base classes provide the optimization interface
+5. **Seamless integration** - The optimization framework handles components with or without parameters gracefully
 
 ### E. Composite and Ensemble Strategies
 

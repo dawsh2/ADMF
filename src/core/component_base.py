@@ -256,7 +256,8 @@ class ComponentBase(ABC):
         self.initialized = False
         self.running = False
         self._state = ComponentState.DISPOSED
-        self.logger.info(f"Component {self.instance_name} teardown complete")
+        if self.logger:
+            self.logger.info(f"Component {self.instance_name} teardown complete")
         
     def dispose(self) -> None:
         """Alias for teardown() for compatibility with test."""

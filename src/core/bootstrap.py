@@ -36,7 +36,7 @@ import logging
 from .config import SimpleConfigLoader
 from .container import Container
 from .event_bus import EventBus
-from .logging_setup import setup_logger
+from .logging_setup import setup_logging
 
 # Import required components based on COMPONENT_ARCHITECTURE.md
 from ..data.csv_data_handler import CSVDataHandler
@@ -196,65 +196,65 @@ class Bootstrap:
     STANDARD_COMPONENTS = {
         'data_handler': {
             'class': 'CSVDataHandler',
-            'module': 'data.csv_data_handler',
+            'module': 'src.data.csv_data_handler',
             'dependencies': ['event_bus'],
             'config_key': 'components.data_handler_csv'
         },
         'execution_handler': {
             'class': 'SimulatedExecutionHandler',
-            'module': 'execution.simulated_execution_handler',
+            'module': 'src.execution.simulated_execution_handler',
             'dependencies': ['event_bus', 'portfolio_manager'],
             'config_key': 'components.simulated_execution_handler'
         },
         'portfolio_manager': {  # Note: using portfolio_manager to match existing code
             'class': 'BasicPortfolio',
-            'module': 'risk.basic_portfolio',
+            'module': 'src.risk.basic_portfolio',
             'dependencies': ['event_bus', 'container'],
             'config_key': 'components.basic_portfolio'
         },
         'risk_manager': {
             'class': 'BasicRiskManager',
-            'module': 'risk.basic_risk_manager',
+            'module': 'src.risk.basic_risk_manager',
             'dependencies': ['event_bus', 'portfolio_manager', 'container'],
             'config_key': 'components.basic_risk_manager'
         },
         'strategy': {
             'class': 'RegimeAdaptiveStrategy',  # Default for production
-            'module': 'strategy.regime_adaptive_strategy',
+            'module': 'src.strategy.regime_adaptive_strategy',
             'dependencies': ['event_bus', 'data_handler', 'container'],
             'config_key': 'components.regime_adaptive_strategy'
         },
         'MyPrimaryRegimeDetector': {  # Using exact name from current code
             'class': 'RegimeDetector',
-            'module': 'strategy.regime_detector',
+            'module': 'src.strategy.regime_detector',
             'dependencies': ['event_bus'],
             'config_key': 'components.MyPrimaryRegimeDetector',
             'required': False
         },
         'optimizer': {
             'class': 'OptimizationRunner',
-            'module': 'strategy.optimization.optimization_runner',
+            'module': 'src.strategy.optimization.optimization_runner',
             'dependencies': ['event_bus', 'container'],
             'config_key': 'components.optimizer',
             'required': False
         },
         'genetic_optimizer': {
             'class': 'GeneticOptimizer',
-            'module': 'strategy.optimization.genetic_optimizer',
+            'module': 'src.strategy.optimization.genetic_optimizer',
             'dependencies': ['event_bus', 'container'],
             'config_key': 'components.genetic_optimizer',
             'required': False
         },
         'signal_consumer': {
             'class': 'DummyComponent',
-            'module': 'core.dummy_component',
+            'module': 'src.core.dummy_component',
             'dependencies': ['event_bus'],
             'config_key': 'components.dummy_service',
             'required': False
         },
         'order_consumer': {
             'class': 'DummyComponent', 
-            'module': 'core.dummy_component',
+            'module': 'src.core.dummy_component',
             'dependencies': ['event_bus'],
             'config_key': 'components.dummy_service',
             'required': False
@@ -332,11 +332,14 @@ class Bootstrap:
         self._run_hooks('pre_initialize', config=config, run_mode=run_mode)
         
         # Setup logging first (LOGGING_IMPLEMENTATION.md)
-        logger = setup_logger(
-            "ADMF",
-            log_level=config.get("logging", {}).get("level", "INFO"),
-            log_file=config.get("logging", {}).get("file", None)
+        # For now, set up basic logging until we have proper config loader
+        import logging
+        log_level = config.get("logging", {}).get("level", "INFO")
+        logging.basicConfig(
+            level=getattr(logging, log_level.upper()),
+            format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
         )
+        logger = logging.getLogger("bootstrap")
         
         # Create container if not provided
         if container is None:
@@ -358,10 +361,15 @@ class Bootstrap:
         # Register core services in container
         container.register('config', config)
         container.register('event_bus', event_bus)
+        container.register('container', container)  # Register container itself
         container.register('logger', logger)
         container.register('context', self.context)
         
         logger.info(f"System initialized in {run_mode.value} mode")
+        
+        # Add core services to dependency graph so components can depend on them
+        self.dependency_graph.add_component('event_bus', dependencies=[], metadata={'required': True})
+        self.dependency_graph.add_component('container', dependencies=[], metadata={'required': True})
         
         # Run post-initialization hooks
         self._run_hooks('post_initialize', context=self.context)
@@ -411,7 +419,7 @@ class Bootstrap:
                 
             # Create component with minimal constructor
             # Check if it's a new-style component (inherits from ComponentBase)
-            from core.component_base import ComponentBase
+            from src.core.component_base import ComponentBase
             
             if issubclass(component_class, ComponentBase):
                 # New style: minimal constructor
@@ -475,6 +483,15 @@ class Bootstrap:
             raise RuntimeError(f"Dependency validation failed: {errors}")
             
         # Get initialization order from dependency graph
+        self.context.logger.debug(f"Components in graph: {list(self.dependency_graph._nodes.keys())}")
+        self.context.logger.debug(f"Components created: {list(self.components.keys())}")
+        
+        # Add core services as pseudo-components for dependency resolution
+        if 'event_bus' not in self.components:
+            self.components['event_bus'] = self.context.event_bus
+        if 'container' not in self.components:
+            self.components['container'] = self.context.container
+            
         self.initialization_order = self.dependency_graph.get_initialization_order()
         
         self.context.logger.info(f"Initializing {len(self.initialization_order)} components")
@@ -495,8 +512,18 @@ class Bootstrap:
             # Check if component has initialize method
             if hasattr(component, 'initialize'):
                 try:
-                    # New style: pass context to initialize
-                    component.initialize(self.context)
+                    # New style: pass context dictionary to initialize
+                    init_context = {
+                        'config': self.context.config,
+                        'container': self.context.container,
+                        'event_bus': self.context.event_bus,
+                        'logger': self.context.logger,
+                        # Add any component-specific dependencies
+                        'portfolio_manager': self.components.get('portfolio_manager'),
+                        'data_handler': self.components.get('data_handler'),
+                        'regime_detector': self.components.get('MyPrimaryRegimeDetector')
+                    }
+                    component.initialize(init_context)
                     self.context.logger.debug(f"Initialized component: {name}")
                 except TypeError:
                     # Legacy style: might need different args
@@ -552,19 +579,19 @@ class Bootstrap:
         Based on BOOTSTRAP_SYSTEM.md run mode configurations.
         """
         # Base components needed for all modes
-        base_components = ['data_handler', 'portfolio', 'event_bus']
+        base_components = ['data_handler', 'portfolio_manager']  # event_bus is not a component, it's a service
         
         if run_mode == RunMode.PRODUCTION:
             # Production needs everything except optimizer
-            return base_components + ['execution_handler', 'risk_manager', 'strategy', 'regime_detector']
+            return base_components + ['execution_handler', 'risk_manager', 'strategy', 'MyPrimaryRegimeDetector']
             
         elif run_mode == RunMode.OPTIMIZATION:
             # Optimization needs strategy and optimizer, but not execution
-            return base_components + ['strategy', 'regime_detector', 'optimizer']
+            return base_components + ['strategy', 'MyPrimaryRegimeDetector', 'optimizer']
             
         elif run_mode == RunMode.BACKTEST:
             # Backtest needs everything except live execution
-            return base_components + ['execution_handler', 'risk_manager', 'strategy', 'regime_detector']
+            return base_components + ['execution_handler', 'risk_manager', 'strategy', 'MyPrimaryRegimeDetector']
             
         elif run_mode == RunMode.TEST:
             # Test mode - minimal components
@@ -985,7 +1012,11 @@ class Bootstrap:
         for component_name in self.components:
             deps = self.dependency_graph.get_dependencies(component_name)
             for dep in deps:
-                if dep not in self.components:
+                # Check if dependency exists in components or container
+                # Check if it's registered in container by trying to see if it's in instances or providers
+                in_container = (dep in self.context.container._instances or 
+                               dep in self.context.container._providers)
+                if dep not in self.components and not in_container:
                     # Check if dependency is required
                     dep_metadata = self.dependency_graph.get_component_metadata(dep)
                     if dep_metadata.get('required', True):
