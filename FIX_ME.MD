@@ -20,4 +20,27 @@
 
 ---
 
+## Optimization Mode Not Implemented in New Architecture
+**Date Found**: 2025-05-25
+**Severity**: Medium
+**Description**:
+- The new ComponentBase architecture doesn't have a working optimization mode
+- OptimizationRunner exists but uses a complex framework that's not fully implemented
+- Need to create a proper optimization entrypoint that can:
+  - Run multiple backtest iterations with different parameters
+  - Reset components between iterations
+  - Track and compare results
+  - Save best parameters
+
+**Workaround**:
+- Use the original `main.py` with `--optimize` flag for optimization tasks
+- Example: `python main.py --config config/config.yaml --optimize --bars 100`
+
+**Files to Update**:
+- Create new `src/execution/optimization_entrypoint.py`
+- Update `src/core/bootstrap.py` to support optimization mode properly
+- Consider using scoped contexts for isolation between iterations
+
+---
+
 ## Add new issues below this line
