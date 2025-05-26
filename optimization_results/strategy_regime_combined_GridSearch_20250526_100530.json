@@ -1,0 +1,92 @@
+{
+  "strategy": "strategy",
+  "method": "GridSearch",
+  "metric": "sharpe_ratio",
+  "timestamp": "20250526_100530",
+  "regimes": {
+    "trending_up": {
+      "best_params": {
+        "weights.ma_crossover": 1.0,
+        "weights.rsi_filter": 1.0,
+        "indicators.fast_ma.lookback_period": 5,
+        "indicators.slow_ma.lookback_period": 20,
+        "indicators.rsi.lookback_period": 14,
+        "rules.ma_crossover.generate_exit_signals": true,
+        "rules.ma_crossover.min_separation": 0.0001,
+        "rules.rsi_filter.buy_threshold": 30.0,
+        "rules.rsi_filter.sell_threshold": 70.0
+      },
+      "best_score": 8.459723574354523,
+      "metadata": {
+        "win_rate": 0.6470588235294118,
+        "total_return": 2792.9599999999373,
+        "trade_count": 153,
+        "regime": "trending_up",
+        "timestamp": "2025-05-26T10:05:30.802741"
+      }
+    },
+    "trending_down": {
+      "best_params": {
+        "weights.ma_crossover": 1.0,
+        "weights.rsi_filter": 1.0,
+        "indicators.fast_ma.lookback_period": 5,
+        "indicators.slow_ma.lookback_period": 20,
+        "indicators.rsi.lookback_period": 14,
+        "rules.ma_crossover.generate_exit_signals": true,
+        "rules.ma_crossover.min_separation": 0.0001,
+        "rules.rsi_filter.buy_threshold": 30.0,
+        "rules.rsi_filter.sell_threshold": 70.0
+      },
+      "best_score": 5.697844608236458,
+      "metadata": {
+        "win_rate": 0.49411764705882355,
+        "total_return": 2356.3199999999997,
+        "trade_count": 170,
+        "regime": "trending_down",
+        "timestamp": "2025-05-26T10:05:30.802872"
+      }
+    },
+    "volatile": {
+      "best_params": {
+        "weights.ma_crossover": 1.0,
+        "weights.rsi_filter": 1.0,
+        "indicators.fast_ma.lookback_period": 5,
+        "indicators.slow_ma.lookback_period": 20,
+        "indicators.rsi.lookback_period": 14,
+        "rules.ma_crossover.generate_exit_signals": true,
+        "rules.ma_crossover.min_separation": 0.0001,
+        "rules.rsi_filter.buy_threshold": 30.0,
+        "rules.rsi_filter.sell_threshold": 70.0
+      },
+      "best_score": -12.45740980262768,
+      "metadata": {
+        "win_rate": 0.25,
+        "total_return": -364.76999999998725,
+        "trade_count": 8,
+        "regime": "volatile",
+        "timestamp": "2025-05-26T10:05:30.803004"
+      }
+    },
+    "default": {
+      "best_params": {
+        "weights.ma_crossover": 1.0,
+        "weights.rsi_filter": 1.0,
+        "indicators.fast_ma.lookback_period": 5,
+        "indicators.slow_ma.lookback_period": 20,
+        "indicators.rsi.lookback_period": 14,
+        "rules.ma_crossover.generate_exit_signals": true,
+        "rules.ma_crossover.min_separation": 0.0001,
+        "rules.rsi_filter.buy_threshold": 30.0,
+        "rules.rsi_filter.sell_threshold": 70.0
+      },
+      "best_score": -9.886485233674033,
+      "metadata": {
+        "win_rate": 0.15498154981549817,
+        "total_return": -5715.240000000032,
+        "trade_count": 271,
+        "regime": "default",
+        "timestamp": "2025-05-26T10:05:30.803136"
+      }
+    }
+  }
+}

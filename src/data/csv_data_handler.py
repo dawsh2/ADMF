@@ -136,7 +136,7 @@ class CSVDataHandler(ComponentBase):
 
             # Step 1: Apply --bars limit to the initially loaded data
             self._data_for_run = df_loaded # Start with the full loaded data
-            self.logger.debug(f"_cli_max_bars = {self._cli_max_bars}, len(df_loaded) = {len(df_loaded)}")
+            self.logger.warning(f"BARS_DEBUG: _cli_max_bars = {self._cli_max_bars}, len(df_loaded) = {len(df_loaded)}")
             if self._cli_max_bars is not None and self._cli_max_bars != 0:
                 if self._cli_max_bars > 0:
                     # Positive value: take first N bars
@@ -215,8 +215,21 @@ class CSVDataHandler(ComponentBase):
         self._cli_max_bars = max_bars
         self.logger.info(f"CSVDataHandler max bars set to: {max_bars}")
         
+        # CRITICAL: If train/test split was already applied to the FULL dataset,
+        # we need to re-apply it to the LIMITED dataset
+        if self._train_test_split_ratio is not None and self._data_for_run is not None:
+            # Re-limit the base dataset
+            original_size = len(self._data_for_run)
+            if max_bars and max_bars > 0 and original_size > max_bars:
+                self._data_for_run = self._data_for_run.head(max_bars)
+                self.logger.info(f"Re-limiting base dataset from {original_size} to {len(self._data_for_run)} bars before re-splitting")
+                
+                # Re-apply the train/test split to the newly limited data
+                self.logger.info(f"Re-applying train/test split ratio {self._train_test_split_ratio} to limited dataset")
+                self.apply_train_test_split(self._train_test_split_ratio)
+        
         # If we already have an active dataset, we need to re-limit it
-        if self._active_df is not None and max_bars:
+        elif self._active_df is not None and max_bars:
             original_size = len(self._active_df)
             if max_bars > 0 and original_size > max_bars:
                 self._active_df = self._active_df.head(max_bars)

@@ -12,6 +12,7 @@ from typing import Optional, Dict, Any
 from ..core.component_base import ComponentBase
 from ..core.exceptions import ComponentError, DependencyNotFoundError
 from ..core.event import Event, EventType
+from ..core.data_configurator import DataConfigurator
 
 
 class BacktestRunner(ComponentBase):
@@ -47,6 +48,9 @@ class BacktestRunner(ComponentBase):
         else:
             self.use_test_dataset = self.component_config.get('use_test_dataset', False)
         self.close_positions_at_end = self.component_config.get('close_positions_at_end', True)
+        
+        # Initialize the data configurator
+        self.data_configurator = DataConfigurator(self.logger)
         
         self.logger.info(
             f"BacktestRunner initialized. Max bars: {self.max_bars}, "
@@ -106,45 +110,20 @@ class BacktestRunner(ComponentBase):
         return component
         
     def _configure_data_handler(self, data_handler) -> None:
-        """Configure the data handler for backtest."""
-        # IMPORTANT: Apply max_bars BEFORE train/test split to match optimization behavior
-        # This ensures we split the same limited dataset
-        if self.max_bars and hasattr(data_handler, 'set_max_bars'):
-            self.logger.info(f"Limiting to {self.max_bars} bars BEFORE train/test split")
-            data_handler.set_max_bars(self.max_bars)
-        
-        # Now check if we need to apply train/test split
-        if self.dataset_override in ['train', 'test']:
-            # User wants train or test data, ensure split is applied
-            if hasattr(data_handler, '_train_test_split_ratio') and data_handler._train_test_split_ratio:
-                # Split ratio already configured, apply it
-                if hasattr(data_handler, 'apply_train_test_split'):
-                    self.logger.info(f"Applying train/test split with ratio {data_handler._train_test_split_ratio}")
-                    data_handler.apply_train_test_split(data_handler._train_test_split_ratio)
-            else:
-                self.logger.warning("Dataset 'train' or 'test' requested but no train_test_split_ratio configured")
-        
-        # Set active dataset
-        if hasattr(data_handler, 'set_active_dataset'):
-            # Check if we have train/test split
-            has_train_test_split = (hasattr(data_handler, 'train_df_exists_and_is_not_empty') and 
-                                   data_handler.train_df_exists_and_is_not_empty and
-                                   hasattr(data_handler, 'test_df_exists_and_is_not_empty') and 
-                                   data_handler.test_df_exists_and_is_not_empty)
+        """Configure the data handler for backtest using centralized DataConfigurator."""
+        # Get train/test split ratio from data handler if configured
+        train_test_split_ratio = None
+        if hasattr(data_handler, '_train_test_split_ratio'):
+            train_test_split_ratio = data_handler._train_test_split_ratio
             
-            if has_train_test_split:
-                if self.use_test_dataset:
-                    self.logger.info("Using test dataset for backtest")
-                    data_handler.set_active_dataset('test')
-                else:
-                    self.logger.info("Using train dataset for backtest")
-                    data_handler.set_active_dataset('train')
-            else:
-                if self.dataset_override:
-                    self.logger.info(f"Requested dataset '{self.dataset_override}' but no train/test split available, using full dataset")
-                else:
-                    self.logger.info("No train/test split available, using full dataset")
-                data_handler.set_active_dataset('full')
+        # Use DataConfigurator for consistent configuration
+        self.data_configurator.configure(
+            data_handler=data_handler,
+            max_bars=self.max_bars,
+            train_test_split_ratio=train_test_split_ratio,
+            dataset=self.dataset_override,
+            use_test_dataset=self.use_test_dataset
+        )
             
     def _trigger_data_streaming(self, data_handler) -> None:
         """Manually trigger data streaming for backtest."""

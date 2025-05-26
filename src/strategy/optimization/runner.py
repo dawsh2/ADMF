@@ -10,6 +10,7 @@ import os
 
 from ...core.component_base import ComponentBase
 from ...core.event import EventType
+from ...core.data_configurator import DataConfigurator
 from ..base import Strategy, ParameterSet
 # Removed CleanBacktestEngine - using proper scoped contexts instead
 from .base import (
@@ -558,25 +559,24 @@ class OptimizationRunner(ComponentBase):
             self._base_config['components']['data_handler']['config'] = {}
         self._base_config['components']['data_handler']['config']['train_test_split_ratio'] = train_ratio
         
-        # IMPORTANT: Apply the train/test split to the existing data handler
-        # The data handler was already created during bootstrap, so we need to update it
+        # Use DataConfigurator for consistent data configuration
         if self._bootstrap:
             data_handler = self._bootstrap.get_component('data_handler')
             if data_handler:
-                # First ensure max_bars is set from CLI args before split
+                # Get CLI args for max_bars
                 metadata = getattr(self._bootstrap.context, 'metadata', {})
                 cli_args = metadata.get('cli_args', {})
                 max_bars = cli_args.get('bars')
                 
-                if max_bars and hasattr(data_handler, 'set_max_bars'):
-                    self.logger.info(f"Setting max_bars to {max_bars} before train/test split")
-                    data_handler.set_max_bars(max_bars)
-                
-                # Now apply the split
-                if hasattr(data_handler, 'apply_train_test_split'):
-                    self.logger.info(f"Applying train/test split ratio {train_ratio} to data handler")
-                    # This will split the already --bars limited data
-                    data_handler.apply_train_test_split(train_ratio)
+                # Use DataConfigurator to ensure consistent configuration
+                data_configurator = DataConfigurator(self.logger)
+                data_configurator.configure(
+                    data_handler=data_handler,
+                    max_bars=max_bars,
+                    train_test_split_ratio=train_ratio,
+                    dataset=None,  # Will be set by BacktestRunner
+                    use_test_dataset=None  # Will be set by BacktestRunner
+                )
         
         # Step 1: Run optimization on training data
         self.logger.info("=== TRAINING PHASE: Finding optimal parameters per regime ===")
