@@ -4,7 +4,7 @@ A sophisticated algorithmic trading framework built on a component-based archite
 
 ## Overview
 
-ADMF-Trader is a production-grade backtesting and trading system designed for quantitative trading strategy development. It features a robust event-driven architecture, comprehensive risk management, and adaptive strategies that adjust to changing market conditions.
+ADMF-Trader is a backtesting and trading system designed for quantitative trading strategy development. It features a robust event-driven architecture, comprehensive risk management, and adaptive strategies that adjust to changing market conditions.
 
 ### Key Features
 
