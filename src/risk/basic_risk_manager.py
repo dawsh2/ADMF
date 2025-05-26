@@ -37,6 +37,22 @@ class BasicRiskManager(ComponentBase):
         
         self._portfolio_manager_key = self.get_specific_config("portfolio_manager_key", "portfolio_manager")
         
+        # Resolve portfolio manager dependency using the container
+        try:
+            resolved_pm = self.container.resolve(self._portfolio_manager_key)
+            if not isinstance(resolved_pm, BasicPortfolio):
+                self.logger.error(f"{self.instance_name} resolved '{self._portfolio_manager_key}' but it is not a BasicPortfolio instance. Type: {type(resolved_pm)}")
+                raise ComponentError(f"{self.instance_name} resolved incorrect type for portfolio_manager.")
+            self._portfolio_manager = resolved_pm
+            self.logger.info(f"Successfully resolved and linked portfolio_manager: {self._portfolio_manager.instance_name}")
+
+        except DependencyNotFoundError as e:
+            self.logger.error(f"Critical: {self.instance_name} could not resolve portfolio_manager dependency '{self._portfolio_manager_key}'. Error: {e}", exc_info=True)
+            raise ComponentError(f"{self.instance_name} failed initialization due to missing portfolio_manager dependency.") from e
+        except Exception as e:
+            self.logger.error(f"Critical: Unexpected error resolving portfolio_manager for {self.instance_name}. Error: {e}", exc_info=True)
+            raise ComponentError(f"{self.instance_name} failed initialization due to an unexpected error with portfolio_manager dependency.") from e
+        
         self.logger.info(
             f"{self.instance_name} initialized. Target trade quantity: {self._target_trade_quantity}. "
             f"Portfolio manager key: '{self._portfolio_manager_key}'."

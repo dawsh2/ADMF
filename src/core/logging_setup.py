@@ -153,34 +153,33 @@ def setup_logging(config_loader, cmd_log_level=None, optimization_mode=False, de
         
     log_level = LOG_LEVEL_STRINGS.get(log_level_str, logging.WARNING)  # Default to WARNING
 
-    # Update root logger level
+    # Update root logger to capture everything at DEBUG level
     root_logger = logging.getLogger()
-    root_logger.setLevel(log_level)
+    root_logger.setLevel(logging.DEBUG)  # Root logger must be at DEBUG to capture all messages
     
     # Choose formatter based on mode
     if optimization_mode:
-        formatter = FORMATTERS['standard']
+        console_formatter = FORMATTERS['standard']
     else:
-        formatter = FORMATTERS['verbose']
+        console_formatter = FORMATTERS['verbose']
     
     # Clear existing handlers if any
     if root_logger.hasHandlers():
-        for handler in root_logger.handlers:
-            handler.setLevel(log_level)
-            handler.setFormatter(formatter)
-    else:
-        # Basic configuration logs to stdout and file
-        stdout_handler = logging.StreamHandler(sys.stdout)
-        stdout_handler.setLevel(log_level)
-        stdout_handler.setFormatter(formatter)
-        root_logger.addHandler(stdout_handler)
-        
-        # Always add a file handler for all logs
-        file_handler = logging.FileHandler(debug_file, mode='w', encoding='utf-8')
-        file_handler.setLevel(logging.DEBUG)  # Always log at DEBUG level to file
-        file_handler.setFormatter(FORMATTERS['debug'])
-        root_logger.addHandler(file_handler)
-        print(f"Logging to file: {debug_file}")
+        for handler in root_logger.handlers[:]:  # Copy list to avoid modification during iteration
+            root_logger.removeHandler(handler)
+    
+    # Console handler - respects the configured log level
+    stdout_handler = logging.StreamHandler(sys.stdout)
+    stdout_handler.setLevel(log_level)  # Console uses configured level (INFO/WARNING)
+    stdout_handler.setFormatter(console_formatter)
+    root_logger.addHandler(stdout_handler)
+    
+    # File handler - always logs at DEBUG level
+    file_handler = logging.FileHandler(debug_file, mode='w', encoding='utf-8')
+    file_handler.setLevel(logging.DEBUG)  # File always gets DEBUG level
+    file_handler.setFormatter(FORMATTERS['debug'])
+    root_logger.addHandler(file_handler)
+    print(f"Logging to file: {debug_file}")
     
     # Setup additional debug file logging if requested specifically
     if debug_file and debug_file != str(debug_file):
@@ -193,7 +192,6 @@ def setup_logging(config_loader, cmd_log_level=None, optimization_mode=False, de
         component_logger = logging.getLogger(module)
         component_logger.setLevel(logging.DEBUG)
     
-    # Only log the level change if not in optimization mode
-    if not optimization_mode:
-        setup_logger = logging.getLogger('src.core.logging_setup')
-        setup_logger.debug(f"Logging level set to: {log_level_str}")  # Debug not Info
+    # Log the level change to file only (debug level)
+    setup_logger = logging.getLogger('src.core.logging_setup')
+    setup_logger.debug(f"Console logging level: {log_level_str}, File logging level: DEBUG")

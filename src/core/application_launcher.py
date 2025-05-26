@@ -134,21 +134,22 @@ class ApplicationLauncher:
         return parser.parse_args(self.argv)
         
     def _setup_bootstrap_logging(self, args: argparse.Namespace):
-        """Set up minimal logging for the bootstrap process."""
-        level = getattr(logging, args.log_level) if args.log_level else logging.INFO
+        """Set up logging for the bootstrap process including file logging."""
+        from .logging_setup import setup_logging
         
-        logging.basicConfig(
-            level=level,
-            format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+        # Use the full setup_logging function which creates log files
+        cmd_log_level = args.log_level.upper() if args.log_level else None
+        
+        # Load config to get logging settings
+        config_loader = SimpleConfigLoader(args.config)
+        
+        # Call the proper setup_logging function which creates timestamped log files
+        setup_logging(
+            config_loader, 
+            cmd_log_level=cmd_log_level, 
+            optimization_mode=False,
+            debug_file=args.debug_log
         )
-        
-        if args.debug_log:
-            handler = logging.FileHandler(args.debug_log, mode='w')
-            handler.setLevel(logging.DEBUG)
-            handler.setFormatter(
-                logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
-            )
-            logging.getLogger().addHandler(handler)
             
     def _determine_run_mode(self, config: SimpleConfigLoader) -> RunMode:
         """

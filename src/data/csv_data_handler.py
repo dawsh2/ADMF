@@ -92,7 +92,7 @@ class CSVDataHandler(ComponentBase):
             parts.append(f"Train/test split ratio: {self._train_test_split_ratio*100:.0f}% train (applied to the --bars limited and/or regime-filtered data).")
         return " ".join(parts)
 
-    def setup(self):
+    def _start(self):
         self.logger.info(f"Setting up CSVDataHandler '{self.instance_name}'...")
         try:
             df_loaded = pd.read_csv(self._csv_file_path)
@@ -191,6 +191,19 @@ class CSVDataHandler(ComponentBase):
             # Mark as failed
             raise ComponentError(f"CSVDataHandler failed setup: {e}") from e
 
+    def set_max_bars(self, max_bars: int):
+        """Set the maximum number of bars to stream."""
+        self._cli_max_bars = max_bars
+        self.logger.info(f"CSVDataHandler max bars set to: {max_bars}")
+        
+        # If we already have an active dataset, we need to re-limit it
+        if self._active_df is not None and max_bars:
+            original_size = len(self._active_df)
+            if max_bars > 0 and original_size > max_bars:
+                self._active_df = self._active_df.head(max_bars)
+                self._data_iterator = self._active_df.iterrows()
+                self.logger.info(f"Active dataset re-limited from {original_size} to {len(self._active_df)} bars")
+    
     def set_active_dataset(self, dataset_type: str = "full"):
         """
         Sets the active dataset for iteration from the pre-processed and pre-split DataFrames.
@@ -315,9 +328,8 @@ class CSVDataHandler(ComponentBase):
         finally:
             self.logger.info(f"CSVDataHandler '{self.instance_name}' completed data streaming for active dataset.")
 
-    def stop(self):
+    def _stop(self):
         """Stop the data handler."""
-        super().stop()
         self.logger.info(f"Stopping CSVDataHandler '{self.instance_name}'...")
         self._data_iterator = None
         self.logger.info(f"CSVDataHandler '{self.instance_name}' stopped.")

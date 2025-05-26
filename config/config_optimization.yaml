@@ -1,0 +1,119 @@
+system:
+  name: "ADMF-Trader-Optimizer"
+  version: "0.1.0"
+  application_mode: "optimization"  # Changed from backtest to optimization
+
+logging:
+  level: "INFO"
+
+components:
+  dummy_service:
+    some_setting: "Dummy setting"
+
+  # Optimizer configuration
+  optimizer:
+    max_iterations: 10
+    parameter_ranges:
+      short_window: [5, 20]
+      long_window: [20, 50]
+      rsi_indicator.period: [10, 20]
+      rsi_rule.oversold_threshold: [20, 40]
+      rsi_rule.overbought_threshold: [60, 80]
+    optimization_metric: "sharpe_ratio"
+    
+  genetic_optimizer:
+    population_size: 20
+    generations: 5
+    mutation_rate: 0.1
+    crossover_rate: 0.7
+    elite_size: 4
+    
+  # RegimeAdaptiveStrategy is the default strategy
+  regime_adaptive_strategy:
+    symbol: "SPY"
+    short_window_default: 10
+    long_window_default: 20
+    ma_rule.weight: 0.6
+    rsi_indicator.enabled: true
+    rsi_indicator.period: 14
+    rsi_rule.enabled: true
+    rsi_rule.oversold_threshold: 30.0
+    rsi_rule.overbought_threshold: 70.0
+    rsi_rule.weight: 0.4
+
+  ensemble_strategy:
+    symbol: "SPY"
+    short_window_default: 10
+    long_window_default: 20
+    ma_rule.weight: 0.6
+    rsi_indicator.enabled: true
+    rsi_indicator.period: 14
+    rsi_rule.enabled: true
+    rsi_rule.oversold_threshold: 30.0
+    rsi_rule.overbought_threshold: 70.0
+    rsi_rule.weight: 0.4
+    
+  data_handler_csv:
+    csv_file_path: "data/1000_1min.csv"
+    symbol: "SPY"
+    timestamp_column: "timestamp"
+    train_test_split_ratio: 0.8
+
+  simulated_execution_handler:
+    passthrough_fills: false
+    simulate_slippage: false
+    commission_per_trade: 0.005
+    default_simulated_fill_price_mode: "use_order_price"
+    default_quantity: 100
+
+  basic_portfolio:
+    initial_cash: 100000.0
+    track_trades: true
+    live_trading: false
+
+  basic_risk_manager:
+    target_trade_quantity: 100
+    portfolio_manager_key: "portfolio_manager"
+
+  MyPrimaryRegimeDetector:
+    min_regime_duration: 2
+    verbose_logging: false
+    regime_indicators:
+      rsi_14:
+        indicator_type: "rsi"
+        params:
+          period: 14
+      atr_20:
+        indicator_type: "atr"
+        params:
+          period: 10
+      trend_10_30:
+        indicator_type: "simple_ma_trend"
+        params:
+          short_period: 5
+          long_period: 20
+    regime_thresholds:
+      trending_up_volatile:
+        trend_10_30:
+          min: 0.02
+        atr_20:
+          min: 0.15
+      trending_up_low_vol:
+        trend_10_30:
+          min: 0.02
+        atr_20:
+          max: 0.15
+      ranging_low_vol:
+        trend_10_30:
+          min: -0.01
+          max: 0.01
+        atr_20:
+          max: 0.12
+      trending_down:
+        trend_10_30:
+          max: -0.01
+      oversold_in_uptrend:
+        rsi_14:
+          max: 40
+        trend_10_30:
+          min: 0.01

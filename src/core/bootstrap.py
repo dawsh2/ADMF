@@ -258,6 +258,13 @@ class Bootstrap:
             'dependencies': ['event_bus'],
             'config_key': 'components.dummy_service',
             'required': False
+        },
+        'backtest_runner': {
+            'class': 'BacktestRunner',
+            'module': 'src.execution.backtest_runner',
+            'dependencies': ['event_bus', 'container'],  # Remove data_handler dependency so it starts first
+            'config_key': 'components.backtest_runner',
+            'required': False
         }
     }
     
@@ -518,6 +525,7 @@ class Bootstrap:
                         'container': self.context.container,
                         'event_bus': self.context.event_bus,
                         'logger': self.context.logger,
+                        'metadata': self.context.metadata,  # Include metadata with CLI args
                         # Add any component-specific dependencies
                         'portfolio_manager': self.components.get('portfolio_manager'),
                         'data_handler': self.components.get('data_handler'),
@@ -590,8 +598,8 @@ class Bootstrap:
             return base_components + ['strategy', 'MyPrimaryRegimeDetector', 'optimizer']
             
         elif run_mode == RunMode.BACKTEST:
-            # Backtest needs everything except live execution
-            return base_components + ['execution_handler', 'risk_manager', 'strategy', 'MyPrimaryRegimeDetector']
+            # Backtest needs everything including the backtest runner
+            return base_components + ['execution_handler', 'risk_manager', 'strategy', 'MyPrimaryRegimeDetector', 'backtest_runner']
             
         elif run_mode == RunMode.TEST:
             # Test mode - minimal components
@@ -879,6 +887,15 @@ class Bootstrap:
         run_mode_config = self.context.config.get("system", {}).get("run_modes", {})
         current_mode = self.context.run_mode.value
         
+        # If no explicit config, use defaults
+        if not run_mode_config:
+            run_mode_config = {
+                'production': {'entrypoint_component': 'data_handler'},
+                'backtest': {'entrypoint_component': 'backtest_runner'},
+                'optimization': {'entrypoint_component': 'optimizer'},
+                'test': {'entrypoint_component': 'strategy'}
+            }
+        
         if current_mode not in run_mode_config:
             raise ValueError(
                 f"No configuration found for run mode '{current_mode}'. "
@@ -913,7 +930,7 @@ class Bootstrap:
             
         # Get component from container
         try:
-            component = self.context.container.get(entrypoint_name)
+            component = self.components.get(entrypoint_name) or self.context.container.resolve(entrypoint_name)
         except KeyError:
             available = list(self.components.keys())
             raise RuntimeError(

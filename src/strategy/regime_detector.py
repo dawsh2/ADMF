@@ -64,7 +64,31 @@ class RegimeDetector(ComponentBase):
         self._summary_interval = self.get_specific_config("summary_interval", 100)
         self._debug_mode = self.get_specific_config("debug_mode", False)
         
+        # Set up regime indicators during initialization
+        self._setup_regime_indicators()
+        
         self.logger.info(f"RegimeDetector '{self.instance_name}' initialized. Min duration: {self._min_regime_duration}, Thresholds: {self._regime_thresholds}")
+
+    def initialize_event_subscriptions(self):
+        """Set up event subscriptions."""
+        if self.subscription_manager:
+            self.subscription_manager.subscribe(EventType.BAR, self.on_bar)
+            self.logger.info(f"'{self.instance_name}' subscribed to BAR events.")
+
+    def on_bar(self, event):
+        """Handle incoming BAR events."""
+        if event.event_type != EventType.BAR:
+            return
+            
+        bar_data = event.payload
+        if not isinstance(bar_data, dict):
+            self.logger.warning(f"Received BAR event with non-dict payload")
+            return
+            
+        # Classify the bar data
+        regime = self.classify(bar_data)
+        
+        # The classify method already handles publishing CLASSIFICATION events
 
     def _get_indicator_class(self, indicator_type_name: str) -> Optional[Type[BaseIndicatorInterface]]:
         if indicator_type_name == "rsi":
@@ -96,7 +120,7 @@ class RegimeDetector(ComponentBase):
                 try:
                     self._regime_indicators[indicator_instance_name] = IndicatorClass(
                         instance_name=f"{self.instance_name}_{indicator_instance_name}", 
-                        config_loader=self.container.get_config(),  # Pass config loader
+                        config_loader=self.config_loader or self.config,  # Pass config loader or config dict
                         event_bus=self.event_bus,     
                         component_config_key=None, # Indicators get params directly, not separate config block by key
                         parameters=params_from_config
@@ -108,11 +132,10 @@ class RegimeDetector(ComponentBase):
         if not self._regime_indicators:
             self.logger.warning(f"No indicators were successfully initialized for {self.instance_name}. Classification may be unreliable.")
 
-    def setup(self):
-        """Set up regime indicators after dependencies are available."""
-        super().setup()
-        self._setup_regime_indicators()
-        self.logger.info(f"RegimeDetector '{self.instance_name}' setup complete.")
+    def _start(self):
+        """Start the regime detector component."""
+        self.logger.info(f"RegimeDetector '{self.instance_name}' started")
+        # Indicators are already set up in _initialize()
     
     def classify(self, data: Dict[str, Any]) -> str:
         """ Classify market data into a regime label. """
@@ -162,6 +185,10 @@ class RegimeDetector(ComponentBase):
                     all_necessary_indicators_ready = False
 
 
+            # Increment total checks counter
+            self._total_checks += 1
+            self._checks_since_last_log += 1
+            
             # Log indicator values based on verbose setting
             if self._verbose_logging:
                 self.logger.info(f"RegimeDet '{self.instance_name}' at {current_bar_timestamp} - Values for classification: {indicator_values}")
@@ -189,10 +216,6 @@ class RegimeDetector(ComponentBase):
              self.logger.debug(f"RegimeDet '{self.instance_name}' at {current_bar_timestamp}: No regime thresholds defined. Defaulting.")
              return "default"
             
-        # Increment check counters for statistics
-        self._total_checks += 1
-        self._checks_since_last_log += 1
-        
         # Enhanced debugging - log indicator values at DEBUG level
         if self._verbose_logging:
             self.logger.debug(f"RegimeDet '{self.instance_name}' at {current_bar_timestamp}: Current indicator values: {indicator_values}")

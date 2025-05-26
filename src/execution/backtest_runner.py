@@ -11,6 +11,7 @@ from typing import Optional, Dict, Any
 
 from ..core.component_base import ComponentBase
 from ..core.exceptions import ComponentError, DependencyNotFoundError
+from ..core.event import Event, EventType
 
 
 class BacktestRunner(ComponentBase):
@@ -27,8 +28,13 @@ class BacktestRunner(ComponentBase):
     def _initialize(self) -> None:
         """Initialize the backtest runner."""
         # Get CLI overrides from context
-        cli_args = self.context.metadata.get('cli_args', {})
+        cli_args = self._context.get('metadata', {}).get('cli_args', {})
         self.max_bars = cli_args.get('bars')
+        
+        # Debug logging - use INFO level to ensure it shows
+        self.logger.info(f"[DEBUG] Context metadata: {self._context.get('metadata', {})}")
+        self.logger.info(f"[DEBUG] CLI args: {cli_args}")
+        self.logger.info(f"[DEBUG] Bars from CLI: {cli_args.get('bars')}")
         
         # Get backtest-specific configuration
         self.use_test_dataset = self.component_config.get('use_test_dataset', False)
@@ -38,6 +44,10 @@ class BacktestRunner(ComponentBase):
             f"BacktestRunner initialized. Max bars: {self.max_bars}, "
             f"Use test dataset: {self.use_test_dataset}"
         )
+        
+    def _start(self) -> None:
+        """Start the backtest runner."""
+        self.logger.info("BacktestRunner started")
         
     def execute(self) -> Dict[str, Any]:
         """
@@ -59,17 +69,15 @@ class BacktestRunner(ComponentBase):
         portfolio = self._get_required_component('portfolio_manager')
         strategy = self._get_required_component('strategy')
         
-        # Configure data handler
+        # Configure data handler for backtest
         self._configure_data_handler(data_handler)
         
-        # The actual backtest runs via event flow
-        # Components are already started by Bootstrap
-        self.logger.info("Backtest event flow is active")
+        # Now manually trigger data streaming
+        self.logger.info("Triggering backtest data streaming...")
+        self._trigger_data_streaming(data_handler)
         
-        # Note: In a real implementation, we might need to:
-        # 1. Subscribe to a completion event from data_handler
-        # 2. Or have data_handler.execute() block until complete
-        # For now, we assume the event flow completes
+        # Note: The CSVDataHandler publishes all bars immediately in its start() method
+        # All trading events will have been processed by now
         
         # Close positions if configured
         if self.close_positions_at_end:
@@ -84,7 +92,7 @@ class BacktestRunner(ComponentBase):
         
     def _get_required_component(self, name: str) -> Any:
         """Get a required component from the container."""
-        component = self.container.get(name)
+        component = self.container.resolve(name)
         if not component:
             raise DependencyNotFoundError(f"Required component '{name}' not found")
         return component
@@ -108,6 +116,104 @@ class BacktestRunner(ComponentBase):
         if self.max_bars and hasattr(data_handler, 'set_max_bars'):
             self.logger.info(f"Limiting backtest to {self.max_bars} bars")
             data_handler.set_max_bars(self.max_bars)
+            
+    def _trigger_data_streaming(self, data_handler) -> None:
+        """Manually trigger data streaming for backtest."""
+        # The data handler is already started, but we need to trigger the streaming
+        # Since CSVDataHandler publishes all bars in its start() method, we need to
+        # re-trigger the streaming part specifically
+        
+        if hasattr(data_handler, '_active_df') and data_handler._active_df is not None:
+            # Data is configured, now manually trigger the streaming logic
+            if hasattr(data_handler, 'start'):
+                # Reset the iterator and re-run the streaming
+                if hasattr(data_handler, '_data_iterator'):
+                    data_handler._data_iterator = data_handler._active_df.iterrows()
+                    data_handler._bars_processed_current_run = 0
+                    data_handler._last_bar_timestamp = None
+                    
+                    # Now manually run the streaming loop (copied from CSVDataHandler.start())
+                    self._stream_bars_manually(data_handler)
+            else:
+                self.logger.error("Data handler doesn't support streaming")
+        else:
+            self.logger.error("Data handler not properly configured - no active dataset")
+            
+    def _stream_bars_manually(self, data_handler) -> None:
+        """Manually stream bars from the data handler."""
+        import datetime
+        
+        if not hasattr(data_handler, '_active_df') or data_handler._active_df is None:
+            self.logger.error("No active dataset to stream")
+            return
+            
+        if data_handler._active_df.empty:
+            self.logger.warning("Active dataset is empty - no bars to stream")
+            return
+            
+        # Apply bars limit to streaming if set
+        total_bars_to_stream = len(data_handler._active_df)
+        self.logger.info(f"[DEBUG] Active DataFrame has {len(data_handler._active_df)} bars")
+        self.logger.info(f"[DEBUG] self.max_bars = {self.max_bars}")
+        
+        if self.max_bars and self.max_bars > 0:
+            total_bars_to_stream = min(total_bars_to_stream, self.max_bars)
+            self.logger.info(f"Limiting stream to {total_bars_to_stream} bars (max_bars={self.max_bars})")
+        else:
+            self.logger.info(f"[DEBUG] No bars limit applied: max_bars={self.max_bars}")
+        
+        self.logger.info(f"Starting to stream {total_bars_to_stream} bars...")
+        
+        try:
+            bar_count = 0
+            for index, row in data_handler._data_iterator:
+                bar_count += 1
+                
+                # Check bars limit
+                if self.max_bars and bar_count > self.max_bars:
+                    self.logger.info(f"Reached bars limit ({self.max_bars}), stopping stream")
+                    break
+                bar_timestamp = row[data_handler._timestamp_column]
+                
+                if not isinstance(bar_timestamp, datetime.datetime):
+                    if hasattr(bar_timestamp, 'to_pydatetime'): 
+                        bar_timestamp = bar_timestamp.to_pydatetime()
+                    else: 
+                        self.logger.warning(f"Skipping row with invalid timestamp type: {type(bar_timestamp)}")
+                        continue
+
+                # Build bar payload (copied from CSVDataHandler)
+                bar_payload = { "symbol": data_handler._symbol, "timestamp": bar_timestamp }
+                required_ohlcv_keys = ['open', 'high', 'low', 'close', 'volume']
+                row_columns_lower = {col.lower(): col for col in row.index}
+                
+                for key in required_ohlcv_keys:
+                    if key in row_columns_lower:
+                        original_col = row_columns_lower[key]
+                        bar_payload[key] = row[original_col]
+                    else:
+                        self.logger.warning(f"Missing required OHLCV column '{key}' in row. Available columns: {list(row.index)}")
+                
+                # Add any additional columns
+                for col in row.index:
+                    if col.lower() not in [data_handler._timestamp_column.lower(), 'symbol'] + required_ohlcv_keys:
+                        bar_payload[col] = row[col]
+
+                # Publish the BAR event
+                bar_event = Event(EventType.BAR, bar_payload)
+                self.event_bus.publish(bar_event)
+                
+                data_handler._bars_processed_current_run += 1
+                data_handler._last_bar_timestamp = bar_timestamp
+                
+                # Log progress occasionally
+                if bar_count <= 3 or bar_count % 100 == 0:
+                    self.logger.debug(f"Streamed bar {bar_count}/{len(data_handler._active_df)}: {bar_timestamp}")
+                    
+        except Exception as e:
+            self.logger.error(f"Error during manual bar streaming: {e}", exc_info=True)
+            
+        self.logger.info(f"Completed streaming {bar_count} bars")
             
     def _close_all_positions(self, data_handler, portfolio) -> None:
         """Close all open positions at end of backtest."""
@@ -139,16 +245,22 @@ class BacktestRunner(ComponentBase):
         }
         
         # Get portfolio metrics
-        if hasattr(portfolio, 'get_performance_summary'):
-            results.update(portfolio.get_performance_summary())
+        if hasattr(portfolio, 'get_performance'):
+            performance = portfolio.get_performance()
+            results.update(performance)
+            # Convert total return to percentage for display
+            if 'total_return' in performance:
+                total_return_pct = performance['total_return'] * 100
+                self.logger.info(f"Total return: {total_return_pct:.2f}%")
         else:
-            # Fallback to basic metrics
-            if hasattr(portfolio, 'get_total_return'):
-                results['total_return'] = portfolio.get_total_return()
-            if hasattr(portfolio, 'get_sharpe_ratio'):
-                results['sharpe_ratio'] = portfolio.get_sharpe_ratio()
-            if hasattr(portfolio, 'get_max_drawdown'):
-                results['max_drawdown'] = portfolio.get_max_drawdown()
+            # Fallback - calculate manually
+            if hasattr(portfolio, 'get_final_portfolio_value') and hasattr(portfolio, 'initial_cash'):
+                final_value = portfolio.get_final_portfolio_value()
+                initial_value = portfolio.initial_cash
+                if initial_value > 0:
+                    total_return = (final_value / initial_value) - 1.0
+                    results['total_return'] = total_return
+                    self.logger.info(f"Total return: {total_return * 100:.2f}%")
                 
         # Get strategy info
         if hasattr(strategy, 'get_name'):

@@ -103,7 +103,17 @@ class ComponentBase(ABC):
         
         # Get component-specific config
         if self.config_key and self.config:
-            self.component_config = self.config.get('components', {}).get(self.config_key, {})
+            # Handle nested config keys like 'components.data_handler_csv'
+            if '.' in self.config_key:
+                parts = self.config_key.split('.')
+                config_section = self.config
+                for part in parts:
+                    config_section = config_section.get(part, {})
+                    if not isinstance(config_section, dict):
+                        break
+                self.component_config = config_section if isinstance(config_section, dict) else {}
+            else:
+                self.component_config = self.config.get(self.config_key, {})
         else:
             self.component_config = {}
             
