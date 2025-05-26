@@ -178,11 +178,11 @@ class BasicPortfolio(ComponentBase):
                 self.event_bus.unsubscribe(EventType.FILL, self.on_fill)
                 self.event_bus.unsubscribe(EventType.BAR, self.on_bar)
                 self.event_bus.unsubscribe(EventType.CLASSIFICATION, self.on_classification_change)
-                self.logger.info(f"'{self.instance_name}' unsubscribed from events.")
+                self.logger.debug(f"'{self.instance_name}' unsubscribed from events.")
             except Exception as e:
                 self.logger.error(f"Error unsubscribing '{self.instance_name}': {e}", exc_info=True)
         super().stop()
-        self.logger.info(f"{self.instance_name} stopped.")
+        self.logger.debug(f"{self.instance_name} stopped.")
 
     def on_classification_change(self, event: Event):
         payload = event.payload
@@ -751,6 +751,11 @@ class BasicPortfolio(ComponentBase):
         
     
     def _log_final_performance_summary(self):
+        # Skip detailed summary if no trades were executed (e.g., in main context during optimization)
+        if len(self._trade_log) == 0 and self.current_cash == self.initial_cash:
+            self.logger.debug(f"{self.instance_name}: No trades executed, skipping detailed summary")
+            return
+            
         self.logger.info(f"--- {self.instance_name} Final Summary ---")
         self.logger.info(f"Initial Cash: {self.initial_cash:.2f}")
         self.logger.info(f"Final Cash: {self.current_cash:.2f}")

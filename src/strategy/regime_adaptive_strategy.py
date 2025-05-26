@@ -46,6 +46,7 @@ class RegimeAdaptiveStrategy(MAStrategy):
             return
             
         try:
+            self.logger.info(f"Loading regime parameters from: {self._params_file_path}")
             with open(self._params_file_path, 'r') as f:
                 data = json.load(f)
                 

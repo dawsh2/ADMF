@@ -30,14 +30,22 @@ class BacktestRunner(ComponentBase):
         # Get CLI overrides from context
         cli_args = self._context.get('metadata', {}).get('cli_args', {})
         self.max_bars = cli_args.get('bars')
+        self.dataset_override = cli_args.get('dataset')  # New: get dataset from CLI
         
         # Debug logging - use INFO level to ensure it shows
         self.logger.info(f"[DEBUG] Context metadata: {self._context.get('metadata', {})}")
         self.logger.info(f"[DEBUG] CLI args: {cli_args}")
         self.logger.info(f"[DEBUG] Bars from CLI: {cli_args.get('bars')}")
+        self.logger.info(f"[DEBUG] Dataset from CLI: {cli_args.get('dataset')}")
         
         # Get backtest-specific configuration
-        self.use_test_dataset = self.component_config.get('use_test_dataset', False)
+        # CLI dataset override takes precedence over config
+        if self.dataset_override == 'test':
+            self.use_test_dataset = True
+        elif self.dataset_override == 'train':
+            self.use_test_dataset = False
+        else:
+            self.use_test_dataset = self.component_config.get('use_test_dataset', False)
         self.close_positions_at_end = self.component_config.get('close_positions_at_end', True)
         
         self.logger.info(
@@ -99,6 +107,23 @@ class BacktestRunner(ComponentBase):
         
     def _configure_data_handler(self, data_handler) -> None:
         """Configure the data handler for backtest."""
+        # IMPORTANT: Apply max_bars BEFORE train/test split to match optimization behavior
+        # This ensures we split the same limited dataset
+        if self.max_bars and hasattr(data_handler, 'set_max_bars'):
+            self.logger.info(f"Limiting to {self.max_bars} bars BEFORE train/test split")
+            data_handler.set_max_bars(self.max_bars)
+        
+        # Now check if we need to apply train/test split
+        if self.dataset_override in ['train', 'test']:
+            # User wants train or test data, ensure split is applied
+            if hasattr(data_handler, '_train_test_split_ratio') and data_handler._train_test_split_ratio:
+                # Split ratio already configured, apply it
+                if hasattr(data_handler, 'apply_train_test_split'):
+                    self.logger.info(f"Applying train/test split with ratio {data_handler._train_test_split_ratio}")
+                    data_handler.apply_train_test_split(data_handler._train_test_split_ratio)
+            else:
+                self.logger.warning("Dataset 'train' or 'test' requested but no train_test_split_ratio configured")
+        
         # Set active dataset
         if hasattr(data_handler, 'set_active_dataset'):
             # Check if we have train/test split
@@ -115,13 +140,11 @@ class BacktestRunner(ComponentBase):
                     self.logger.info("Using train dataset for backtest")
                     data_handler.set_active_dataset('train')
             else:
-                self.logger.info("No train/test split available, using full dataset")
+                if self.dataset_override:
+                    self.logger.info(f"Requested dataset '{self.dataset_override}' but no train/test split available, using full dataset")
+                else:
+                    self.logger.info("No train/test split available, using full dataset")
                 data_handler.set_active_dataset('full')
-                
-        # Apply max bars override
-        if self.max_bars and hasattr(data_handler, 'set_max_bars'):
-            self.logger.info(f"Limiting backtest to {self.max_bars} bars")
-            data_handler.set_max_bars(self.max_bars)
             
     def _trigger_data_streaming(self, data_handler) -> None:
         """Manually trigger data streaming for backtest."""

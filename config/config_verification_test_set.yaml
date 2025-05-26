@@ -1,0 +1,120 @@
+# Configuration for verification run using optimized parameters on test set only
+# This runs a standard backtest (not optimization) using the regime adaptive strategy
+# with parameters discovered during optimization
+
+# IMPORTANT: This config is designed to test on the same data as the optimization test set
+# The optimization used --bars 1000 with 80/20 split, so test set was bars 801-1000
+# This config uses train_test_split_ratio=0.8 and use_test_dataset=true to match exactly
+
+# CLI execution:
+# python main_ultimate.py --config config/config_verification_test_set.yaml --bars 1000 --dataset test
+
+# Core system configuration
+logging:
+  level: INFO
+  format: "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
+
+# Run mode - standard backtest, not optimization
+run_mode: backtest
+
+# Component configurations
+components:
+  # Event bus
+  event_bus:
+    class_path: src.core.event_bus.EventBus
+    config:
+      name: "main_event_bus"
+
+  # Data handler configured to match optimization test set
+  data_handler:
+    class_path: src.data.csv_data_handler.CSVDataHandler
+    config:
+      csv_file_path: "data/SPY_1min.csv"
+      symbol: "SPY"
+      timestamp_column: "timestamp"
+      # Configure train/test split to match optimization
+      train_test_split_ratio: 0.8
+      # We'll use --bars 1000 and set active dataset to 'test' to get bars 801-1000
+
+  # Strategy - using RegimeAdaptiveStrategy with optimized parameters
+  strategy:
+    class_path: src.strategy.regime_adaptive_strategy.RegimeAdaptiveStrategy
+    config:
+      symbol: "SPY"
+      # Path to the optimized parameters from the optimization run
+      regime_params_file_path: "regime_optimized_parameters.json"
+      fallback_to_overall_best: true
+      # Base MA parameters (will be overridden by regime-specific params)
+      short_window: 10
+      long_window: 20
+      # RSI parameters
+      use_rsi_filter: true
+      rsi_period: 14
+      rsi_oversold_threshold: 30
+      rsi_overbought_threshold: 70
+  
+  # Regime detector with same configuration as optimization
+  regime_detector:
+    class_path: src.strategy.regime_detector.RegimeDetector
+    config:
+      min_regime_duration: 1
+      indicators:
+        ma_trend:
+          type: simple_ma_trend
+          parameters:
+            short_period: 10
+            long_period: 30
+        rsi:
+          type: rsi
+          parameters:
+            period: 14
+        atr:
+          type: atr
+          parameters:
+            period: 14
+      regime_thresholds:
+        trending_up:
+          ma_trend:
+            min: 0.01
+          rsi:
+            min: 55
+            max: 80
+        trending_down:
+          ma_trend:
+            max: -0.01
+          rsi:
+            min: 20
+            max: 45
+        volatile:
+          atr:
+            min: 0.5
+        default:
+          priority: 0
+
+  # Risk management
+  risk_manager:
+    class_path: src.risk.basic_risk_manager.BasicRiskManager
+    config:
+      max_position_size: 100
+      stop_loss_pct: 0.02
+
+  # Portfolio management
+  portfolio_manager:
+    class_path: src.risk.basic_portfolio.BasicPortfolio
+    config:
+      initial_cash: 100000
+      max_positions: 1
+
+  # Execution handler
+  execution_handler:
+    class_path: src.execution.simulated_execution_handler.SimulatedExecutionHandler
+    config:
+      latency_ms: 10
+
+  # Backtest runner
+  backtest_runner:
+    class_path: src.execution.backtest_runner.BacktestRunner
+    config:
+      start_date: "2024-01-01"
+      end_date: "2024-12-31"
+      # use_test_dataset is now controlled by --dataset CLI flag

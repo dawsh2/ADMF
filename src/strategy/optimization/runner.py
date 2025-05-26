@@ -386,8 +386,8 @@ class OptimizationRunner(ComponentBase):
                 # Get regime performance from portfolio manager
                 portfolio = scoped_context.container.resolve('portfolio_manager')
                 regime_performance = {}
-                if portfolio and hasattr(portfolio, 'get_regime_statistics'):
-                    regime_performance = portfolio.get_regime_statistics()
+                if portfolio and hasattr(portfolio, 'get_performance_by_regime'):
+                    regime_performance = portfolio.get_performance_by_regime()
                 
                 # Store results for later analysis
                 all_backtest_results.append({
@@ -401,9 +401,12 @@ class OptimizationRunner(ComponentBase):
                 self.logger.info(f"Overall metric value: {metric_value:.4f}")
                 if regime_performance:
                     for regime, perf in regime_performance.items():
-                        if 'trade_count' in perf:
-                            self.logger.info(f"  {regime}: trades={perf['trade_count']}, "
-                                           f"return={perf.get('total_return', 0):.2f}, "
+                        if regime.startswith('_'):  # Skip internal keys
+                            continue
+                        trade_count = perf.get('count', 0)
+                        if trade_count > 0:
+                            self.logger.info(f"  {regime}: trades={trade_count}, "
+                                           f"net_pnl={perf.get('net_pnl', 0):.2f}, "
                                            f"sharpe={perf.get('sharpe_ratio', 0):.2f}")
                 
                 return metric_value
@@ -438,9 +441,9 @@ class OptimizationRunner(ComponentBase):
                     best_params_per_regime[regime] = {
                         'parameters': params,
                         'sharpe_ratio': perf.get('sharpe_ratio', float('-inf')),
-                        'total_return': perf.get('total_return', 0),
+                        'total_return': perf.get('net_pnl', 0),
                         'win_rate': perf.get('win_rate', 0),
-                        'trade_count': perf.get('trade_count', 0)
+                        'trade_count': perf.get('count', 0)
                     }
                 else:
                     # Update if this is better
@@ -448,12 +451,23 @@ class OptimizationRunner(ComponentBase):
                         best_params_per_regime[regime] = {
                             'parameters': params,
                             'sharpe_ratio': perf.get('sharpe_ratio', float('-inf')),
-                            'total_return': perf.get('total_return', 0),
+                            'total_return': perf.get('net_pnl', 0),
                             'win_rate': perf.get('win_rate', 0),
-                            'trade_count': perf.get('trade_count', 0)
+                            'trade_count': perf.get('count', 0)
                         }
         
         self.logger.info("\n=== REGIME-SPECIFIC OPTIMIZATION RESULTS ===")
+        
+        # Count total trades in training phase
+        total_training_trades = 0
+        for result in all_backtest_results:
+            regime_perf = result.get('regime_performance', {})
+            for regime, perf in regime_perf.items():
+                total_training_trades += perf.get('count', 0)
+        
+        self.logger.info(f"\nTotal trades during training phase: {total_training_trades}")
+        self.logger.info(f"Parameter combinations tested: {len(all_backtest_results)}")
+        
         for regime in regimes:
             if regime in best_params_per_regime:
                 regime_best = best_params_per_regime[regime]
@@ -603,8 +617,12 @@ class OptimizationRunner(ComponentBase):
         # Save regime parameters to a temporary file for the adaptive strategy
         import tempfile
         with tempfile.NamedTemporaryFile(mode='w', suffix='.json', delete=False) as f:
-            json.dump({'regimes': regime_parameters}, f)
+            # Write parameters in the format expected by RegimeAdaptiveStrategy
+            json.dump(regime_parameters, f)
             regime_params_path = f.name
+            
+        self.logger.info(f"Saved regime parameters to {regime_params_path}")
+        self.logger.info(f"Parameters content: {regime_parameters}")
             
         try:
             # Create a scoped context for test phase
@@ -619,7 +637,7 @@ class OptimizationRunner(ComponentBase):
                 'class_path': 'src.strategy.regime_adaptive_strategy.RegimeAdaptiveStrategy',
                 'config': {
                     'symbol': 'SPY',  # Add the symbol that data_handler expects
-                    'regime_params_file': regime_params_path
+                    'regime_params_file_path': regime_params_path  # Fixed key name
                 }
             }
             
@@ -650,8 +668,8 @@ class OptimizationRunner(ComponentBase):
                 # Get portfolio for regime performance
                 portfolio = test_context.container.resolve('portfolio_manager')
                 test_regime_performance = {}
-                if portfolio and hasattr(portfolio, 'get_regime_statistics'):
-                    test_regime_performance = portfolio.get_regime_statistics()
+                if portfolio and hasattr(portfolio, 'get_performance_by_regime'):
+                    test_regime_performance = portfolio.get_performance_by_regime()
                 
                 # Calculate overall return
                 test_metric_value = 0.0
@@ -660,13 +678,41 @@ class OptimizationRunner(ComponentBase):
                 
                 # Log test results
                 self.logger.info(f"\nTest set overall return: {test_metric_value:.2%}")
+                
+                # Get portfolio final summary
+                if portfolio:
+                    # Log portfolio summary
+                    self.logger.info("\n=== TEST PHASE PORTFOLIO SUMMARY ===")
+                    if hasattr(portfolio, 'initial_cash') and hasattr(portfolio, 'get_final_portfolio_value'):
+                        initial_cash = portfolio.initial_cash
+                        final_value = portfolio.get_final_portfolio_value()
+                        self.logger.info(f"Initial Cash: ${initial_cash:,.2f}")
+                        self.logger.info(f"Final Portfolio Value: ${final_value:,.2f}")
+                        self.logger.info(f"Total Return: {((final_value / initial_cash) - 1) * 100:.2f}%")
+                    
+                    if hasattr(portfolio, 'get_trade_history'):
+                        trades = portfolio.get_trade_history()
+                        self.logger.info(f"Total Trades: {len(trades)}")
+                    
+                    if hasattr(portfolio, 'get_realized_pnl'):
+                        realized_pnl = portfolio.get_realized_pnl()
+                        self.logger.info(f"Realized P&L: ${realized_pnl:,.2f}")
+                
                 if test_regime_performance:
-                    self.logger.info("\nTest Set Performance by Regime:")
+                    self.logger.info("\n=== TEST SET PERFORMANCE BY REGIME ===")
+                    total_trades = 0
                     for regime, perf in test_regime_performance.items():
-                        if 'trade_count' in perf and perf['trade_count'] > 0:
-                            self.logger.info(f"  {regime}: trades={perf['trade_count']}, "
-                                           f"return={perf.get('total_return', 0):.2f}, "
-                                           f"sharpe={perf.get('sharpe_ratio', 0):.2f}")
+                        if regime.startswith('_'):  # Skip internal keys
+                            continue
+                        trade_count = perf.get('count', 0)
+                        total_trades += trade_count
+                        if trade_count > 0:
+                            self.logger.info(f"\n{regime.upper()}:")
+                            self.logger.info(f"  Trades: {trade_count}")
+                            self.logger.info(f"  Net P&L: ${perf.get('net_pnl', 0):.2f}")
+                            self.logger.info(f"  Win Rate: {perf.get('win_rate', 0):.1%}")
+                            self.logger.info(f"  Sharpe Ratio: {perf.get('sharpe_ratio', 0):.2f}")
+                    self.logger.info(f"\nTotal trades across all regimes: {total_trades}")
                 
                 test_results = {
                     'total_return': test_metric_value,

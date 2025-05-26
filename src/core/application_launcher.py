@@ -121,6 +121,8 @@ class ApplicationLauncher:
         parser.add_argument("--bars", type=int, help="Override max bars to process")
         parser.add_argument("--log-level", choices=['DEBUG', 'INFO', 'WARNING', 'ERROR', 'CRITICAL'])
         parser.add_argument("--debug-log", type=str, help="Debug log file path")
+        parser.add_argument("--dataset", choices=['full', 'train', 'test'], 
+                          help="Select dataset to use (requires train_test_split_ratio in config)")
         
         # Legacy optimization flags (for compatibility)
         parser.add_argument("--optimize", action="store_true", help="Run optimization")
