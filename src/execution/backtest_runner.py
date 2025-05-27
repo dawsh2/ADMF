@@ -132,6 +132,15 @@ class BacktestRunner(ComponentBase):
         # re-trigger the streaming part specifically
         
         if hasattr(data_handler, '_active_df') and data_handler._active_df is not None:
+            # Log dataset information before streaming
+            dataset_type = getattr(data_handler, '_active_dataset', 'unknown')
+            dataset_size = len(data_handler._active_df)
+            self.logger.info(f"===== STARTING BACKTEST ON {dataset_type.upper()} DATASET =====")
+            self.logger.info(f"Dataset size: {dataset_size} bars")
+            self.logger.info(f"Dataset type: {dataset_type}")
+            if hasattr(data_handler, '_train_test_split_index'):
+                self.logger.info(f"Train/test split index: {data_handler._train_test_split_index}")
+                self.logger.info(f"Total data size: {len(data_handler._df) if hasattr(data_handler, '_df') else 'unknown'}")
             # Data is configured, now manually trigger the streaming logic
             if hasattr(data_handler, 'start'):
                 # Reset the iterator and re-run the streaming
@@ -170,7 +179,15 @@ class BacktestRunner(ComponentBase):
         else:
             self.logger.info(f"[DEBUG] No bars limit applied: max_bars={self.max_bars}")
         
-        self.logger.info(f"Starting to stream {total_bars_to_stream} bars...")
+        # Log dataset type based on bar count and train/test split
+        dataset_type = "UNKNOWN"
+        if hasattr(data_handler, '_train_df') and data_handler._train_df is not None:
+            if total_bars_to_stream == len(data_handler._train_df):
+                dataset_type = "TRAIN"
+            elif hasattr(data_handler, '_test_df') and data_handler._test_df is not None and total_bars_to_stream == len(data_handler._test_df):
+                dataset_type = "TEST"
+        
+        self.logger.info(f"Starting to stream {total_bars_to_stream} bars from {dataset_type} dataset...")
         
         try:
             bar_count = 0
@@ -221,7 +238,7 @@ class BacktestRunner(ComponentBase):
         except Exception as e:
             self.logger.error(f"Error during manual bar streaming: {e}", exc_info=True)
             
-        self.logger.info(f"Completed streaming {bar_count} bars")
+        self.logger.info(f"Completed streaming {bar_count} bars from {dataset_type} dataset")
             
     def _close_all_positions(self, data_handler, portfolio) -> None:
         """Close all open positions at end of backtest."""
@@ -269,6 +286,14 @@ class BacktestRunner(ComponentBase):
                     total_return = (final_value / initial_value) - 1.0
                     results['total_return'] = total_return
                     self.logger.info(f"Total return: {total_return * 100:.2f}%")
+        
+        # Get performance metrics including Sharpe ratio
+        if hasattr(portfolio, 'get_performance_metrics'):
+            metrics = portfolio.get_performance_metrics()
+            results['performance_metrics'] = metrics
+            self.logger.debug(f"Performance metrics: {metrics}")
+        else:
+            self.logger.warning("Portfolio doesn't support get_performance_metrics")
         
         # Get regime-specific performance if available
         if hasattr(portfolio, 'get_performance_by_regime'):

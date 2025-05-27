@@ -1,0 +1,58 @@
+{
+  "optimization_type": "component",
+  "targets": [
+    "fast_ma",
+    "slow_ma"
+  ],
+  "method": "grid_search",
+  "components_optimized": 2,
+  "results": {
+    "strategy_fast_ma": {
+      "method": "grid_search",
+      "component": "strategy_fast_ma",
+      "parameter_space": "strategy_fast_ma_params",
+      "combinations_tested": 2,
+      "best_parameters": null,
+      "best_score": -Infinity,
+      "all_results": [
+        {
+          "parameters": {
+            "lookback_period": 5
+          },
+          "score": -Infinity
+        },
+        {
+          "parameters": {
+            "lookback_period": 10
+          },
+          "score": -Infinity
+        }
+      ],
+      "timestamp": "2025-05-26T16:09:34.775545"
+    },
+    "strategy_slow_ma": {
+      "method": "grid_search",
+      "component": "strategy_slow_ma",
+      "parameter_space": "strategy_slow_ma_params",
+      "combinations_tested": 2,
+      "best_parameters": null,
+      "best_score": -Infinity,
+      "all_results": [
+        {
+          "parameters": {
+            "lookback_period": 20
+          },
+          "score": -Infinity
+        },
+        {
+          "parameters": {
+            "lookback_period": 30
+          },
+          "score": -Infinity
+        }
+      ],
+      "timestamp": "2025-05-26T16:09:34.776885"
+    }
+  },
+  "timestamp": "2025-05-26T16:09:34.777047"
+}

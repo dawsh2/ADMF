@@ -1,57 +1,59 @@
 # src/strategy/components/rules/rsi_rules.py
 import logging
 from typing import Dict, Any, Tuple, List, Optional
-from src.core.component import BaseComponent
-from src.strategy.components.indicators.oscillators import RSIIndicator 
+from src.core.component_base import ComponentBase
+from src.strategy.components.indicators.oscillators import RSIIndicator
+from src.strategy.base.parameter import ParameterSpace, Parameter
 
-class RSIRule(BaseComponent):
+class RSIRule(ComponentBase):
     """
     Generates trading signals based on RSI oversold/overbought levels.
     """
-    def __init__(self, instance_name: str, config_loader, event_bus, component_config_key: str,
-                 rsi_indicator: RSIIndicator, parameters: Optional[Dict[str, Any]] = None):
-        super().__init__(instance_name, config_loader, component_config_key)
-        self.logger = logging.getLogger(f"{__name__}.{instance_name}") # Corrected logger name
+    def __init__(self, instance_name: str, config_key: Optional[str] = None,
+                 rsi_indicator: Optional[RSIIndicator] = None, 
+                 parameters: Optional[Dict[str, Any]] = None):
+        super().__init__(instance_name, config_key)
+        
+        # Store dependencies - will be injected during initialize
         self.rsi_indicator = rsi_indicator
-
-        if parameters:
-            self.oversold_threshold: float = parameters.get('oversold_threshold', 30.0)
-            self.overbought_threshold: float = parameters.get('overbought_threshold', 70.0)
-            self._weight: float = parameters.get('weight', 1.0)
-        else:
-            self.oversold_threshold: float = self.get_specific_config('oversold_threshold', 30.0)
-            self.overbought_threshold: float = self.get_specific_config('overbought_threshold', 70.0)
-            self._weight: float = self.get_specific_config('weight', 1.0)
-            
+        self._parameters = parameters or {}
+        
+        # Rule state
+        self.oversold_threshold: float = 30.0
+        self.overbought_threshold: float = 70.0
+        self._weight: float = 1.0
         self._last_rsi_value: Optional[float] = None
         self._current_signal_state: int = 0
-        # self.logger.info(f"RSIRule '{self.name}' initialized with OS={self.oversold_threshold}, OB={self.overbought_threshold}, W={self._weight}")
 
 
-    def setup(self) -> None:
-        """Sets up the component."""
+    def _initialize(self) -> None:
+        """Component-specific initialization logic."""
+        # Load configuration
+        if self._parameters:
+            self.oversold_threshold = self._parameters.get('oversold_threshold', 30.0)
+            self.overbought_threshold = self._parameters.get('overbought_threshold', 70.0)
+            self._weight = self._parameters.get('weight', 1.0)
+        else:
+            self.oversold_threshold = self.get_specific_config('oversold_threshold', 30.0)
+            self.overbought_threshold = self.get_specific_config('overbought_threshold', 70.0)
+            self._weight = self.get_specific_config('weight', 1.0)
+            
         self.reset_state()
-        if not isinstance(self.rsi_indicator, RSIIndicator):
-            self.logger.error(f"RSIRule '{self.name}' was not provided with a valid RSIIndicator instance.")
-            self.state = BaseComponent.STATE_FAILED
+        
+        # Validate dependencies if they were provided
+        if self.rsi_indicator and not hasattr(self.rsi_indicator, 'value'):
+            self.logger.error(f"RSIRule '{self.instance_name}' was not provided with a valid RSIIndicator instance.")
             return
-        self.logger.info(f"RSIRule '{self.name}' configured with OS={self.oversold_threshold}, OB={self.overbought_threshold}, W={self._weight}")
-        self.state = BaseComponent.STATE_INITIALIZED
-        self.logger.info(f"RSIRule '{self.name}' setup complete. State: {self.state}")
-
-    def start(self) -> None:
-        """Starts the component's active operations."""
-        if self.state != BaseComponent.STATE_INITIALIZED:
-            self.logger.warning(f"Cannot start RSIRule '{self.name}' from state '{self.state}'. Expected INITIALIZED.")
-            return
-        self.state = BaseComponent.STATE_STARTED
-        self.logger.info(f"RSIRule '{self.name}' started. State: {self.state}")
-
-    def stop(self) -> None:
-        """Stops the component's active operations and cleans up resources."""
+            
+        self.logger.info(f"RSIRule '{self.instance_name}' configured with OS={self.oversold_threshold}, OB={self.overbought_threshold}, W={self._weight}")
+        
+    def _start(self) -> None:
+        """Component-specific start logic."""
+        self.logger.info(f"RSIRule '{self.instance_name}' ready for evaluation")
+        
+    def _stop(self) -> None:
+        """Component-specific stop logic."""
         self.reset_state()
-        self.state = BaseComponent.STATE_STOPPED
-        self.logger.info(f"RSIRule '{self.name}' stopped. State: {self.state}")
 
     def evaluate(self, bar_data: Optional[Dict[str, Any]] = None) -> Tuple[bool, float, Optional[str]]:
         if not self.rsi_indicator or not self.rsi_indicator.ready:
@@ -120,14 +122,18 @@ class RSIRule(BaseComponent):
         
         self.reset_state()
         self.logger.info(
-            f"RSIRule '{self.name}' parameters updated: OS={self.oversold_threshold}, OB={self.overbought_threshold}, W={self._weight}"
+            f"RSIRule '{self.instance_name}' parameters updated: OS={self.oversold_threshold}, OB={self.overbought_threshold}, W={self._weight}"
         )
         return True
         
     def reset_state(self):
         self._last_rsi_value = None
         self._current_signal_state = 0
-        # self.logger.debug(f"RSIRule '{self.name}' state reset.")
+        # self.logger.debug(f"RSIRule '{self.instance_name}' state reset.")
+        
+    def reset(self) -> None:
+        """Reset component state (required by ComponentBase)."""
+        self.reset_state()
     
     @property
     def weight(self) -> float:
@@ -138,6 +144,39 @@ class RSIRule(BaseComponent):
     def weight(self, value: float) -> None:
         self._weight = value
 
+    def get_parameter_space(self) -> ParameterSpace:
+        """Get the parameter space for this component (ComponentBase interface)."""
+        space = ParameterSpace(f"{self.instance_name}_space")
+        
+        space.add_parameter(Parameter(
+            name="oversold_threshold",
+            param_type="discrete",
+            values=[20.0, 30.0],
+            default=self.oversold_threshold
+        ))
+        
+        space.add_parameter(Parameter(
+            name="overbought_threshold",
+            param_type="discrete",
+            values=[60.0, 70.0],
+            default=self.overbought_threshold
+        ))
+        
+        space.add_parameter(Parameter(
+            name="weight",
+            param_type="discrete",
+            values=[0.4, 0.6],
+            default=self._weight
+        ))
+        
+        # If we have a dependent RSI indicator, include its parameter space
+        if self.rsi_indicator and hasattr(self.rsi_indicator, 'get_parameter_space'):
+            rsi_space = self.rsi_indicator.get_parameter_space()
+            # Add as subspace to maintain namespacing
+            space.add_subspace('rsi_indicator', rsi_space)
+        
+        return space
+        
     @property
     def parameter_space(self) -> Dict[str, List[Any]]:
          return {

@@ -1,0 +1,85 @@
+# Simple test configuration for isolated optimization
+# Tests just the MA rule in isolation to verify the system works
+
+logging:
+  level: INFO
+  format: "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
+
+run_mode: backtest
+
+# Simplified optimization configuration
+optimization:
+  strategy_name: strategy
+  method: grid
+  metric: sharpe_ratio
+  max_iterations: 10  # Limit iterations for testing
+  
+  # Simple workflow - just test MA rule isolation
+  workflow:
+    - name: "test_ma_isolated"
+      type: "rulewise"
+      targets: ["ma_crossover"]
+      isolate: true
+      method: "grid_search"
+      metric: "sharpe_ratio"
+
+# Minimal components
+components:
+  event_bus:
+    class_path: src.core.event_bus.EventBus
+    config:
+      name: "main_event_bus"
+
+  data_handler:
+    class_path: src.data.csv_data_handler.CSVDataHandler
+    config:
+      csv_file_path: "data/SPY_1min.csv"
+      symbol: "SPY"
+      timestamp_column: "timestamp"
+      train_test_split_ratio: 0.8
+
+  strategy:
+    class_path: src.strategy.implementations.regime_adaptive_ensemble_composed.RegimeAdaptiveEnsembleComposed
+    config:
+      symbol: "SPY"
+      # Simplified parameters - just 2 values each for quick test
+      ma_indicator:
+        short_window: 10
+        long_window: 20
+      rsi_indicator:
+        period: 14
+      ma_rule:
+        weight: 0.5
+      rsi_rule:
+        oversold_threshold: 30.0
+        overbought_threshold: 70.0
+        weight: 0.5
+
+  # Include workflow orchestrator
+  workflow_orchestrator:
+    class_path: src.strategy.optimization.workflow_orchestrator.OptimizationWorkflowOrchestrator
+    config:
+      # Config is in optimization.workflow section
+
+  portfolio_manager:
+    class_path: src.risk.basic_portfolio.BasicPortfolio
+    config:
+      initial_cash: 100000
+      max_positions: 1
+
+  risk_manager:
+    class_path: src.risk.basic_risk_manager.BasicRiskManager
+    config:
+      max_position_size: 100
+      stop_loss_pct: 0.02
+
+  execution_handler:
+    class_path: src.execution.simulated_execution_handler.SimulatedExecutionHandler
+    config:
+      latency_ms: 10
+
+  backtest_runner:
+    class_path: src.execution.backtest_runner.BacktestRunner
+    config:
+      start_date: "2024-01-01"
+      end_date: "2024-12-31"

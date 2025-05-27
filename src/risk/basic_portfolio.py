@@ -81,15 +81,16 @@ class BasicPortfolio(ComponentBase):
         
         self.logger.info(f"Resetting portfolio '{self.instance_name}' to initial state")
         
-        # Unsubscribe from events first to prevent duplicate subscriptions
-        if self.event_bus:
-            try:
-                self.event_bus.unsubscribe(EventType.FILL, self.on_fill)
-                self.event_bus.unsubscribe(EventType.BAR, self.on_bar)
-                self.event_bus.unsubscribe(EventType.CLASSIFICATION, self.on_classification_change)
-                self.logger.debug(f"'{self.instance_name}' unsubscribed from events during reset.")
-            except Exception as e:
-                self.logger.warning(f"Error unsubscribing from events during reset: {e}")
+        # Don't unsubscribe from events during reset - we'll resubscribe anyway
+        # This prevents the issue where reset() is called but start() isn't
+        # if self.event_bus:
+        #     try:
+        #         self.event_bus.unsubscribe(EventType.FILL, self.on_fill)
+        #         self.event_bus.unsubscribe(EventType.BAR, self.on_bar)
+        #         self.event_bus.unsubscribe(EventType.CLASSIFICATION, self.on_classification_change)
+        #         self.logger.debug(f"'{self.instance_name}' unsubscribed from events during reset.")
+        #     except Exception as e:
+        #         self.logger.warning(f"Error unsubscribing from events during reset: {e}")
         
         # Close any open positions
         if self.open_positions:

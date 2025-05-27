@@ -60,6 +60,13 @@ class OptimizationEntrypoint(ComponentBase):
         """
         self.logger.info("Starting optimization execution")
         
+        # Check if we should use workflow orchestrator
+        should_use_workflow = self._should_use_workflow()
+        self.logger.info(f"Should use workflow orchestrator: {should_use_workflow}")
+        
+        if should_use_workflow:
+            return self._execute_workflow_optimization()
+        
         if not self._runner:
             raise ComponentError("OptimizationRunner not initialized")
             
@@ -232,3 +239,121 @@ class OptimizationEntrypoint(ComponentBase):
             }
             
         return formatted
+    
+    def _should_use_workflow(self) -> bool:
+        """Check if we should use workflow orchestrator instead of direct optimization."""
+        # Check context type
+        self.logger.debug(f"Context type: {type(self._context)}")
+        self.logger.debug(f"Context attributes: {dir(self._context)}")
+        
+        # Try to get config from context
+        config = None
+        if hasattr(self._context, 'config'):
+            config = self._context.config
+        elif isinstance(self._context, dict) and 'config' in self._context:
+            config = self._context['config']
+        
+        self.logger.debug(f"Config found: {config is not None}")
+        
+        if config:
+            self.logger.debug(f"Config type: {type(config)}")
+            
+            # Try different ways to access config
+            if hasattr(config, 'get_all_config'):
+                # New method
+                full_config = config.get_all_config()
+                opt_config = full_config.get("optimization", {})
+            elif hasattr(config, 'get'):
+                # Legacy method - get optimization section directly
+                opt_config = config.get("optimization", {})
+            else:
+                self.logger.warning("Config object doesn't have expected methods")
+                return False
+                
+            self.logger.debug(f"Optimization config keys: {list(opt_config.keys())}")
+            
+            # Check if workflow is defined
+            if isinstance(opt_config, dict):
+                workflow_steps = opt_config.get("workflow", [])
+                self.logger.debug(f"Workflow steps found: {len(workflow_steps)}")
+                
+                if workflow_steps:
+                    self.logger.info(f"Found {len(workflow_steps)} workflow steps in configuration")
+                    return True
+        else:
+            self.logger.warning("No config object found in context")
+            
+        return False
+    
+    def _execute_workflow_optimization(self) -> Dict[str, Any]:
+        """Execute optimization using workflow orchestrator."""
+        self.logger.info("Using workflow orchestrator for optimization")
+        
+        # Get container from various possible locations
+        container = None
+        if hasattr(self._context, 'container'):
+            container = self._context.container
+        elif isinstance(self._context, dict) and 'container' in self._context:
+            container = self._context['container']
+        elif hasattr(self, 'container'):
+            container = self.container
+            
+        if not container:
+            self.logger.error(f"Container not found. Context type: {type(self._context)}")
+            self.logger.error(f"Context keys: {self._context.keys() if isinstance(self._context, dict) else 'Not a dict'}")
+            raise ComponentError("Container not available in context")
+            
+        workflow_orchestrator = container.resolve('workflow_orchestrator')
+        if not workflow_orchestrator:
+            raise ComponentError("Workflow orchestrator not found in container")
+        
+        # Get required components
+        data_handler = container.resolve('data_handler')
+        portfolio_manager = container.resolve('portfolio_manager')
+        strategy = container.resolve(self._strategy_name)
+        risk_manager = container.resolve('risk_manager')
+        execution_handler = container.resolve('execution_handler')
+        
+        if not all([data_handler, portfolio_manager, strategy, risk_manager, execution_handler]):
+            raise ComponentError("Required components not found for workflow optimization")
+        
+        # For now, use dummy train/test dates - in production these would come from config
+        train_dates = ("2024-01-01", "2024-09-30")
+        test_dates = ("2024-10-01", "2024-12-31")
+        
+        # Get workflow steps from config to pass to orchestrator
+        workflow_steps = []
+        config = None
+        if hasattr(self._context, 'config'):
+            config = self._context.config
+        elif isinstance(self._context, dict) and 'config' in self._context:
+            config = self._context['config']
+            
+        if config:
+            if hasattr(config, 'get_all_config'):
+                full_config = config.get_all_config()
+                opt_config = full_config.get("optimization", {})
+                workflow_steps = opt_config.get("workflow", [])
+            elif hasattr(config, 'get'):
+                opt_config = config.get("optimization", {})
+                if isinstance(opt_config, dict):
+                    workflow_steps = opt_config.get("workflow", [])
+        
+        self.logger.info(f"Passing {len(workflow_steps)} workflow steps to orchestrator")
+        
+        # Pass workflow steps directly to ensure they're available
+        if workflow_steps and hasattr(workflow_orchestrator, 'workflow_steps'):
+            workflow_orchestrator.workflow_steps = workflow_steps
+        
+        # Run workflow optimization
+        results = workflow_orchestrator.run_optimization_workflow(
+            data_handler=data_handler,
+            portfolio_manager=portfolio_manager,
+            strategy=strategy,
+            risk_manager=risk_manager,
+            execution_handler=execution_handler,
+            train_dates=train_dates,
+            test_dates=test_dates
+        )
+        
+        return results

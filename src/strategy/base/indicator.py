@@ -3,11 +3,11 @@ Base class for technical indicators.
 """
 
 from abc import ABC, abstractmethod
-from typing import Dict, Any, Optional, List
+from typing import Dict, Any, Optional, List, Tuple
 from dataclasses import dataclass
 import numpy as np
 
-from .strategy import StrategyComponent
+from ...core.component_base import ComponentBase
 from .parameter import ParameterSpace, Parameter
 
 
@@ -20,7 +20,7 @@ class IndicatorResult:
     ready: bool = True
 
 
-class IndicatorBase(StrategyComponent, ABC):
+class IndicatorBase(ComponentBase, ABC):
     """
     Base class for all technical indicators.
     
@@ -29,21 +29,46 @@ class IndicatorBase(StrategyComponent, ABC):
     - Parameter management
     - State management and reset
     - Ready state tracking
+    - Inherits from ComponentBase for standard lifecycle and optimization
     """
     
-    def __init__(self, name: str, lookback_period: int = 1):
-        self._name = name
+    def __init__(self, instance_name: str, lookback_period: int = 1, config_key: Optional[str] = None):
+        """Initialize indicator with ComponentBase pattern."""
+        super().__init__(instance_name, config_key)
+        
+        # Indicator-specific state
         self._lookback_period = lookback_period
         self._buffer: List[float] = []
         self._value: Optional[float] = None
         self._ready = False
         self._min_periods: int = lookback_period
-        self._parameters: Dict[str, Any] = {}
+        self._parameters: Dict[str, Any] = {
+            'lookback_period': lookback_period
+        }
+    
+    def _initialize(self) -> None:
+        """Component-specific initialization."""
+        # Load configuration if available
+        if self.component_config:
+            self._lookback_period = self.component_config.get('lookback_period', self._lookback_period)
+            self._min_periods = self.component_config.get('min_periods', self._lookback_period)
+            self._parameters['lookback_period'] = self._lookback_period
+        
+        # Reset state
+        self.reset()
+        
+    def _start(self) -> None:
+        """Component-specific start logic."""
+        self.logger.debug(f"Indicator '{self.instance_name}' started")
+        
+    def _stop(self) -> None:
+        """Component-specific stop logic."""
+        self.reset()
         
     @property
     def name(self) -> str:
-        """Unique name for this indicator."""
-        return self._name
+        """Unique name for this indicator (compatibility property)."""
+        return self.instance_name
         
     @property
     def ready(self) -> bool:
@@ -118,13 +143,13 @@ class IndicatorBase(StrategyComponent, ABC):
         
     def get_parameter_space(self) -> ParameterSpace:
         """Get parameter space for optimization."""
-        space = ParameterSpace(f"{self.name}_params")
+        space = ParameterSpace(f"{self.instance_name}_params")
         
         # Add lookback period parameter
         # For testing: limit to specific values based on indicator name
-        if 'fast' in self.name.lower():
+        if 'fast' in self.instance_name.lower():
             values = [5, 10]
-        elif 'slow' in self.name.lower():
+        elif 'slow' in self.instance_name.lower():
             values = [20, 30]
         else:
             values = list(range(5, 50, 5))
@@ -141,6 +166,25 @@ class IndicatorBase(StrategyComponent, ABC):
         # Subclasses should override to add specific parameters
         return space
         
+    def validate_parameters(self, params: Dict[str, Any]) -> Tuple[bool, Optional[str]]:
+        """Validate parameters (can be overridden by subclasses)."""
+        if 'lookback_period' in params:
+            if params['lookback_period'] < 1:
+                return False, "lookback_period must be >= 1"
+        return True, None
+        
+    def apply_parameters(self, params: Dict[str, Any]) -> None:
+        """Apply parameters (ComponentBase interface)."""
+        self.set_parameters(params)
+        # Ensure lookback period is updated
+        if 'lookback_period' in params:
+            self._lookback_period = params['lookback_period']
+            self._min_periods = params.get('min_periods', self._lookback_period)
+        
+    def get_optimizable_parameters(self) -> Dict[str, Any]:
+        """Get optimizable parameters (ComponentBase interface)."""
+        return self.get_parameters()
+    
     def reset(self) -> None:
         """Reset indicator state."""
         self._buffer.clear()
@@ -151,8 +195,8 @@ class IndicatorBase(StrategyComponent, ABC):
 class MovingAverageIndicator(IndicatorBase):
     """Simple Moving Average indicator."""
     
-    def __init__(self, name: str = "SMA", lookback_period: int = 20):
-        super().__init__(name, lookback_period)
+    def __init__(self, name: str = "SMA", lookback_period: int = 20, config_key: Optional[str] = None):
+        super().__init__(instance_name=name, lookback_period=lookback_period, config_key=config_key)
         
     def _calculate(self, data: List[float]) -> IndicatorResult:
         """Calculate simple moving average."""
@@ -162,12 +206,38 @@ class MovingAverageIndicator(IndicatorBase):
         sma_value = np.mean(data)
         return IndicatorResult(value=sma_value, ready=True)
         
+    def get_parameter_space(self) -> ParameterSpace:
+        """Get parameter space for optimization."""
+        space = ParameterSpace(f"{self.instance_name}_params")
+        
+        # Add lookback period parameter with values based on indicator type
+        if 'fast' in self.instance_name.lower():
+            # Fast MA: 5, 10, 15
+            values = [5, 10, 15]
+        elif 'slow' in self.instance_name.lower():
+            # Slow MA: 20, 30, 40
+            values = [20, 30, 40]
+        else:
+            # Generic MA
+            values = [5, 10, 15, 20, 30, 40, 50]
+            
+        space.add_parameter(
+            Parameter(
+                name='lookback_period',
+                param_type='discrete',
+                values=values,
+                default=self._lookback_period
+            )
+        )
+        
+        return space
+        
 
 class ExponentialMovingAverageIndicator(IndicatorBase):
     """Exponential Moving Average indicator."""
     
-    def __init__(self, name: str = "EMA", lookback_period: int = 20):
-        super().__init__(name, lookback_period)
+    def __init__(self, name: str = "EMA", lookback_period: int = 20, config_key: Optional[str] = None):
+        super().__init__(instance_name=name, lookback_period=lookback_period, config_key=config_key)
         self._ema_value: Optional[float] = None
         self._alpha = 2.0 / (lookback_period + 1)
         
@@ -194,12 +264,14 @@ class ExponentialMovingAverageIndicator(IndicatorBase):
 class RSIIndicator(IndicatorBase):
     """Relative Strength Index indicator."""
     
-    def __init__(self, name: str = "RSI", lookback_period: int = 14):
-        super().__init__(name, lookback_period)
+    def __init__(self, name: str = "RSI", lookback_period: int = 14, config_key: Optional[str] = None):
+        super().__init__(instance_name=name, lookback_period=lookback_period, config_key=config_key)
         self._gains: List[float] = []
         self._losses: List[float] = []
         self._avg_gain: Optional[float] = None
         self._avg_loss: Optional[float] = None
+        self._oversold_threshold = 30.0
+        self._overbought_threshold = 70.0
         
     def update(self, bar_data: Dict[str, Any]) -> IndicatorResult:
         """Update RSI with new bar data."""
@@ -269,13 +341,13 @@ class RSIIndicator(IndicatorBase):
         space = super().get_parameter_space()
         
         # RSI typically uses periods between 5 and 25
-        # For now, keep RSI period fixed at 14
+        # Use common RSI periods for optimization
         space.update_parameter(
             'lookback_period',
             Parameter(
                 name='lookback_period',
                 param_type='discrete',
-                values=[14],  # Fixed value only
+                values=[9, 14, 21, 30],  # Common RSI periods
                 default=14
             )
         )

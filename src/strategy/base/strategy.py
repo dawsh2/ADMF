@@ -104,7 +104,21 @@ class Strategy(ComponentBase):
         # Subscribe to events
         if self.event_bus:
             self.event_bus.subscribe(EventType.BAR, self._on_bar)
-            self.event_bus.subscribe(EventType.CLASSIFICATION, self._on_classification)
+            
+            # Only subscribe to classification events if we're not in optimization mode
+            # or if regime switching is explicitly enabled
+            should_subscribe_classification = True
+            
+            # Check if we're in optimization mode
+            if hasattr(self._context, 'metadata') and self._context.metadata.get('cli_args', {}).get('optimize', False):
+                # We're in optimization mode - check if this is the isolated strategy
+                if 'isolated' not in self.instance_name.lower():
+                    # This is the main strategy during optimization - don't subscribe
+                    should_subscribe_classification = False
+                    self.logger.info(f"Strategy '{self.instance_name}' NOT subscribing to classification events - optimization mode")
+            
+            if should_subscribe_classification:
+                self.event_bus.subscribe(EventType.CLASSIFICATION, self._on_classification)
             
         self.logger.info(f"Strategy '{self.instance_name}' started")
         
@@ -112,7 +126,13 @@ class Strategy(ComponentBase):
         """Stop the strategy and unsubscribe from events."""
         if self.event_bus:
             self.event_bus.unsubscribe(EventType.BAR, self._on_bar)
-            self.event_bus.unsubscribe(EventType.CLASSIFICATION, self._on_classification)
+            
+            # Only unsubscribe from classification if we subscribed
+            try:
+                self.event_bus.unsubscribe(EventType.CLASSIFICATION, self._on_classification)
+            except:
+                # We might not have subscribed during optimization
+                pass
             
         self.logger.info(f"Strategy '{self.instance_name}' stopped")
         
@@ -162,13 +182,14 @@ class Strategy(ComponentBase):
             return
             
         classification = event.payload
-        new_regime = classification.get('regime', 'default')
+        new_regime = classification.get('classification', classification.get('regime', 'default'))
         
         if new_regime != self._current_regime:
+            old_regime = self._current_regime
             self.logger.info(f"Strategy '{self.instance_name}' switching regime: "
-                           f"{self._current_regime} -> {new_regime}")
+                           f"{old_regime} -> {new_regime}")
             self._current_regime = new_regime
-            self._on_regime_change(self._current_regime, new_regime)
+            self._on_regime_change(old_regime, new_regime)
             
     # Signal Generation
     

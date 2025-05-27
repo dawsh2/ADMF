@@ -1,0 +1,159 @@
+# Configuration for Regime Adaptive Ensemble Strategy with Workflow Optimization
+# This combines:
+# 1. Ensemble signals (MA + RSI)
+# 2. Regime-adaptive parameter switching
+# 3. Config-driven optimization workflow
+
+system:
+  name: "ADMF-Trader"
+  version: "1.0.0"
+  run_mode: "optimization"
+
+components:
+  event_bus:
+    class_path: src.core.event_bus.EventBus
+    config:
+      name: "main_event_bus"
+
+  data_handler:
+    class_path: src.data.csv_data_handler.CSVDataHandler
+    config:
+      csv_file_path: "data/SPY_1min.csv"
+      symbol: "SPY"
+      timestamp_column: "timestamp"
+      train_test_split_ratio: 0.8
+
+  # Use the new Regime Adaptive Ensemble Strategy
+  strategy:
+    class_path: src.strategy.regime_adaptive_ensemble_strategy.RegimeAdaptiveEnsembleStrategy
+    config:
+      symbol: "SPY"
+      # MA parameters
+      short_window: 10
+      long_window: 20
+      # RSI parameters
+      rsi_indicator:
+        period: 14
+      rsi_rule:
+        oversold_threshold: 30.0
+        overbought_threshold: 70.0
+      # Initial weights
+      ma_weight: 0.5
+      rsi_weight: 0.5
+      # Regime adaptation settings
+      regime_params_file_path: "regime_optimized_parameters.json"
+      fallback_to_overall_best: true
+
+  optimizer:
+    class_path: src.execution.optimization_entrypoint.OptimizationEntrypoint
+    config:
+      strategy_name: strategy
+      method: grid
+      metric: sharpe_ratio
+      regime_specific: true
+      optimization_method: "regime_specific_with_split"
+      train_ratio: 0.8
+      regimes: ["trending_up", "trending_down", "volatile", "default"]
+
+  workflow_orchestrator:
+    class_path: src.strategy.optimization.workflow_orchestrator.OptimizationWorkflowOrchestrator
+    config:
+      # Config is in optimization.workflow section
+
+  regime_detector:
+    class_path: src.strategy.regime_detector.RegimeDetector
+    config:
+      min_regime_duration: 1
+      indicators:
+        ma_trend:
+          type: simple_ma_trend
+          parameters:
+            short_period: 10
+            long_period: 30
+        rsi:
+          type: rsi
+          parameters:
+            period: 14
+        atr:
+          type: atr
+          parameters:
+            period: 14
+      regime_thresholds:
+        trending_up:
+          ma_trend:
+            min: 0.01
+          rsi:
+            min: 55
+            max: 80
+        trending_down:
+          ma_trend:
+            max: -0.01
+          rsi:
+            min: 20
+            max: 45
+        volatile:
+          atr:
+            min: 0.5
+        default:
+          priority: 0
+
+  risk_manager:
+    class_path: src.risk.basic_risk_manager.BasicRiskManager
+    config:
+      max_position_size: 100
+      stop_loss_pct: 0.02
+
+  portfolio_manager:
+    class_path: src.risk.basic_portfolio.BasicPortfolio
+    config:
+      initial_cash: 100000
+      max_positions: 1
+
+  execution_handler:
+    class_path: src.execution.simulated_execution_handler.SimulatedExecutionHandler
+    config:
+      latency_ms: 10
+
+  backtest_runner:
+    class_path: src.execution.backtest_runner.BacktestRunner
+    config:
+      start_date: "2024-01-01"
+      end_date: "2024-12-31"
+
+# Optimization workflow
+optimization:
+  train_date_range: ["2023-01-01", "2023-06-30"]
+  test_date_range: ["2023-07-01", "2023-12-31"]
+  
+  workflow:
+    # Step 1: Optimize all parameters (MA, RSI, weights)
+    - name: "optimize_all_parameters"
+      type: "rulewise"
+      targets: []  # Empty = optimize strategy itself
+      method: "grid_search"
+      
+    # Future steps could include:
+    # - Regime-specific optimization
+    # - Fine-tuning weights after parameter optimization
+    # - Genetic optimization for complex parameter interactions
+
+# Parameter space for optimization
+parameter_constraints:
+  short_window:
+    values: [5, 10, 15]
+  long_window:
+    values: [20, 30, 40]
+  "rsi_indicator.period":
+    values: [9, 14, 21]
+  "rsi_rule.oversold_threshold":
+    values: [20, 25, 30]
+  "rsi_rule.overbought_threshold":
+    values: [70, 75, 80]
+  "ma_rule.weight":
+    values: [0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8]
+  "rsi_rule.weight":
+    values: [0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8]
+
+logging:
+  level: INFO
+  format: "%(asctime)s - %(name)s - %(levelname)s - %(message)s"

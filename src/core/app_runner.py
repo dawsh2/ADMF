@@ -52,6 +52,15 @@ class AppRunner(ComponentBase):
         if self.max_bars:
             self.logger.info(f"Max bars override: {self.max_bars}")
             
+    def _get_component(self, name: str):
+        """Helper to get component from container."""
+        if hasattr(self.container, 'get'):
+            return self.container.get(name)
+        elif hasattr(self.container, 'resolve'):
+            return self.container.resolve(name)
+        else:
+            raise AttributeError(f"Container has neither 'get' nor 'resolve' method")
+    
     def execute(self) -> Optional[Dict[str, Any]]:
         """
         Main execution method called by Bootstrap.execute_entrypoint().
@@ -89,17 +98,17 @@ class AppRunner(ComponentBase):
                 data_handler.set_max_bars(self.max_bars)
         
         # Check if we have a workflow orchestrator configured
-        workflow_orchestrator = self.container.get('workflow_orchestrator')
+        workflow_orchestrator = self._get_component('workflow_orchestrator')
         if workflow_orchestrator:
             # Use the new config-driven workflow system
             self.logger.info("Using workflow orchestrator for config-driven optimization")
             
             # Get required components
-            data_handler = self.container.get('data_handler')
-            portfolio_manager = self.container.get('portfolio_manager')
-            strategy = self.container.get('strategy')
-            risk_manager = self.container.get('risk_manager')
-            execution_handler = self.container.get('execution_handler')
+            data_handler = self._get_component('data_handler')
+            portfolio_manager = self._get_component('portfolio_manager')
+            strategy = self._get_component('strategy')
+            risk_manager = self._get_component('risk_manager')
+            execution_handler = self._get_component('execution_handler')
             
             # Get date ranges from config
             opt_config = self._context.config.get("optimization", {})
@@ -120,7 +129,7 @@ class AppRunner(ComponentBase):
             return results
         
         # Fall back to legacy optimizer for backward compatibility
-        optimizer = self.container.get('optimizer')
+        optimizer = self._get_component('optimizer')
         if not optimizer:
             raise DependencyNotFoundError("Neither workflow_orchestrator nor optimizer component found")
             

@@ -1,0 +1,134 @@
+# Working configuration for ensemble optimization
+# Uses MAStrategy which has been updated to ComponentBase pattern
+
+system:
+  name: "ADMF-Trader"
+  version: "1.0.0"
+  run_mode: "optimization"
+
+components:
+  event_bus:
+    class_path: src.core.event_bus.EventBus
+    config:
+      name: "main_event_bus"
+
+  data_handler:
+    class_path: src.data.csv_data_handler.CSVDataHandler
+    config:
+      csv_file_path: "data/SPY_1min.csv"
+      symbol: "SPY"
+      timestamp_column: "timestamp"
+      train_test_split_ratio: 0.8
+
+  # Use MAStrategy which works with new pattern
+  # In the workflow, we'll optimize its parameters
+  strategy:
+    class_path: src.strategy.ma_strategy.MAStrategy
+    config:
+      symbol: "SPY"
+      short_window: 10
+      long_window: 20
+      # Add weight parameters to MAStrategy config
+      # (These would need to be implemented in MAStrategy)
+      ma_weight: 0.5
+      volume_weight: 0.3
+      momentum_weight: 0.2
+
+  optimizer:
+    class_path: src.execution.optimization_entrypoint.OptimizationEntrypoint
+    config:
+      strategy_name: strategy
+      method: grid
+      metric: sharpe_ratio
+      regime_specific: true
+      optimization_method: "regime_specific_with_split"
+      train_ratio: 0.8
+      regimes: ["trending_up", "trending_down", "volatile", "default"]
+
+  workflow_orchestrator:
+    class_path: src.strategy.optimization.workflow_orchestrator.OptimizationWorkflowOrchestrator
+    config:
+      # Config is in optimization.workflow section
+
+  regime_detector:
+    class_path: src.strategy.regime_detector.RegimeDetector
+    config:
+      min_regime_duration: 1
+      indicators:
+        ma_trend:
+          type: simple_ma_trend
+          parameters:
+            short_period: 10
+            long_period: 30
+        rsi:
+          type: rsi
+          parameters:
+            period: 14
+        atr:
+          type: atr
+          parameters:
+            period: 14
+      regime_thresholds:
+        trending_up:
+          ma_trend:
+            min: 0.01
+          rsi:
+            min: 55
+            max: 80
+        trending_down:
+          ma_trend:
+            max: -0.01
+          rsi:
+            min: 20
+            max: 45
+        volatile:
+          atr:
+            min: 0.5
+        default:
+          priority: 0
+
+  risk_manager:
+    class_path: src.risk.basic_risk_manager.BasicRiskManager
+    config:
+      max_position_size: 100
+      stop_loss_pct: 0.02
+
+  portfolio_manager:
+    class_path: src.risk.basic_portfolio.BasicPortfolio
+    config:
+      initial_cash: 100000
+      max_positions: 1
+
+  execution_handler:
+    class_path: src.execution.simulated_execution_handler.SimulatedExecutionHandler
+    config:
+      latency_ms: 10
+
+  backtest_runner:
+    class_path: src.execution.backtest_runner.BacktestRunner
+    config:
+      start_date: "2024-01-01"
+      end_date: "2024-12-31"
+
+# Optimization workflow
+optimization:
+  train_date_range: ["2023-01-01", "2023-06-30"]
+  test_date_range: ["2023-07-01", "2023-12-31"]
+  
+  workflow:
+    # Step 1: Optimize MA parameters
+    - name: "optimize_parameters"
+      type: "rulewise"
+      targets: []  # Empty = optimize strategy itself
+      method: "grid_search"
+      
+    # Step 2: Optimize weights (if MAStrategy had weight parameters)
+    # This would optimize ma_weight, volume_weight, momentum_weight
+    - name: "optimize_weights"
+      type: "ensemble_weights"
+      method: "grid_search"
+      depends_on: ["optimize_parameters"]
+
+logging:
+  level: INFO
+  format: "%(asctime)s - %(name)s - %(levelname)s - %(message)s"

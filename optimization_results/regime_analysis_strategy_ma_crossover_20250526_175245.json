@@ -1,0 +1,82 @@
+{
+  "best_parameters": {
+    "default": {
+      "parameters": {
+        "generate_exit_signals": true,
+        "min_separation": 0.0001,
+        "fast_ma.lookback_period": 15,
+        "slow_ma.lookback_period": 30
+      },
+      "sharpe_ratio": 0.9351704395703079,
+      "win_rate": 0.44155844155844154,
+      "total_return": 232.50000000006708
+    },
+    "trending_down": {
+      "parameters": {
+        "generate_exit_signals": true,
+        "min_separation": 0.0001,
+        "fast_ma.lookback_period": 5,
+        "slow_ma.lookback_period": 30
+      },
+      "sharpe_ratio": 3.3221625246090403,
+      "win_rate": 0.7310924369747899,
+      "total_return": 2205.0600000000486
+    },
+    "trending_up": {
+      "parameters": {
+        "generate_exit_signals": true,
+        "min_separation": 0.0001,
+        "fast_ma.lookback_period": 5,
+        "slow_ma.lookback_period": 30
+      },
+      "sharpe_ratio": 3.37964932490367,
+      "win_rate": 0.7326732673267327,
+      "total_return": 1593.559999999951
+    },
+    "volatile": {
+      "parameters": {
+        "generate_exit_signals": true,
+        "min_separation": 0.0001,
+        "fast_ma.lookback_period": 10,
+        "slow_ma.lookback_period": 30
+      },
+      "sharpe_ratio": 16.170124732131374,
+      "win_rate": 0.8,
+      "total_return": 1470.4900000000066
+    }
+  },
+  "regime_statistics": {
+    "default": {
+      "avg_return": -3256.8333333332903,
+      "std_return": 3239.618947842801,
+      "avg_sharpe": -4.132078569738615,
+      "avg_win_rate": 0.3106692711632999,
+      "total_trades": 1424,
+      "parameter_sets_tested": 9
+    },
+    "trending_down": {
+      "avg_return": 243.0466666667213,
+      "std_return": 1265.1998705518463,
+      "avg_sharpe": 0.4957277629668352,
+      "avg_win_rate": 0.6235959810176477,
+      "total_trades": 1624,
+      "parameter_sets_tested": 9
+    },
+    "trending_up": {
+      "avg_return": 210.69888888888858,
+      "std_return": 1607.0007751186813,
+      "avg_sharpe": 0.5079803230386762,
+      "avg_win_rate": 0.5941033561524931,
+      "total_trades": 1412,
+      "parameter_sets_tested": 9
+    },
+    "volatile": {
+      "avg_return": 872.5455555555648,
+      "std_return": 449.398835386688,
+      "avg_sharpe": 6.808774815768791,
+      "avg_win_rate": 0.4993756243756244,
+      "total_trades": 72,
+      "parameter_sets_tested": 9
+    }
+  }
+}

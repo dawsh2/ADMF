@@ -1,0 +1,139 @@
+# Isolated Optimization Configuration
+# Demonstrates efficient rule-by-rule optimization to reduce backtest count
+
+# Data configuration
+data:
+  type: csv
+  symbol: SPY
+  file_path: data/SPY_1min.csv
+  timestamp_column: timestamp
+  train_test_split: 0.8  # 80% train, 20% test
+
+# Components that will be optimized
+components:
+  # Regime detector for market classification
+  - name: regime_detector
+    class: src.strategy.regime_detector.RegimeDetector
+    config:
+      min_duration: 1
+      indicators:
+        ma_trend:
+          type: simple_ma_trend
+          short_period: 10
+          long_period: 30
+        rsi:
+          type: rsi
+          period: 14
+        atr:
+          type: atr
+          period: 14
+      thresholds:
+        trending_up:
+          ma_trend:
+            min: 0.01
+          rsi:
+            min: 55
+            max: 80
+        trending_down:
+          ma_trend:
+            max: -0.01
+          rsi:
+            min: 20
+            max: 45
+        volatile:
+          atr:
+            min: 0.5
+        default:
+          priority: 0
+
+  # Strategy that will be optimized
+  - name: strategy
+    class: src.strategy.regime_adaptive_ensemble_strategy.RegimeAdaptiveEnsembleStrategy
+    config:
+      symbol: SPY
+      indicators:
+        ma:
+          type: moving_average_crossover
+          short_window: 10
+          long_window: 30
+        rsi_indicator:
+          type: rsi
+          period: 14
+      rules:
+        ma_rule:
+          type: ma_crossover
+          weight: 0.5
+        rsi_rule:
+          type: rsi_threshold
+          oversold_threshold: 30
+          overbought_threshold: 70
+          weight: 0.5
+
+# Optimization workflow with isolation
+optimization:
+  workflow:
+    # Step 1: Optimize MA rule in isolation
+    - name: "optimize_ma_isolated"
+      type: "rulewise"
+      targets: ["ma_rule"]
+      isolate: true  # Test MA rule alone
+      method: "grid_search"
+      metric: "sharpe_ratio"
+      parameter_space:
+        short_window: [5, 10, 15]
+        long_window: [20, 30, 40]
+      # Total: 3 x 3 = 9 backtests
+    
+    # Step 2: Optimize RSI rule in isolation  
+    - name: "optimize_rsi_isolated"
+      type: "rulewise"
+      targets: ["rsi_rule"]
+      isolate: true  # Test RSI rule alone
+      method: "grid_search"
+      metric: "sharpe_ratio"
+      parameter_space:
+        rsi_indicator.period: [9, 14, 21]
+        rsi_rule.oversold_threshold: [20, 25, 30]
+        rsi_rule.overbought_threshold: [70, 75, 80]
+      # Total: 3 x 3 x 3 = 27 backtests
+    
+    # Step 3: Optimize weights using best parameters from steps 1 & 2
+    - name: "optimize_weights"
+      type: "ensemble_weights"
+      depends_on: ["optimize_ma_isolated", "optimize_rsi_isolated"]
+      method: "grid_search"
+      parameter_space:
+        ma_rule.weight: [0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8]
+        rsi_rule.weight: [0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8]
+      # Total: 7 x 7 = 49 backtests
+      
+    # Step 4: Regime-specific optimization using best overall params
+    - name: "optimize_per_regime"
+      type: "regime_optimization"
+      depends_on: ["optimize_weights"]
+      regimes: ["trending_up", "trending_down", "volatile", "default"]
+      # This will apply the best parameters found above to each regime
+
+# Total backtests with isolation: 9 + 27 + 49 + (regime optimization) = ~85-340
+# Without isolation (full cartesian product): 3x3x3x3x3x7x7 = 11,907 backtests!
+# Reduction: ~97-99%
+
+# Parameters for regime-specific optimization output
+regime_parameters_file: regime_optimized_parameters.json
+
+# Run configuration
+run:
+  mode: optimization  # Changed by --optimize flag
+  
+# Portfolio and risk management
+portfolio:
+  initial_cash: 100000
+  
+risk:
+  position_size: 100
+  max_positions: 1
+  
+# Execution  
+execution:
+  commission: 0.0
+  slippage: 0.0

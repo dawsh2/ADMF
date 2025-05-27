@@ -268,6 +268,9 @@ class CSVDataHandler(ComponentBase):
             self._data_iterator = self._active_df.iterrows()
             self.logger.debug(f"Set active_df with {len(self._active_df)} rows")
 
+        # Store the active dataset type
+        self._active_dataset = dataset_type
+        
         self._bars_processed_current_run = 0
         self._last_bar_timestamp = None
         self.logger.debug(f"Active dataset '{dataset_type}' ready with {len(self._active_df)} bars.")

@@ -48,6 +48,9 @@ class RegimeDetector(ComponentBase):
         self._total_checks = 0
         self._no_match_count = 0
         self._regime_counts = {}
+        
+        # Regime history for optimization analysis
+        self.regime_history = []
         self._checks_since_last_log = 0
         
         # Enhanced debugging
@@ -419,6 +422,14 @@ class RegimeDetector(ComponentBase):
                 
     def _publish_classification_event(self, regime: str, timestamp: Any):
         """Explicitly publish a classification event for the given regime."""
+        # Track regime history for optimization analysis
+        if hasattr(self, 'regime_history'):
+            self.regime_history.append({
+                'timestamp': timestamp,
+                'regime': regime,
+                'detector': self.instance_name
+            })
+        
         if self.event_bus and hasattr(self.event_bus, 'publish'):
             try:
                 from src.core.event import Event, EventType
@@ -476,6 +487,10 @@ class RegimeDetector(ComponentBase):
         self._no_match_count = 0
         self._regime_counts = {}
         self._checks_since_last_log = 0
+        
+        # Reset regime history
+        if hasattr(self, 'regime_history'):
+            self.regime_history = []
         
         # Reset all indicators if they have a reset method
         for name, indicator in self._regime_indicators.items():

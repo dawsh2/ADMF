@@ -6,7 +6,7 @@ from abc import ABC, abstractmethod
 from typing import Dict, Any, Tuple, Optional, List
 from dataclasses import dataclass
 
-from .strategy import StrategyComponent
+from ...core.component_base import ComponentBase
 from .parameter import ParameterSpace, Parameter
 
 
@@ -19,26 +19,50 @@ class RuleResult:
     metadata: Optional[Dict[str, Any]] = None
 
 
-class RuleBase(StrategyComponent, ABC):
+class RuleBase(ComponentBase, ABC):
     """
     Base class for all trading rules.
     
     Rules evaluate market conditions and generate trading signals.
     They can depend on indicators and other data sources.
+    Inherits from ComponentBase to provide standard lifecycle and optimization interface.
     """
     
-    def __init__(self, name: str):
-        self._name = name
+    def __init__(self, instance_name: str, config_key: Optional[str] = None):
+        """Initialize rule with ComponentBase pattern."""
+        super().__init__(instance_name, config_key)
+        
+        # Rule-specific state
         self._ready = False
         self._parameters: Dict[str, Any] = {}
         self._dependencies: Dict[str, Any] = {}  # Indicators or other data sources
         self._last_signal: Optional[int] = None
         self._signals_generated = 0
+    
+    def _initialize(self) -> None:
+        """Component-specific initialization."""
+        # Load any configuration
+        self._load_config()
+        # Reset state
+        self.reset()
+        
+    def _load_config(self) -> None:
+        """Load configuration from component_config."""
+        # Subclasses can override to load specific config
+        pass
+        
+    def _start(self) -> None:
+        """Component-specific start logic."""
+        self.logger.debug(f"Rule '{self.instance_name}' started")
+        
+    def _stop(self) -> None:
+        """Component-specific stop logic."""
+        self.reset()
         
     @property
     def name(self) -> str:
-        """Unique name for this rule."""
-        return self._name
+        """Unique name for this rule (compatibility property)."""
+        return self.instance_name
         
     @property
     def ready(self) -> bool:
@@ -93,6 +117,11 @@ class RuleBase(StrategyComponent, ABC):
         
     def set_parameters(self, params: Dict[str, Any]) -> None:
         """Set parameter values."""
+        # Validate first
+        valid, error = self.validate_parameters(params)
+        if not valid:
+            raise ValueError(f"Invalid parameters: {error}")
+        
         self._parameters.update(params)
         # Reset on parameter change
         self.reset()
@@ -100,7 +129,52 @@ class RuleBase(StrategyComponent, ABC):
     def get_parameter_space(self) -> ParameterSpace:
         """Get parameter space for optimization."""
         # Base implementation - subclasses should override
-        return ParameterSpace(f"{self.name}_params")
+        return ParameterSpace(f"{self.instance_name}_params")
+        
+    def validate_parameters(self, params: Dict[str, Any]) -> Tuple[bool, Optional[str]]:
+        """Validate parameters (can be overridden by subclasses)."""
+        return True, None
+        
+    def apply_parameters(self, params: Dict[str, Any]) -> None:
+        """Apply parameters to rule and its dependencies."""
+        # Separate rule parameters from dependency parameters
+        rule_params = {}
+        dependency_params = {}
+        
+        for key, value in params.items():
+            if '.' in key:
+                # Namespaced parameter for dependency
+                dep_name, param_name = key.split('.', 1)
+                if dep_name not in dependency_params:
+                    dependency_params[dep_name] = {}
+                dependency_params[dep_name][param_name] = value
+            else:
+                # Direct rule parameter
+                rule_params[key] = value
+        
+        # Apply rule parameters
+        if rule_params:
+            self.set_parameters(rule_params)
+        
+        # Apply dependency parameters
+        for dep_name, dep_params in dependency_params.items():
+            if dep_name in self._dependencies:
+                dep = self._dependencies[dep_name]
+                if hasattr(dep, 'apply_parameters'):
+                    dep.apply_parameters(dep_params)
+        
+    def get_optimizable_parameters(self) -> Dict[str, Any]:
+        """Get optimizable parameters including dependencies."""
+        params = self.get_parameters()
+        
+        # Include dependency parameters with namespacing
+        for dep_name, dep in self._dependencies.items():
+            if hasattr(dep, 'get_optimizable_parameters'):
+                dep_params = dep.get_optimizable_parameters()
+                for param_name, param_value in dep_params.items():
+                    params[f"{dep_name}.{param_name}"] = param_value
+                    
+        return params
         
     def reset(self) -> None:
         """Reset rule state."""
@@ -112,8 +186,8 @@ class RuleBase(StrategyComponent, ABC):
 class CrossoverRule(RuleBase):
     """Moving average crossover rule."""
     
-    def __init__(self, name: str = "MA_Crossover"):
-        super().__init__(name)
+    def __init__(self, name: str = "MA_Crossover", config_key: Optional[str] = None):
+        super().__init__(instance_name=name, config_key=config_key)
         self._parameters = {
             'generate_exit_signals': True,
             'min_separation': 0.0001  # Minimum separation to trigger signal
@@ -174,14 +248,29 @@ class CrossoverRule(RuleBase):
             )
         )
         
+        # If we have dependent indicators, include their parameter spaces
+        if 'fast_ma' in self._dependencies:
+            fast_indicator = self._dependencies['fast_ma']
+            if hasattr(fast_indicator, 'get_parameter_space'):
+                fast_space = fast_indicator.get_parameter_space()
+                # Add as subspace to maintain namespacing
+                space.add_subspace('fast_ma', fast_space)
+                
+        if 'slow_ma' in self._dependencies:
+            slow_indicator = self._dependencies['slow_ma']
+            if hasattr(slow_indicator, 'get_parameter_space'):
+                slow_space = slow_indicator.get_parameter_space()
+                # Add as subspace to maintain namespacing
+                space.add_subspace('slow_ma', slow_space)
+        
         return space
         
 
 class ThresholdRule(RuleBase):
     """Rule based on indicator threshold levels."""
     
-    def __init__(self, name: str = "Threshold_Rule"):
-        super().__init__(name)
+    def __init__(self, name: str = "Threshold_Rule", config_key: Optional[str] = None):
+        super().__init__(instance_name=name, config_key=config_key)
         self._parameters = {
             'buy_threshold': 30.0,
             'sell_threshold': 70.0,
@@ -239,6 +328,15 @@ class ThresholdRule(RuleBase):
                 default=70.0
             )
         )
+        
+        # If we have a dependent indicator, include its parameter space
+        indicator_name = self._parameters.get('indicator_name', 'indicator')
+        if indicator_name in self._dependencies:
+            indicator = self._dependencies[indicator_name]
+            if hasattr(indicator, 'get_parameter_space'):
+                indicator_space = indicator.get_parameter_space()
+                # Add as subspace to maintain namespacing
+                space.add_subspace(indicator_name, indicator_space)
         
         return space
         

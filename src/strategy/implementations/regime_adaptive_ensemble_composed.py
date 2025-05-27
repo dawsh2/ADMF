@@ -1,0 +1,406 @@
+# src/strategy/regime_adaptive_ensemble_composed.py
+"""
+Regime Adaptive Ensemble Strategy - Properly Composed Version
+
+This strategy follows the documented component composition pattern from STRATEGY.MD,
+using add_indicator(), add_rule(), etc. rather than direct implementation.
+"""
+
+import logging
+import json
+import os
+from typing import Dict, Any, Optional, List, Tuple
+
+from src.strategy.base.strategy import Strategy
+from src.strategy.base.indicator import MovingAverageIndicator, RSIIndicator
+from src.strategy.base.rule import CrossoverRule, ThresholdRule
+from src.core.event import Event, EventType
+from src.strategy.base.parameter import ParameterSet, Parameter, ParameterSpace
+
+
+class RegimeAdaptiveEnsembleComposed(Strategy):
+    """
+    A properly composed ensemble strategy with regime adaptation.
+    
+    This strategy:
+    - Uses component composition as per the documentation
+    - Combines MA crossover and RSI signals
+    - Adapts parameters based on detected market regime
+    - Supports full optimization of all parameters and weights
+    """
+    
+    def _initialize(self):
+        """Initialize the strategy with components."""
+        # Call parent initialization first
+        super()._initialize()
+        
+        # Get configuration
+        config = self.component_config or {}
+        
+        # Symbol for trading
+        self._symbol = config.get('symbol', 'SPY')
+        
+        # Regime adaptation settings
+        self._regime_params_file = config.get('regime_params_file_path', 'regime_optimized_parameters.json')
+        self._fallback_to_overall_best = config.get('fallback_to_overall_best', True)
+        self._regime_specific_params = {}
+        self._overall_best_params = None
+        
+        # Disable regime switching during optimization
+        self._enable_regime_switching = config.get('enable_regime_switching', True)
+        
+        # Check if we're in optimization mode via CLI args
+        if hasattr(self._context, 'metadata'):
+            cli_args = self._context.metadata.get('cli_args', {})
+            if cli_args.get('optimize', False):
+                self._enable_regime_switching = False
+                self.logger.info("Regime switching DISABLED - optimization mode detected via CLI")
+        
+        # Also check for explicit optimization_mode flag
+        if hasattr(self._context, 'metadata') and self._context.metadata.get('optimization_mode', False):
+            self._enable_regime_switching = False
+            self.logger.info("Regime switching DISABLED - optimization mode detected")
+        
+        # Initialize components
+        self._create_components(config)
+        
+        # Load regime parameters if available
+        self._load_regime_parameters()
+        
+        self.logger.info(
+            f"{self.instance_name} initialized with {len(self._indicators)} indicators, "
+            f"{len(self._rules)} rules"
+        )
+        
+    def _create_components(self, config: Dict[str, Any]):
+        """Create and add strategy components."""
+        # Create MA indicator
+        ma_config = config.get('ma_indicator', {})
+        
+        # Create fast and slow MA indicators for crossover rule
+        fast_ma = MovingAverageIndicator(
+            name=f"{self.instance_name}_fast_ma",
+            lookback_period=ma_config.get('short_window', 10)
+        )
+        self.add_indicator('fast_ma', fast_ma)
+        
+        slow_ma = MovingAverageIndicator(
+            name=f"{self.instance_name}_slow_ma",
+            lookback_period=ma_config.get('long_window', 20)
+        )
+        self.add_indicator('slow_ma', slow_ma)
+        
+        # Create RSI indicator
+        rsi_config = config.get('rsi_indicator', {})
+        rsi_indicator = RSIIndicator(
+            name=f"{self.instance_name}_rsi",
+            lookback_period=rsi_config.get('period', 14)
+        )
+        self.add_indicator('rsi', rsi_indicator)
+        
+        # Create MA crossover rule
+        ma_rule_config = config.get('ma_rule', {})
+        ma_rule = CrossoverRule(name=f"{self.instance_name}_ma_crossover")
+        ma_rule.add_dependency('fast_ma', fast_ma)
+        ma_rule.add_dependency('slow_ma', slow_ma)
+        ma_weight = ma_rule_config.get('weight', 0.5)
+        self.add_rule('ma_crossover', ma_rule, weight=ma_weight)
+        
+        # Create RSI threshold rule
+        rsi_rule_config = config.get('rsi_rule', {})
+        rsi_rule = ThresholdRule(name=f"{self.instance_name}_rsi_threshold")
+        rsi_rule.add_dependency('indicator', rsi_indicator)
+        rsi_rule.set_parameters({
+            'buy_threshold': rsi_rule_config.get('oversold_threshold', 30.0),
+            'sell_threshold': rsi_rule_config.get('overbought_threshold', 70.0),
+            'indicator_name': 'indicator'
+        })
+        rsi_weight = rsi_rule_config.get('weight', 0.5)
+        self.add_rule('rsi', rsi_rule, weight=rsi_weight)
+        
+        # Normalize weights
+        self._normalize_weights()
+        
+    def _normalize_weights(self):
+        """Normalize rule weights to sum to 1."""
+        total = sum(self._component_weights.values())
+        if total > 0:
+            for name in self._component_weights:
+                self._component_weights[name] /= total
+                
+    def _load_regime_parameters(self):
+        """Load regime-specific parameters from file."""
+        # Try absolute path first, then relative to optimization_results
+        file_paths = [
+            self._regime_params_file,
+            os.path.join('optimization_results', self._regime_params_file)
+        ]
+        
+        loaded = False
+        for file_path in file_paths:
+            if os.path.isfile(file_path):
+                try:
+                    with open(file_path, 'r') as f:
+                        data = json.load(f)
+                    
+                    # Handle new format with 'regimes' key
+                    if 'regimes' in data:
+                        self.logger.info(f"Loading regime parameters from {file_path}")
+                        for regime, params in data['regimes'].items():
+                            self._regime_specific_params[regime] = params
+                            self.logger.info(f"Loaded parameters for regime '{regime}': {len(params)} parameters")
+                        loaded = True
+                        
+                    # Handle old format with 'regime_best_parameters'
+                    elif 'regime_best_parameters' in data:
+                        for regime, regime_data in data['regime_best_parameters'].items():
+                            params = self._extract_parameters(regime_data)
+                            if params:
+                                self._regime_specific_params[regime] = params
+                                self.logger.info(f"Loaded parameters for regime '{regime}'")
+                        loaded = True
+                        
+                    # Extract overall best parameters if available
+                    if 'overall_best_parameters' in data:
+                        self._overall_best_params = data['overall_best_parameters']
+                        self.logger.info("Loaded overall best parameters as fallback")
+                    
+                    if loaded:
+                        self.logger.info(f"Successfully loaded regime parameters for {len(self._regime_specific_params)} regimes")
+                        break
+                        
+                except Exception as e:
+                    self.logger.error(f"Error loading regime parameters from {file_path}: {e}")
+        
+        if not loaded:
+            self.logger.warning(f"No regime parameters file found at {self._regime_params_file} or optimization_results/")
+            
+    def _extract_parameters(self, regime_data: Dict[str, Any]) -> Dict[str, Any]:
+        """Extract parameters from regime data structure."""
+        params = {}
+        
+        # Handle nested parameter structure
+        if 'parameters' in regime_data:
+            if 'parameters' in regime_data['parameters']:
+                params = regime_data['parameters']['parameters'].copy()
+            else:
+                params = regime_data['parameters'].copy()
+                
+        # Add weights if available
+        if 'weights' in regime_data:
+            params.update(regime_data['weights'])
+            
+        return params
+        
+    def _on_regime_change(self, old_regime: str, new_regime: str):
+        """Handle regime change by updating parameters."""
+        # Skip regime switching if disabled (e.g., during optimization)
+        if not self._enable_regime_switching:
+            self.logger.debug(f"Regime change {old_regime} -> {new_regime} ignored - regime switching disabled")
+            return
+            
+        self.logger.info(f"{'='*60}")
+        self.logger.info(f"REGIME CHANGE DETECTED: {old_regime} -> {new_regime}")
+        self.logger.info(f"{'='*60}")
+        
+        # Get parameters for new regime
+        params = None
+        if new_regime in self._regime_specific_params:
+            params = self._regime_specific_params[new_regime]
+            self.logger.info(f"Found regime-specific parameters for '{new_regime}'")
+            # Log the parameters being loaded
+            self.logger.info("Loading parameters:")
+            for key, value in params.items():
+                self.logger.info(f"  {key}: {value}")
+        elif self._fallback_to_overall_best and self._overall_best_params:
+            params = self._overall_best_params
+            self.logger.info(f"No specific parameters for '{new_regime}', using overall best parameters")
+            self.logger.info("Loading fallback parameters:")
+            for key, value in params.items():
+                self.logger.info(f"  {key}: {value}")
+        else:
+            self.logger.warning(f"No parameters available for regime '{new_regime}'")
+            
+        if params:
+            # Log current state before applying
+            self.logger.info("Current parameters before update:")
+            if 'fast_ma' in self._indicators:
+                self.logger.info(f"  fast_ma.lookback_period: {self._indicators['fast_ma'].lookback_period}")
+            if 'slow_ma' in self._indicators:
+                self.logger.info(f"  slow_ma.lookback_period: {self._indicators['slow_ma'].lookback_period}")
+            if 'rsi' in self._indicators:
+                self.logger.info(f"  rsi.lookback_period: {self._indicators['rsi'].lookback_period}")
+            self.logger.info(f"  weights: MA={self._component_weights.get('ma_crossover', 0):.2f}, RSI={self._component_weights.get('rsi', 0):.2f}")
+            
+            self._apply_regime_parameters(params)
+            
+            # Log confirmation of applied parameters
+            self.logger.info("Parameters after update:")
+            if 'fast_ma' in self._indicators:
+                self.logger.info(f"  fast_ma.lookback_period: {self._indicators['fast_ma'].lookback_period}")
+            if 'slow_ma' in self._indicators:
+                self.logger.info(f"  slow_ma.lookback_period: {self._indicators['slow_ma'].lookback_period}")
+            if 'rsi' in self._indicators:
+                self.logger.info(f"  rsi.lookback_period: {self._indicators['rsi'].lookback_period}")
+            self.logger.info(f"  weights: MA={self._component_weights.get('ma_crossover', 0):.2f}, RSI={self._component_weights.get('rsi', 0):.2f}")
+        
+        self.logger.info(f"{'='*60}")
+            
+    def _apply_regime_parameters(self, params: Dict[str, Any]):
+        """Apply parameters to components."""
+        # Handle both old and new parameter formats
+        
+        # Apply MA indicator parameters
+        # Check for new format first
+        if 'strategy_ma_crossover.fast_ma.lookback_period' in params and 'fast_ma' in self._indicators:
+            self._indicators['fast_ma'].set_parameters({'lookback_period': int(params['strategy_ma_crossover.fast_ma.lookback_period'])})
+        elif 'short_window' in params and 'fast_ma' in self._indicators:
+            self._indicators['fast_ma'].set_parameters({'lookback_period': int(params['short_window'])})
+            
+        if 'strategy_ma_crossover.slow_ma.lookback_period' in params and 'slow_ma' in self._indicators:
+            self._indicators['slow_ma'].set_parameters({'lookback_period': int(params['strategy_ma_crossover.slow_ma.lookback_period'])})
+        elif 'long_window' in params and 'slow_ma' in self._indicators:
+            self._indicators['slow_ma'].set_parameters({'lookback_period': int(params['long_window'])})
+            
+        # Apply RSI indicator parameters
+        if 'strategy_rsi.lookback_period' in params and 'rsi' in self._indicators:
+            self._indicators['rsi'].set_parameters({'lookback_period': int(params['strategy_rsi.lookback_period'])})
+        elif 'rsi_indicator.period' in params and 'rsi' in self._indicators:
+            self._indicators['rsi'].set_parameters({'lookback_period': int(params['rsi_indicator.period'])})
+            
+        # Apply RSI rule parameters  
+        if 'rsi' in self._rules:
+            rule_params = {}
+            if 'rsi_rule.oversold_threshold' in params:
+                rule_params['buy_threshold'] = float(params['rsi_rule.oversold_threshold'])
+            if 'rsi_rule.overbought_threshold' in params:
+                rule_params['sell_threshold'] = float(params['rsi_rule.overbought_threshold'])
+            if rule_params:
+                self._rules['rsi'].set_parameters(rule_params)
+            
+        # Apply weights
+        if 'ma_rule.weight' in params:
+            self._component_weights['ma_crossover'] = float(params['ma_rule.weight'])
+            
+        if 'rsi_rule.weight' in params:
+            self._component_weights['rsi'] = float(params['rsi_rule.weight'])
+            
+        # Normalize weights after update
+        self._normalize_weights()
+        
+        fast_ma_period = self._indicators['fast_ma'].lookback_period if 'fast_ma' in self._indicators else 'N/A'
+        slow_ma_period = self._indicators['slow_ma'].lookback_period if 'slow_ma' in self._indicators else 'N/A'
+        rsi_period = self._indicators['rsi'].lookback_period if 'rsi' in self._indicators else 'N/A'
+        
+        self.logger.info(
+            f"Applied parameters - MA: {fast_ma_period}/{slow_ma_period}, "
+            f"RSI: {rsi_period}, "
+            f"Weights: MA={self._component_weights.get('ma_crossover', 0):.2f}, "
+            f"RSI={self._component_weights.get('rsi', 0):.2f}"
+        )
+        
+    def get_parameter_space(self) -> ParameterSpace:
+        """Get the parameter space for optimization."""
+        space = ParameterSpace(f"{self.instance_name}_space")
+        
+        # MA parameters
+        space.add_parameter(Parameter(
+            name="short_window",
+            param_type="discrete",
+            values=[5, 10, 15],
+            default=10
+        ))
+        
+        space.add_parameter(Parameter(
+            name="long_window",
+            param_type="discrete",
+            values=[20, 30, 40],
+            default=20
+        ))
+        
+        # RSI parameters
+        space.add_parameter(Parameter(
+            name="rsi_indicator.period",
+            param_type="discrete",
+            values=[9, 14, 21],
+            default=14
+        ))
+        
+        space.add_parameter(Parameter(
+            name="rsi_rule.oversold_threshold",
+            param_type="discrete",
+            values=[20, 25, 30],
+            default=30
+        ))
+        
+        space.add_parameter(Parameter(
+            name="rsi_rule.overbought_threshold",
+            param_type="discrete",
+            values=[70, 75, 80],
+            default=70
+        ))
+        
+        # Weight parameters
+        space.add_parameter(Parameter(
+            name="ma_rule.weight",
+            param_type="discrete",
+            values=[0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8],
+            default=0.5
+        ))
+        
+        space.add_parameter(Parameter(
+            name="rsi_rule.weight",
+            param_type="discrete",
+            values=[0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8],
+            default=0.5
+        ))
+        
+        return space
+        
+    def get_optimizable_parameters(self) -> Dict[str, Any]:
+        """Get current parameter values."""
+        params = {}
+        
+        # Get indicator parameters
+        if 'fast_ma' in self._indicators:
+            params['short_window'] = self._indicators['fast_ma'].lookback_period
+            
+        if 'slow_ma' in self._indicators:
+            params['long_window'] = self._indicators['slow_ma'].lookback_period
+            
+        if 'rsi' in self._indicators:
+            params['rsi_indicator.period'] = self._indicators['rsi'].lookback_period
+            
+        # Get rule parameters
+        if 'rsi' in self._rules:
+            rsi_params = self._rules['rsi'].get_parameters()
+            params['rsi_rule.oversold_threshold'] = rsi_params.get('buy_threshold', 30.0)
+            params['rsi_rule.overbought_threshold'] = rsi_params.get('sell_threshold', 70.0)
+            
+        # Get weights
+        params['ma_rule.weight'] = self._component_weights.get('ma_crossover', 0.5)
+        params['rsi_rule.weight'] = self._component_weights.get('rsi', 0.5)
+        
+        return params
+        
+    def apply_parameters(self, params: Dict[str, Any]):
+        """Apply parameters for optimization."""
+        self._apply_regime_parameters(params)
+        
+    def validate_parameters(self, params: Dict[str, Any]) -> Tuple[bool, Optional[str]]:
+        """Validate parameters."""
+        # Check MA window constraint
+        short = params.get('short_window', 10)
+        long = params.get('long_window', 20)
+        
+        if short >= long:
+            return False, "Short window must be less than long window"
+            
+        # Check weight constraint (should sum to approximately 1)
+        ma_weight = params.get('ma_rule.weight', 0.5)
+        rsi_weight = params.get('rsi_rule.weight', 0.5)
+        
+        if abs((ma_weight + rsi_weight) - 1.0) > 0.1:
+            return False, "Weights should sum to approximately 1.0"
+            
+        return True, None

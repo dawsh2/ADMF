@@ -1,0 +1,174 @@
+# Example configuration for ensemble strategy optimization workflow
+# This demonstrates:
+# 1. Component optimization (optimize individual rules/indicators)
+# 2. Weight optimization (optimize how signals are combined)
+
+system:
+  name: "ADMF-Trader"
+  version: "1.0.0"
+  run_mode: "optimization"
+
+# Basic component config (same as working config)
+components:
+  event_bus:
+    class_path: src.core.event_bus.EventBus
+    config:
+      name: "main_event_bus"
+
+  data_handler:
+    class_path: src.data.csv_data_handler.CSVDataHandler
+    config:
+      csv_file_path: "data/SPY_1min.csv"
+      symbol: "SPY"
+      timestamp_column: "timestamp"
+      train_test_split_ratio: 0.8
+
+  # Use ensemble strategy that has multiple rules and weights
+  strategy:
+    class_path: src.strategy.implementations.ensemble_strategy.EnsembleSignalStrategy
+    config:
+      symbol: "SPY"
+      # MA parameters
+      short_window: 10
+      long_window: 20
+      # RSI parameters  
+      rsi_indicator:
+        period: 14
+      rsi_rule:
+        oversold_threshold: 30.0
+        overbought_threshold: 70.0
+        weight: 0.5
+      # MA rule weight
+      ma_rule:
+        weight: 0.5
+      # Parameter constraints for optimization
+      parameter_constraints:
+        short_window:
+          values: [5, 10, 15]
+        long_window:
+          values: [20, 30, 40]
+        "rsi_indicator.period":
+          values: [9, 14, 21]
+        "rsi_rule.oversold_threshold":
+          values: [20, 25, 30]
+        "rsi_rule.overbought_threshold":
+          values: [70, 75, 80]
+        "ma_rule.weight":
+          values: [0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8]
+        "rsi_rule.weight":
+          values: [0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8]
+
+  # Standard optimizer for when workflow delegates
+  optimizer:
+    class_path: src.execution.optimization_entrypoint.OptimizationEntrypoint
+    config:
+      strategy_name: strategy
+      method: grid
+      metric: sharpe_ratio
+      regime_specific: true
+      optimization_method: "regime_specific_with_split"
+      train_ratio: 0.8
+      regimes: ["trending_up", "trending_down", "volatile", "default"]
+
+  # Workflow orchestrator
+  workflow_orchestrator:
+    class_path: src.strategy.optimization.workflow_orchestrator.OptimizationWorkflowOrchestrator
+    config:
+      # Config is in optimization.workflow section
+
+  # Regime detector
+  regime_detector:
+    class_path: src.strategy.regime_detector.RegimeDetector
+    config:
+      min_regime_duration: 1
+      indicators:
+        ma_trend:
+          type: simple_ma_trend
+          parameters:
+            short_period: 10
+            long_period: 30
+        rsi:
+          type: rsi
+          parameters:
+            period: 14
+        atr:
+          type: atr
+          parameters:
+            period: 14
+      regime_thresholds:
+        trending_up:
+          ma_trend:
+            min: 0.01
+          rsi:
+            min: 55
+            max: 80
+        trending_down:
+          ma_trend:
+            max: -0.01
+          rsi:
+            min: 20
+            max: 45
+        volatile:
+          atr:
+            min: 0.5
+        default:
+          priority: 0
+
+  # Risk management
+  risk_manager:
+    class_path: src.risk.basic_risk_manager.BasicRiskManager
+    config:
+      max_position_size: 100
+      stop_loss_pct: 0.02
+
+  # Portfolio management
+  portfolio_manager:
+    class_path: src.risk.basic_portfolio.BasicPortfolio
+    config:
+      initial_cash: 100000
+      max_positions: 1
+
+  # Execution handler
+  execution_handler:
+    class_path: src.execution.simulated_execution_handler.SimulatedExecutionHandler
+    config:
+      latency_ms: 10
+
+  # Backtest runner
+  backtest_runner:
+    class_path: src.execution.backtest_runner.BacktestRunner
+    config:
+      start_date: "2024-01-01"
+      end_date: "2024-12-31"
+
+# Optimization workflow configuration
+optimization:
+  # Date ranges for optimization
+  train_date_range: ["2023-01-01", "2023-06-30"]
+  test_date_range: ["2023-07-01", "2023-12-31"]
+  
+  # Define the optimization workflow
+  workflow:
+    # Step 1: Optimize MA parameters
+    - name: "optimize_ma_parameters"
+      type: "rulewise"
+      targets: []  # Empty means optimize strategy itself (MA params)
+      method: "grid_search"
+      
+    # Step 2: Optimize RSI parameters
+    - name: "optimize_rsi_parameters"
+      type: "rulewise"
+      targets: ["rsi_*"]  # Pattern to match RSI components
+      method: "grid_search"
+      depends_on: ["optimize_ma_parameters"]
+      
+    # Step 3: Optimize ensemble weights
+    - name: "optimize_ensemble_weights"
+      type: "ensemble_weights"
+      method: "grid_search"  # Could use "genetic" for more complex weight optimization
+      depends_on: ["optimize_ma_parameters", "optimize_rsi_parameters"]
+
+# Logging configuration
+logging:
+  level: INFO
+  format: "%(asctime)s - %(name)s - %(levelname)s - %(message)s"

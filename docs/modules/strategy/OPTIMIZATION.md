@@ -298,7 +298,60 @@ optimization:
         regime: trending_up
 ```
 
-## IX. Component Interface for Optimization
+## IX. Advanced Optimization Patterns (Future Considerations)
+
+### A. Queue-Based Component Optimization
+
+An advanced pattern for even more efficient optimization involves "unpacking" strategies into their constituent components and processing them through a parameter queue:
+
+```python
+# Conceptual implementation
+class QueueBasedOptimizer:
+    """Process component optimizations through a parameter queue."""
+    
+    def optimize_strategy(self, strategy: Strategy) -> Dict[str, Any]:
+        # 1. Unpack strategy into optimizable components
+        components = strategy.unpack_optimizable_components()
+        
+        # 2. Build parameter queue
+        param_queue = []
+        for component in components:
+            param_space = component.get_parameter_space()
+            for params in param_space.get_combinations():
+                param_queue.append({
+                    'component': component,
+                    'parameters': params,
+                    'component_id': component.instance_name
+                })
+        
+        # 3. Process queue (potentially in parallel)
+        results = self.backtest_engine.process_optimization_queue(param_queue)
+        
+        # 4. Aggregate and return results
+        return self.aggregate_results(results)
+```
+
+**Advantages:**
+- Enables true parallel processing of parameter combinations
+- Minimal overhead per test (no strategy wrapper creation)
+- Could batch similar computations for efficiency
+- Natural fit for distributed optimization
+
+**Challenges:**
+- Components need standardized signal generation interface
+- Dependency resolution between components (e.g., rules depending on indicators)
+- Loss of strategy-level context and filters
+- Requires significant changes to backtest infrastructure
+
+**Implementation Considerations:**
+- Could coexist with current wrapper-based isolation
+- Best suited for simple, independent components
+- May require component "contracts" for signal generation
+- Consider hybrid approach: simple components use queue, complex ones use wrappers
+
+This pattern represents a potential future optimization once the current isolation approach proves insufficient for scale.
+
+## X. Component Interface for Optimization
 
 Components should implement the `OptimizableComponent` interface:
 

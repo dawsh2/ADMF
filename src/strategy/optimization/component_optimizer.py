@@ -1,589 +1,345 @@
 """
-Component-level optimizer for ADMF system.
+Component Optimizer for ADMF system.
 
-This module implements the ComponentOptimizer that can optimize individual
-components or groups of components independently, as described in
-OPTIMIZATION_FRAMEWORK.md.
+This optimizer works with any ComponentBase-derived component that implements
+the optimization interface (get_parameter_space, apply_parameters, etc).
 """
 
 import logging
-from typing import Dict, Any, List, Optional, Tuple, Type, Union
+from typing import Dict, Any, List, Optional, Callable, Tuple
 from datetime import datetime
 import json
 from pathlib import Path
 
 from src.core.component_base import ComponentBase
-from src.strategy.base.parameter import ParameterSpace, Parameter
-from .mixins.base import OptimizationMixin
-from .mixins.grid_search import GridSearchMixin
-from .mixins.genetic import GeneticOptimizationMixin
-from .core.parameter_manager import ParameterManager, VersionedParameterSet
+from .regime_analyzer import RegimePerformanceAnalyzer
 
 
-class OptimizableComponent(ComponentBase, GridSearchMixin):
-    """Example of a component that supports optimization."""
-    pass
+logger = logging.getLogger(__name__)
 
 
-class ComponentOptimizer:
+class ComponentOptimizer(ComponentBase):
     """
-    Optimizer for individual components or component groups.
+    Optimizes individual components using their built-in optimization interface.
     
-    This class orchestrates the optimization of components by:
-    - Managing component lifecycle during optimization
-    - Coordinating with backtest engine for evaluation
-    - Tracking optimization progress and results
-    - Supporting different optimization methods
+    This optimizer works with any component that inherits from ComponentBase
+    and implements the optimization methods.
     """
     
-    def __init__(self, 
-                 backtest_engine: Optional[Any] = None,
-                 results_dir: str = "component_optimization_results",
-                 parameter_manager: Optional[ParameterManager] = None):
-        """
-        Initialize the ComponentOptimizer.
+    def __init__(self, instance_name: str, config_key: Optional[str] = None):
+        super().__init__(instance_name, config_key)
+        self.results_cache = {}
+        self.output_dir = Path("optimization_results")
+        self._regime_analyzer = RegimePerformanceAnalyzer()  # Track regime performance
         
-        Args:
-            backtest_engine: Engine for evaluating component performance
-            results_dir: Directory for storing optimization results
-            parameter_manager: Optional parameter manager for versioning
-        """
-        self.logger = logging.getLogger(self.__class__.__name__)
-        self.backtest_engine = backtest_engine
-        self.results_dir = Path(results_dir)
-        self.results_dir.mkdir(exist_ok=True)
+    def _initialize(self):
+        """Initialize the component optimizer."""
+        self.output_dir.mkdir(exist_ok=True)
         
-        self.parameter_manager = parameter_manager or ParameterManager(
-            storage_dir=str(self.results_dir / "parameter_versions")
-        )
-        
-        # Optimization state
-        self._current_optimization: Optional[Dict[str, Any]] = None
-        self._optimization_history: List[Dict[str, Any]] = []
-        
-    def optimize_component(self,
-                         component: Union[ComponentBase, Type[ComponentBase]],
-                         method: str = "grid_search",
-                         objective_metric: str = "sharpe_ratio",
-                         minimize: bool = False,
-                         constraints: Optional[Dict[str, Any]] = None,
-                         **optimization_params) -> Dict[str, Any]:
+    def optimize_component(
+        self,
+        component: ComponentBase,
+        evaluator: Callable[[ComponentBase], float],
+        method: str = "grid_search",
+        isolate: bool = False,
+        **kwargs
+    ) -> Dict[str, Any]:
         """
         Optimize a single component.
         
         Args:
-            component: Component instance or class to optimize
-            method: Optimization method ('grid_search', 'genetic', etc.)
-            objective_metric: Metric to optimize
-            minimize: Whether to minimize the objective
-            constraints: Optional constraints on parameters
-            **optimization_params: Method-specific parameters
+            component: The component to optimize (must have get_parameter_space, etc)
+            evaluator: Function that evaluates component performance
+            method: Optimization method ('grid_search', 'random_search', etc)
+            isolate: Whether to evaluate component in isolation (for rules/indicators)
+            **kwargs: Additional arguments for the optimization method
             
         Returns:
-            Optimization results including best parameters
+            Dictionary with optimization results including best parameters
         """
-        optimization_id = datetime.now().strftime("%Y%m%d_%H%M%S")
+        isolation_mode = " in isolation" if isolate else ""
+        self.logger.info(f"Starting {method} optimization for component {component.instance_name}{isolation_mode}")
         
-        self.logger.info(f"Starting {method} optimization for component {component}")
+        # If isolate is requested, wrap the evaluator
+        if isolate:
+            # Import here to avoid circular dependencies
+            from .isolated_evaluator import IsolatedComponentEvaluator
+            
+            # Check if we have the required components for isolation
+            if not hasattr(self, '_isolated_evaluator'):
+                self.logger.warning("Isolated evaluator not configured. Using standard evaluation.")
+                isolate = False
+            else:
+                # Use the isolated evaluator
+                evaluator = self._isolated_evaluator.create_evaluator_function(
+                    metric=kwargs.get('metric', 'sharpe_ratio')
+                )
         
-        # Initialize optimization
-        self._current_optimization = {
-            'id': optimization_id,
-            'component': component.__class__.__name__ if hasattr(component, '__class__') else str(component),
-            'method': method,
-            'objective_metric': objective_metric,
-            'minimize': minimize,
-            'start_time': datetime.now(),
-            'iterations': []
-        }
+        # Get parameter space from component
+        param_space = component.get_parameter_space()
+        if param_space is None:
+            self.logger.warning(f"Component {component.instance_name} has no parameter space")
+            return {
+                "status": "no_parameters",
+                "component": component.instance_name,
+                "message": "Component has no optimizable parameters"
+            }
+        
+        # Debug: Log parameter space details
+        self.logger.info(f"Parameter space for {component.instance_name}:")
+        if hasattr(param_space, '_parameters'):
+            for name, param in param_space._parameters.items():
+                self.logger.info(f"  - {name}: type={param.param_type}, values={param.values if param.param_type == 'discrete' else f'[{param.min_value}, {param.max_value}]'}")
+        
+        # Store original parameters
+        original_params = component.get_optimizable_parameters()
         
         try:
-            # Create optimizable component if needed
-            if isinstance(component, type):
-                # It's a class, need to instantiate
-                opt_component = self._create_optimizable_component(component, method)
-            else:
-                # It's an instance, wrap it
-                opt_component = self._wrap_component_for_optimization(component, method)
-                
-            # Run optimization
             if method == "grid_search":
-                results = self._run_grid_search(
-                    opt_component, 
-                    objective_metric, 
-                    minimize,
-                    constraints,
-                    **optimization_params
-                )
-            elif method == "genetic":
-                results = self._run_genetic_optimization(
-                    opt_component,
-                    objective_metric,
-                    minimize,
-                    constraints,
-                    **optimization_params
-                )
+                # Extract grid search specific parameters
+                maximize = kwargs.get('maximize', True)
+                # Remove parameters that _grid_search doesn't accept
+                grid_kwargs = {k: v for k, v in kwargs.items() if k in ['maximize']}
+                results = self._grid_search(component, param_space, evaluator, **grid_kwargs)
             else:
-                raise ValueError(f"Unknown optimization method: {method}")
+                self.logger.warning(f"Optimization method {method} not yet implemented")
+                results = {"status": "method_not_implemented", "method": method}
                 
-            # Store results
-            self._current_optimization['end_time'] = datetime.now()
-            self._current_optimization['results'] = results
-            self._optimization_history.append(self._current_optimization)
+            # Restore original parameters after optimization
+            component.apply_parameters(original_params)
             
-            # Save results
-            self._save_optimization_results(optimization_id, self._current_optimization)
-            
-            # Create versioned parameter set
-            if results['best_parameters']:
-                self._create_parameter_version(
-                    component=opt_component,
-                    parameters=results['best_parameters'],
-                    performance=results['best_performance'],
-                    optimization_id=optimization_id,
-                    method=method
-                )
-                
             return results
             
-        finally:
-            self._current_optimization = None
-            
-    def optimize_component_group(self,
-                               components: List[ComponentBase],
-                               method: str = "grid_search",
-                               objective_metric: str = "sharpe_ratio",
-                               minimize: bool = False,
-                               joint: bool = False,
-                               **optimization_params) -> Dict[str, Any]:
+        except Exception as e:
+            self.logger.error(f"Error during optimization: {e}")
+            # Ensure we restore original parameters
+            component.apply_parameters(original_params)
+            raise
+    
+    def _grid_search(
+        self,
+        component: ComponentBase,
+        param_space: Any,  # ParameterSpace
+        evaluator: Callable[[ComponentBase], float],
+        maximize: bool = True
+    ) -> Dict[str, Any]:
         """
-        Optimize a group of components.
+        Perform grid search optimization.
         
         Args:
-            components: List of components to optimize
-            method: Optimization method
-            objective_metric: Metric to optimize
-            minimize: Whether to minimize the objective
-            joint: If True, optimize jointly; if False, optimize independently
-            **optimization_params: Method-specific parameters
+            component: Component to optimize
+            param_space: Parameter space from component
+            evaluator: Performance evaluation function
+            maximize: Whether to maximize (True) or minimize (False) the metric
             
         Returns:
-            Optimization results for all components
+            Optimization results
         """
-        if joint:
-            return self._optimize_components_jointly(
-                components, method, objective_metric, minimize, **optimization_params
-            )
-        else:
-            return self._optimize_components_independently(
-                components, method, objective_metric, minimize, **optimization_params
-            )
-            
-    def _create_optimizable_component(self, 
-                                    component_class: Type[ComponentBase],
-                                    method: str) -> ComponentBase:
-        """Create an optimizable version of a component class."""
-        # Dynamically create a class that inherits from both the component and optimization mixin
-        if method == "grid_search":
-            mixin_class = GridSearchMixin
-        elif method == "genetic":
-            mixin_class = GeneticOptimizationMixin
-        else:
-            mixin_class = OptimizationMixin
-            
-        # Create new class with multiple inheritance
-        optimizable_class = type(
-            f"Optimizable{component_class.__name__}",
-            (component_class, mixin_class),
-            {}
-        )
-        
-        # Instantiate
-        return optimizable_class(
-            instance_name=f"opt_{component_class.__name__.lower()}"
-        )
-        
-    def _wrap_component_for_optimization(self,
-                                       component: ComponentBase,
-                                       method: str) -> ComponentBase:
-        """Wrap an existing component instance for optimization."""
-        # Add optimization mixin methods to the instance
-        if method == "grid_search":
-            mixin = GridSearchMixin()
-        elif method == "genetic":
-            mixin = GeneticOptimizationMixin()
-        else:
-            raise ValueError(f"Unknown method: {method}")
-            
-        # Copy mixin methods to component instance
-        for attr_name in dir(mixin):
-            if not attr_name.startswith('_') or attr_name.startswith('_optimization'):
-                attr = getattr(mixin, attr_name)
-                if callable(attr):
-                    setattr(component, attr_name, attr.__get__(component, component.__class__))
-                else:
-                    setattr(component, attr_name, attr)
-                    
-        # Initialize optimization state
-        component._parameter_history = []
-        component._performance_history = []
-        component._current_optimization_id = None
-        component._optimization_metadata = {}
-        
-        return component
-        
-    def _run_grid_search(self,
-                        component: ComponentBase,
-                        objective_metric: str,
-                        minimize: bool,
-                        constraints: Optional[Dict[str, Any]],
-                        **params) -> Dict[str, Any]:
-        """Run grid search optimization."""
-        # Initialize grid search
-        num_combinations = component.initialize_grid_search()
-        
-        self.logger.info(f"Grid search initialized with {num_combinations} combinations")
-        
-        # Start optimization run
-        component.start_optimization_run(
-            self._current_optimization['id'],
-            {'method': 'grid_search', 'combinations': num_combinations}
-        )
-        
-        best_params = None
-        best_performance = None
-        best_metric = float('inf') if minimize else float('-inf')
-        
-        iteration = 0
-        while True:
-            # Get next parameters
-            params = component.suggest_next_parameters()
-            if params is None:
-                break
-                
-            # Apply constraints if any
-            if constraints and not self._check_constraints(params, constraints):
-                continue
-                
-            # Evaluate parameters
-            performance = self._evaluate_parameters(component, params)
-            
-            # Record results
-            param_id = component.record_parameter_set(params, performance)
-            
-            # Check if best
-            metric_value = performance.get(objective_metric)
-            if metric_value is not None:
-                is_better = (minimize and metric_value < best_metric) or \
-                           (not minimize and metric_value > best_metric)
-                           
-                if is_better:
-                    best_metric = metric_value
-                    best_params = params.copy()
-                    best_performance = performance.copy()
-                    
-            # Record iteration
-            self._current_optimization['iterations'].append({
-                'iteration': iteration,
-                'parameters': params,
-                'performance': performance,
-                'timestamp': datetime.now().isoformat()
-            })
-            
-            iteration += 1
-            
-            # Log progress
-            if iteration % 10 == 0:
-                progress = component.get_grid_progress()
-                self.logger.info(f"Grid search progress: {progress['completed']}/{progress['total_combinations']} "
-                               f"({progress['progress_percent']:.1f}%)")
-                               
-        # End optimization run
-        component.end_optimization_run()
-        
-        return {
-            'best_parameters': best_params,
-            'best_performance': best_performance,
-            'total_iterations': iteration,
-            'method': 'grid_search',
-            'search_info': component.get_search_space_info()
-        }
-        
-    def _run_genetic_optimization(self,
-                                component: ComponentBase,
-                                objective_metric: str,
-                                minimize: bool,
-                                constraints: Optional[Dict[str, Any]],
-                                **params) -> Dict[str, Any]:
-        """Run genetic algorithm optimization."""
-        # Initialize genetic algorithm
-        population_size = params.get('population_size', 50)
-        max_generations = params.get('max_generations', 20)
-        
-        component.initialize_genetic_search(
-            population_size=population_size,
-            mutation_rate=params.get('mutation_rate', 0.1),
-            crossover_rate=params.get('crossover_rate', 0.8),
-            elitism_count=params.get('elitism_count', 2)
-        )
-        
-        self.logger.info(f"Genetic algorithm initialized with population size {population_size}")
-        
-        # Start optimization run
-        component.start_optimization_run(
-            self._current_optimization['id'],
-            {'method': 'genetic', 'population_size': population_size, 'max_generations': max_generations}
-        )
-        
-        best_params = None
-        best_performance = None
-        best_metric = float('inf') if minimize else float('-inf')
-        
-        iteration = 0
-        generation = 0
-        
-        while generation < max_generations:
-            generation_complete = True
-            
-            # Evaluate population
-            while True:
-                params = component.suggest_next_parameters()
-                if params is None:
-                    break
-                    
-                generation_complete = False
-                
-                # Apply constraints
-                if constraints and not self._check_constraints(params, constraints):
-                    # Record as invalid
-                    fitness = float('-inf') if not minimize else float('inf')
-                    component.record_fitness(params, fitness)
-                    continue
-                    
-                # Evaluate parameters
-                performance = self._evaluate_parameters(component, params)
-                
-                # Calculate fitness
-                metric_value = performance.get(objective_metric, 
-                                              float('-inf') if not minimize else float('inf'))
-                fitness = -metric_value if minimize else metric_value
-                
-                # Record results
-                component.record_parameter_set(params, performance)
-                component.record_fitness(params, fitness)
-                
-                # Check if best
-                is_better = (minimize and metric_value < best_metric) or \
-                           (not minimize and metric_value > best_metric)
-                           
-                if is_better:
-                    best_metric = metric_value
-                    best_params = params.copy()
-                    best_performance = performance.copy()
-                    
-                # Record iteration
-                self._current_optimization['iterations'].append({
-                    'iteration': iteration,
-                    'generation': generation,
-                    'parameters': params,
-                    'performance': performance,
-                    'fitness': fitness,
-                    'timestamp': datetime.now().isoformat()
-                })
-                
-                iteration += 1
-                
-            if generation_complete:
-                generation += 1
-                progress = component.get_genetic_progress()
-                self.logger.info(f"Generation {progress['generation']} complete. "
-                               f"Best fitness: {progress['best_fitness']}")
-                               
-        # End optimization run
-        component.end_optimization_run()
-        
-        return {
-            'best_parameters': best_params,
-            'best_performance': best_performance,
-            'total_iterations': iteration,
-            'generations': generation,
-            'method': 'genetic',
-            'final_population': component._population if hasattr(component, '_population') else []
-        }
-        
-    def _evaluate_parameters(self,
-                           component: ComponentBase,
-                           parameters: Dict[str, Any]) -> Dict[str, float]:
-        """
-        Evaluate component with given parameters.
-        
-        Args:
-            component: Component to evaluate
-            parameters: Parameters to apply
-            
-        Returns:
-            Performance metrics
-        """
-        # Apply parameters to component
-        component.apply_parameters(parameters)
-        
-        # If we have a backtest engine, use it
-        if self.backtest_engine:
-            # Run backtest with component
-            results = self.backtest_engine.run_component_backtest(component)
-            return results.get('metrics', {})
-        else:
-            # Dummy evaluation for testing
-            import random
+        # Get all parameter combinations from space
+        combinations = param_space.sample(method='grid') if hasattr(param_space, 'sample') else []
+        if not combinations:
+            self.logger.warning("No parameter combinations to test")
             return {
-                'sharpe_ratio': random.uniform(-1, 3),
-                'total_return': random.uniform(-0.5, 1.5),
-                'max_drawdown': random.uniform(0.05, 0.5),
-                'win_rate': random.uniform(0.3, 0.7)
+                "status": "no_combinations",
+                "component": component.instance_name,
+                "message": "Parameter space generated no combinations"
             }
-            
-    def _check_constraints(self, 
-                         parameters: Dict[str, Any],
-                         constraints: Dict[str, Any]) -> bool:
-        """Check if parameters satisfy constraints."""
-        # Example constraints:
-        # - min/max bounds
-        # - relationships between parameters
-        # - excluded combinations
+        self.logger.info(f"Found {len(combinations)} parameter combinations to test")
         
-        for constraint_type, constraint_value in constraints.items():
-            if constraint_type == 'bounds':
-                for param, bounds in constraint_value.items():
-                    if param in parameters:
-                        value = parameters[param]
-                        if 'min' in bounds and value < bounds['min']:
-                            return False
-                        if 'max' in bounds and value > bounds['max']:
-                            return False
-                            
-            elif constraint_type == 'relationships':
-                # e.g., "fast_ma < slow_ma"
-                for relationship in constraint_value:
-                    if not eval(relationship, {}, parameters):
-                        return False
-                        
-        return True
+        # Debug: log first few combinations
+        for i, combo in enumerate(combinations[:3]):
+            self.logger.debug(f"  Combination {i+1}: {combo}")
         
-    def _optimize_components_independently(self,
-                                         components: List[ComponentBase],
-                                         method: str,
-                                         objective_metric: str,
-                                         minimize: bool,
-                                         **params) -> Dict[str, Any]:
-        """Optimize each component independently."""
-        results = {}
+        # Track results
+        results = []
+        best_score = float('-inf') if maximize else float('inf')
+        best_params = None
         
-        for component in components:
-            self.logger.info(f"Optimizing component {component.instance_name}")
-            
-            component_results = self.optimize_component(
-                component=component,
-                method=method,
-                objective_metric=objective_metric,
-                minimize=minimize,
-                **params
-            )
-            
-            results[component.instance_name] = component_results
-            
-        return {
-            'method': 'independent',
-            'component_results': results,
-            'summary': self._summarize_group_results(results)
-        }
-        
-    def _optimize_components_jointly(self,
-                                   components: List[ComponentBase],
-                                   method: str,
-                                   objective_metric: str,
-                                   minimize: bool,
-                                   **params) -> Dict[str, Any]:
-        """Optimize components jointly as a system."""
-        # Create joint parameter space
-        joint_space = ParameterSpace("joint_space")
-        
-        for component in components:
-            if hasattr(component, 'get_parameter_space'):
-                comp_space = component.get_parameter_space()
-                if comp_space:
-                    # Add as subspace
-                    joint_space.add_subspace(component.instance_name, comp_space)
-                    
-        # Run optimization on joint space
-        # This would require a more complex evaluation that considers all components together
-        # For now, this is a placeholder
-        
-        raise NotImplementedError("Joint optimization not yet implemented")
-        
-    def _summarize_group_results(self, results: Dict[str, Dict[str, Any]]) -> Dict[str, Any]:
-        """Summarize results from component group optimization."""
-        summary = {
-            'total_components': len(results),
-            'successful': sum(1 for r in results.values() if r.get('best_parameters')),
-            'total_iterations': sum(r.get('total_iterations', 0) for r in results.values())
-        }
-        
-        # Aggregate performance metrics
-        all_metrics = {}
-        for comp_name, comp_results in results.items():
-            if comp_results.get('best_performance'):
-                for metric, value in comp_results['best_performance'].items():
-                    if metric not in all_metrics:
-                        all_metrics[metric] = []
-                    all_metrics[metric].append(value)
-                    
-        # Calculate average metrics
-        summary['average_metrics'] = {}
-        for metric, values in all_metrics.items():
-            if values:
-                summary['average_metrics'][metric] = sum(values) / len(values)
+        # Test each combination
+        for i, params in enumerate(combinations):
+            try:
+                self.logger.info(f"Testing combination {i+1}/{len(combinations)}: {params}")
                 
-        return summary
+                # Validate parameters
+                valid, error = component.validate_parameters(params)
+                if not valid:
+                    self.logger.warning(f"Invalid parameters {params}: {error}")
+                    continue
+                
+                # Apply parameters to component
+                component.apply_parameters(params)
+                
+                # Evaluate performance
+                eval_result = evaluator(component)
+                
+                # Handle different return types from evaluator
+                if isinstance(eval_result, tuple):
+                    # Evaluator returned (score, full_results)
+                    score, backtest_results = eval_result
+                else:
+                    # Evaluator returned just score
+                    score = eval_result
+                    backtest_results = None
+                
+                # Handle None scores
+                if score is None:
+                    self.logger.warning(f"Evaluator returned None for parameters {params}")
+                    score = float('-inf') if maximize else float('inf')
+                
+                # Log the score
+                self.logger.info(f"Score for {params}: {score}")
+                
+                # Record result
+                result_entry = {
+                    "parameters": params.copy(),
+                    "score": score
+                }
+                
+                # If we have backtest results, analyze regime performance
+                if backtest_results and hasattr(self, '_regime_analyzer'):
+                    # Get regime history from the data handler or strategy
+                    regime_history = []
+                    if hasattr(self._context, 'container'):
+                        try:
+                            # Try to get regime detector
+                            regime_detector = self._context.container.resolve('regime_detector')
+                            if hasattr(regime_detector, 'regime_history'):
+                                regime_history = regime_detector.regime_history
+                        except:
+                            pass
+                    
+                    # Analyze regime performance
+                    regime_performance = self._regime_analyzer.analyze_backtest_results(
+                        backtest_results, params, regime_history
+                    )
+                    
+                    # Add regime performance to result
+                    result_entry['regime_performance'] = regime_performance
+                    
+                    # Log regime-specific performance
+                    if regime_performance:
+                        self.logger.info(f"Regime performance for {params}:")
+                        for regime, perf in regime_performance.items():
+                            self.logger.info(f"  {regime}: return={perf.get('total_return', 0):.2f}, "
+                                           f"sharpe={perf.get('sharpe_ratio', 0):.2f}, "
+                                           f"trades={perf.get('trade_count', 0)}")
+                
+                results.append(result_entry)
+                
+                # Track best
+                if (maximize and score > best_score) or (not maximize and score < best_score):
+                    best_score = score
+                    best_params = params.copy()
+                    self.logger.info(f"New best score: {best_score} with params: {best_params}")
+                    
+                # Log progress
+                if (i + 1) % 10 == 0:
+                    self.logger.info(f"Progress: {i + 1}/{len(combinations)} combinations tested")
+                    
+            except Exception as e:
+                self.logger.error(f"Error evaluating parameters {params}: {e}")
+                continue
         
-    def _create_parameter_version(self,
-                                component: ComponentBase,
-                                parameters: Dict[str, Any],
-                                performance: Dict[str, float],
-                                optimization_id: str,
-                                method: str) -> None:
-        """Create a versioned parameter set."""
-        self.parameter_manager.create_version(
-            parameters=parameters,
-            strategy_name=component.instance_name,
-            optimization_method=method,
-            training_period={'start': 'N/A', 'end': 'N/A'},  # Would come from backtest
-            performance_metrics=performance,
-            dataset_info={'type': 'component_optimization'},
-            notes=f"Optimization run {optimization_id}"
+        # Grid search should NOT handle test evaluation - that's the workflow orchestrator's job
+        test_score = None
+        
+        # Get regime-specific best parameters if we have regime analyzer
+        regime_best_params = {}
+        if hasattr(self, '_regime_analyzer'):
+            regime_best_params = self._regime_analyzer.get_best_parameters_per_regime()
+        
+        # Prepare results
+        optimization_results = {
+            "method": "grid_search",
+            "component": component.instance_name,
+            "parameter_space": param_space.name if hasattr(param_space, 'name') else "unknown",
+            "combinations_tested": len(combinations),
+            "best_parameters": best_params,
+            "best_score": best_score,
+            "test_score": test_score,
+            "all_results": results,
+            "regime_best_parameters": regime_best_params,  # Add regime-specific best params
+            "regime_statistics": self._regime_analyzer.get_regime_statistics() if hasattr(self, '_regime_analyzer') else {},
+            "timestamp": datetime.now().isoformat()
+        }
+        
+        self.logger.info(f"Grid search complete. Best score: {best_score}")
+        
+        # Save results
+        self._save_results(optimization_results)
+        
+        # Save regime analysis separately if we have it
+        if hasattr(self, '_regime_analyzer') and regime_best_params:
+            regime_filename = f"regime_analysis_{component.instance_name}_{datetime.now().strftime('%Y%m%d_%H%M%S')}.json"
+            self._regime_analyzer.save_analysis(self.output_dir / regime_filename)
+            self.logger.info(f"Saved regime analysis to {regime_filename}")
+        
+        return optimization_results
+    
+    def optimize_weights(
+        self,
+        strategy: ComponentBase,
+        evaluator: Callable[[Dict[str, float]], float],
+        weight_params: List[str],
+        method: str = "grid_search",
+        **kwargs
+    ) -> Dict[str, Any]:
+        """
+        Optimize weights for ensemble strategies.
+        
+        Args:
+            strategy: Strategy component with weight parameters
+            evaluator: Function that evaluates weight performance
+            weight_params: List of parameter names that are weights
+            method: Optimization method
+            **kwargs: Method-specific parameters
+            
+        Returns:
+            Optimization results
+        """
+        self.logger.info(f"Starting weight optimization for {len(weight_params)} weights")
+        
+        # Create a wrapper evaluator that works with the component
+        def component_evaluator(component):
+            # The evaluator expects just the weights
+            current_params = component.get_optimizable_parameters()
+            weights = {k: v for k, v in current_params.items() if k in weight_params}
+            return evaluator(weights)
+        
+        # Use standard component optimization
+        return self.optimize_component(strategy, component_evaluator, method, **kwargs)
+    
+    def set_isolated_evaluator(self, backtest_runner, data_handler, portfolio, 
+                             risk_manager, execution_handler):
+        """
+        Configure the isolated evaluator for component isolation.
+        
+        Args:
+            backtest_runner: BacktestRunner instance
+            data_handler: Data handler for market data
+            portfolio: Portfolio manager
+            risk_manager: Risk management component
+            execution_handler: Execution handler
+        """
+        from .isolated_evaluator import IsolatedComponentEvaluator
+        
+        self._isolated_evaluator = IsolatedComponentEvaluator(
+            backtest_runner=backtest_runner,
+            data_handler=data_handler,
+            portfolio=portfolio,
+            risk_manager=risk_manager,
+            execution_handler=execution_handler
         )
-        
-    def _save_optimization_results(self, 
-                                 optimization_id: str,
-                                 results: Dict[str, Any]) -> None:
+        self.logger.info("Isolated evaluator configured for component optimization")
+    
+    def _save_results(self, results: Dict[str, Any]) -> None:
         """Save optimization results to file."""
-        filename = f"component_opt_{optimization_id}.json"
-        filepath = self.results_dir / filename
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        component_name = results.get("component", "unknown")
+        filename = f"component_opt_{component_name}_{timestamp}.json"
+        filepath = self.output_dir / filename
         
         with open(filepath, 'w') as f:
-            # Convert datetime objects to strings
-            serializable_results = json.loads(
-                json.dumps(results, default=str)
-            )
-            json.dump(serializable_results, f, indent=2)
+            json.dump(results, f, indent=2, default=str)
             
         self.logger.info(f"Saved optimization results to {filepath}")
-        
-    def get_optimization_history(self,
-                               component_name: Optional[str] = None) -> List[Dict[str, Any]]:
-        """Get optimization history, optionally filtered by component."""
-        if component_name:
-            return [
-                opt for opt in self._optimization_history
-                if opt['component'] == component_name
-            ]
-        return self._optimization_history.copy()
