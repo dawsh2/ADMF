@@ -710,10 +710,18 @@ class BasicPortfolio(ComponentBase):
                     # Calculate annualized Sharpe ratio (assuming 252 trading days per year)
                     if metrics['std_dev_pnl'] > 0:
                         metrics['sharpe_ratio'] = (avg_pnl / metrics['std_dev_pnl']) * (252**0.5)
-                    elif avg_pnl > 0:
-                        metrics['sharpe_ratio'] = float('inf')  # Infinite Sharpe for positive return with no volatility
                     else:
-                        metrics['sharpe_ratio'] = 0.0  # Zero Sharpe for zero or negative return with no volatility
+                        # Zero volatility case - assign a finite but high/low value based on returns
+                        # This prevents invalid parameter combinations from getting infinite scores
+                        if avg_pnl > 0:
+                            # Cap at a high but finite value (e.g., 10 = excellent Sharpe)
+                            metrics['sharpe_ratio'] = 10.0
+                        elif avg_pnl < 0:
+                            # Negative returns with no volatility get negative Sharpe
+                            metrics['sharpe_ratio'] = -10.0
+                        else:
+                            # Zero returns with zero volatility
+                            metrics['sharpe_ratio'] = 0.0
         
         # Add boundary trades summary to the main performance dict
         regime_performance['_boundary_trades_summary'] = boundary_trades_performance

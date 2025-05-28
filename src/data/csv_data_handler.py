@@ -136,7 +136,7 @@ class CSVDataHandler(ComponentBase):
 
             # Step 1: Apply --bars limit to the initially loaded data
             self._data_for_run = df_loaded # Start with the full loaded data
-            self.logger.warning(f"BARS_DEBUG: _cli_max_bars = {self._cli_max_bars}, len(df_loaded) = {len(df_loaded)}")
+            self.logger.debug(f"BARS_DEBUG: _cli_max_bars = {self._cli_max_bars}, len(df_loaded) = {len(df_loaded)}")
             if self._cli_max_bars is not None and self._cli_max_bars != 0:
                 if self._cli_max_bars > 0:
                     # Positive value: take first N bars
@@ -178,10 +178,10 @@ class CSVDataHandler(ComponentBase):
                 self._test_df = self._data_for_run.iloc[split_point:].copy()
                 
                 # DEBUG: Log split details to trace the 74% vs 80% issue
-                self.logger.warning(f"SPLIT_DEBUG: Using ratio {self._train_test_split_ratio}, split_point={split_point}")
+                self.logger.debug(f"SPLIT_DEBUG: Using ratio {self._train_test_split_ratio}, split_point={split_point}")
                 if not self._test_df.empty:
                     first_test_date = self._test_df.iloc[0]['timestamp'] if 'timestamp' in self._test_df.columns else 'unknown'
-                    self.logger.warning(f"SPLIT_DEBUG: First test timestamp: {first_test_date}")
+                    self.logger.debug(f"SPLIT_DEBUG: First test timestamp: {first_test_date}")
                 
                 self.logger.info(f"Current dataset (size {len(self._data_for_run)}) split into: Train ({len(self._train_df)} bars), Test ({len(self._test_df)} bars).")
             else: 
@@ -282,7 +282,7 @@ class CSVDataHandler(ComponentBase):
         super().start()
         
         if self._active_df is None: # Check if set_active_dataset was called
-             self.logger.error(f"No active dataset selected for {self.instance_name}. Call set_active_dataset() after setup.")
+             self.logger.info(f"No active dataset selected for {self.instance_name}. Call set_active_dataset() after setup.")
              # Cannot proceed without dataset
              return
         

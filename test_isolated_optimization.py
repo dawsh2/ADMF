@@ -68,13 +68,19 @@ def compare_optimization_approaches():
     try:
         print("\nStarting optimization with isolated workflow...")
         
-        runner = AppRunner(config_path)
-        runner.args.optimize = True
-        runner.args.mode = "backtest"
-        runner.args.bars = 100  # Use small dataset for testing
+        # Use ApplicationLauncher which properly sets up CLI args
+        from src.core.application_launcher import ApplicationLauncher
         
-        # Run optimization
-        runner.run()
+        # Create launcher with proper CLI arguments
+        argv = [
+            '--config', config_path,
+            '--optimize',
+            '--bars', '100'  # Use small dataset for testing
+        ]
+        
+        launcher = ApplicationLauncher(argv)
+        # Run through launcher
+        launcher.run()
         
         print("\nOptimization completed!")
         

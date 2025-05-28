@@ -1,0 +1,58 @@
+{
+  "timestamp": "2025-05-26T18:30:00",
+  "overall_best_parameters": {
+    "fast_ma.lookback_period": 10,
+    "slow_ma.lookback_period": 20,
+    "rsi.lookback_period": 14,
+    "rsi_threshold.buy_threshold": 30.0,
+    "rsi_threshold.sell_threshold": 70.0,
+    "ma_crossover.weight": 0.5,
+    "rsi.weight": 0.5
+  },
+  "regime_best_parameters": {
+    "default": {
+      "parameters": {
+        "fast_ma.lookback_period": 10,
+        "slow_ma.lookback_period": 20,
+        "rsi.lookback_period": 14,
+        "rsi_threshold.buy_threshold": 30.0,
+        "rsi_threshold.sell_threshold": 70.0,
+        "ma_crossover.weight": 0.5,
+        "rsi.weight": 0.5
+      }
+    },
+    "trending_up": {
+      "parameters": {
+        "fast_ma.lookback_period": 5,
+        "slow_ma.lookback_period": 15,
+        "rsi.lookback_period": 9,
+        "rsi_threshold.buy_threshold": 25.0,
+        "rsi_threshold.sell_threshold": 75.0,
+        "ma_crossover.weight": 0.7,
+        "rsi.weight": 0.3
+      }
+    },
+    "trending_down": {
+      "parameters": {
+        "fast_ma.lookback_period": 15,
+        "slow_ma.lookback_period": 30,
+        "rsi.lookback_period": 21,
+        "rsi_threshold.buy_threshold": 35.0,
+        "rsi_threshold.sell_threshold": 65.0,
+        "ma_crossover.weight": 0.3,
+        "rsi.weight": 0.7
+      }
+    },
+    "volatile": {
+      "parameters": {
+        "fast_ma.lookback_period": 10,
+        "slow_ma.lookback_period": 25,
+        "rsi.lookback_period": 14,
+        "rsi_threshold.buy_threshold": 30.0,
+        "rsi_threshold.sell_threshold": 70.0,
+        "ma_crossover.weight": 0.4,
+        "rsi.weight": 0.6
+      }
+    }
+  }
+}

@@ -118,39 +118,91 @@ class ParameterSpace:
         
         Returns list of parameter dictionaries with full paths.
         """
+        import logging
+        logger = logging.getLogger(f"{__name__}.{self.__class__.__name__}")
+        
         # First, get all parameter paths and their samples
         param_samples = {}
         
         # Local parameters
+        logger.info(f"[{self.name}] Sampling local parameters:")
         for name, param in self._parameters.items():
-            param_samples[name] = param.sample(method, n_samples)
+            values = param.sample(method, n_samples)
+            param_samples[name] = values
+            logger.info(f"  - {name}: {len(values)} values = {values}")
             
         # Subspace parameters
+        subspace_combinations = {}
+        if self._subspaces:
+            logger.info(f"[{self.name}] Processing subspaces:")
         for subspace_name, subspace in self._subspaces.items():
+            logger.info(f"  - Subspace '{subspace_name}':")
             subspace_samples = subspace.sample(method, n_samples)
-            # Namespace the parameters
-            for sample_dict in subspace_samples:
-                for key, value in sample_dict.items():
-                    full_key = f"{subspace_name}.{key}"
-                    if full_key not in param_samples:
-                        param_samples[full_key] = []
-                    param_samples[full_key].append(value)
+            logger.info(f"    Generated {len(subspace_samples)} combinations from subspace")
+            
+            # Store complete subspace combinations
+            subspace_combinations[subspace_name] = subspace_samples
+                    
+        # Log parameter expansion
+        logger.info(f"[{self.name}] Parameter expansion summary:")
+        for param_name, values in param_samples.items():
+            logger.info(f"  - {param_name}: {len(values)} values")
+        for subspace_name, combos in subspace_combinations.items():
+            logger.info(f"  - {subspace_name} (subspace): {len(combos)} combinations")
                     
         # Generate all combinations
-        if not param_samples:
+        if not param_samples and not subspace_combinations:
             return [{}]
             
         # Use itertools to create cartesian product
         import itertools
         
-        keys = list(param_samples.keys())
-        values = [param_samples[k] for k in keys]
-        
-        combinations = []
-        for combo in itertools.product(*values):
-            combinations.append(dict(zip(keys, combo)))
+        # Start with local parameters
+        if param_samples:
+            keys = list(param_samples.keys())
+            values = [param_samples[k] for k in keys]
             
-        return combinations
+            # Calculate combinations for local params
+            local_combinations = []
+            for combo in itertools.product(*values):
+                local_combinations.append(dict(zip(keys, combo)))
+        else:
+            local_combinations = [{}]
+            
+        # Now combine with subspace combinations
+        final_combinations = []
+        
+        if subspace_combinations:
+            # Get all subspace combination lists
+            subspace_lists = []
+            subspace_names = []
+            for name, combos in subspace_combinations.items():
+                subspace_lists.append(combos)
+                subspace_names.append(name)
+            
+            # Create cartesian product of local combinations with each subspace combination
+            for local_combo in local_combinations:
+                for subspace_combo_tuple in itertools.product(*subspace_lists):
+                    # Merge local parameters with subspace parameters
+                    combined = local_combo.copy()
+                    
+                    # Add namespaced subspace parameters
+                    for i, subspace_combo in enumerate(subspace_combo_tuple):
+                        subspace_name = subspace_names[i]
+                        for key, value in subspace_combo.items():
+                            combined[f"{subspace_name}.{key}"] = value
+                    
+                    final_combinations.append(combined)
+        else:
+            final_combinations = local_combinations
+            
+        # Calculate and log total combinations
+        logger.warning(f"[{self.name}] Total parameter combinations: {len(final_combinations)}")
+        if len(final_combinations) <= 5:
+            for i, combo in enumerate(final_combinations):
+                logger.info(f"  Combination {i+1}: {combo}")
+            
+        return final_combinations
         
     def validate(self, params: Dict[str, Any]) -> Tuple[bool, List[str]]:
         """Validate a parameter set."""

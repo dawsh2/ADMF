@@ -1,0 +1,28 @@
+{
+  "timestamp": "20250526_214018",
+  "regimes": {
+    "default": {
+      "strategy_ma_crossover.weight": 0.4,
+      "strategy_ma_crossover.min_separation": 0.001,
+      "strategy_rsi.lookback_period": 9,
+      "ma_crossover.weight": 0.3,
+      "rsi.weight": 0.7
+    },
+    "trending_down": {
+      "strategy_ma_crossover.weight": 0.4,
+      "strategy_ma_crossover.min_separation": 0.0,
+      "strategy_rsi.lookback_period": 30,
+      "ma_crossover.weight": 0.3,
+      "rsi.weight": 0.7
+    },
+    "trending_up": {
+      "strategy_ma_crossover.weight": 0.4,
+      "strategy_ma_crossover.min_separation": 0.0,
+      "strategy_rsi.lookback_period": 30
+    }
+  },
+  "metadata": {
+    "source": "workflow_optimization",
+    "workflow": "workflow_orchestrator"
+  }
+}

@@ -47,9 +47,20 @@ class RSIIndicator(ComponentBase):
         
     def _reset_state(self) -> None:
         """Reset internal state structures."""
-        self._prices = deque(maxlen=self.period + 10)
-        self._gains = deque(maxlen=self.period)
-        self._losses = deque(maxlen=self.period)
+        # Use max possible period from parameter space to avoid resets
+        max_period = self.period
+        try:
+            param_space = self.get_parameter_space()
+            for param in param_space._parameters.values():
+                if param.name == 'period' and param.values:
+                    max_period = max(param.values)
+        except:
+            max_period = max(50, self.period)
+            
+        # Create buffers that can handle the maximum period
+        self._prices = deque(maxlen=max_period + 10)
+        self._gains = deque(maxlen=max_period)
+        self._losses = deque(maxlen=max_period)
         self._avg_gain = None
         self._avg_loss = None
         self._current_value = None
@@ -143,7 +154,7 @@ class RSIIndicator(ComponentBase):
         space.add_parameter(Parameter(
             name="period",
             param_type="discrete",
-            values=[9, 14, 21, 30],  # Common RSI periods
+            values=[7, 9, 14, 21, 30, 40],  # Expanded RSI periods
             default=self._default_period,
             description="Number of periods for RSI calculation"
         ))
@@ -178,10 +189,15 @@ class RSIIndicator(ComponentBase):
             old_period = self.period
             self.period = parameters["period"]
             
-            # Reset state if period changed
+            # Only reset if we don't have enough historical data
             if old_period != self.period:
-                self.logger.info(f"RSI '{self.instance_name}' period changed from {old_period} to {self.period}. Resetting state.")
-                self._reset_state()
+                if len(self._prices) < self.period:
+                    self.logger.warning(f"RSI '{self.instance_name}' period changed from {old_period} to {self.period}. Resetting due to insufficient data.")
+                    self._reset_state()
+                else:
+                    self.logger.info(f"RSI '{self.instance_name}' period changed from {old_period} to {self.period}. Preserving {len(self._prices)} bars of history.")
+                    # Just update the period, don't reset
+                    self.period = self.period
             else:
                 self.logger.debug(f"RSI '{self.instance_name}' period unchanged at {self.period}")
                 

@@ -15,7 +15,7 @@ class Container:
 
     def register_instance(self, name: str, instance: Any):
         if name in self._instances or name in self._providers:
-            logger.warning(f"Service '{name}' is already registered. Overwriting.")
+            logger.info(f"Service '{name}' is already registered. Overwriting.")
         self._instances[name] = instance
         logger.debug(f"Instance registered for '{name}': {type(instance).__name__}")
 
@@ -39,7 +39,7 @@ class Container:
                 Keyword arguments for the class constructor. Defaults to None.
         """
         if name in self._instances or name in self._providers:
-            logger.warning(f"Service '{name}' is already registered. Overwriting.")
+            logger.info(f"Service '{name}' is already registered. Overwriting.")
         
         self._providers[name] = {
             'provider': service_type,
@@ -57,7 +57,7 @@ class Container:
                          factory_args: Optional[Tuple[Any, ...]] = None, 
                          factory_kwargs: Optional[Dict[str, Any]] = None):
         if name in self._instances or name in self._providers:
-            logger.warning(f"Service '{name}' is already registered. Overwriting.")
+            logger.info(f"Service '{name}' is already registered. Overwriting.")
         self._providers[name] = {
             'provider': factory,
             'args': factory_args if factory_args is not None else (),

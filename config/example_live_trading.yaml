@@ -1,0 +1,18 @@
+# Example configuration for live trading with Alpaca
+# Copy this to your actual config and add your credentials
+
+# Broker configuration (optional if using environment variables)
+broker:
+  type: alpaca
+  credentials:
+    api_key: ${ALPACA_API_KEY}  # Will read from environment
+    secret_key: ${ALPACA_SECRET_KEY}  # Will read from environment
+
+# You can also hardcode credentials (NOT RECOMMENDED for production):
+# broker:
+#   credentials:
+#     api_key: "your-alpaca-api-key-here"
+#     secret_key: "your-alpaca-secret-key-here"
+
+# The rest of your config remains the same...
+# Just run with --live flag to switch to live trading mode

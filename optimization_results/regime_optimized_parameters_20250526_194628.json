@@ -1,0 +1,32 @@
+{
+  "timestamp": "20250526_194628",
+  "regimes": {
+    "default": {
+      "strategy_ma_crossover.generate_exit_signals": true,
+      "strategy_ma_crossover.min_separation": 0.0001,
+      "strategy_ma_crossover.fast_ma.lookback_period": 10,
+      "strategy_ma_crossover.slow_ma.lookback_period": 30,
+      "strategy_rsi.lookback_period": 9
+    },
+    "trending_up": {
+      "strategy_ma_crossover.generate_exit_signals": true,
+      "strategy_ma_crossover.min_separation": 0.0001,
+      "strategy_ma_crossover.fast_ma.lookback_period": 5,
+      "strategy_ma_crossover.slow_ma.lookback_period": 40,
+      "strategy_rsi.lookback_period": 9
+    },
+    "trending_down": {
+      "strategy_ma_crossover.generate_exit_signals": true,
+      "strategy_ma_crossover.min_separation": 0.0001,
+      "strategy_ma_crossover.fast_ma.lookback_period": 10,
+      "strategy_ma_crossover.slow_ma.lookback_period": 40,
+      "strategy_rsi.lookback_period": 9,
+      "ma_crossover.weight": 0.3,
+      "rsi.weight": 0.7
+    }
+  },
+  "metadata": {
+    "source": "workflow_optimization",
+    "workflow": "workflow_orchestrator"
+  }
+}

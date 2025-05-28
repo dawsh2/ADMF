@@ -1,0 +1,120 @@
+{
+  "optimization_type": "component",
+  "targets": [
+    "ma_crossover"
+  ],
+  "method": "grid_search",
+  "components_optimized": 1,
+  "results": {
+    "strategy_ma_crossover": {
+      "method": "grid_search",
+      "component": "strategy_ma_crossover",
+      "parameter_space": "strategy_ma_crossover_params",
+      "combinations_tested": 9,
+      "best_parameters": {
+        "generate_exit_signals": true,
+        "min_separation": 0.0001,
+        "fast_ma.lookback_period": 5,
+        "slow_ma.lookback_period": 20
+      },
+      "best_score": 0.0,
+      "test_score": null,
+      "all_results": [
+        {
+          "parameters": {
+            "generate_exit_signals": true,
+            "min_separation": 0.0001,
+            "fast_ma.lookback_period": 5,
+            "slow_ma.lookback_period": 20
+          },
+          "score": 0.0,
+          "regime_performance": {}
+        },
+        {
+          "parameters": {
+            "generate_exit_signals": true,
+            "min_separation": 0.0001,
+            "fast_ma.lookback_period": 5,
+            "slow_ma.lookback_period": 30
+          },
+          "score": 0.0,
+          "regime_performance": {}
+        },
+        {
+          "parameters": {
+            "generate_exit_signals": true,
+            "min_separation": 0.0001,
+            "fast_ma.lookback_period": 5,
+            "slow_ma.lookback_period": 40
+          },
+          "score": 0.0,
+          "regime_performance": {}
+        },
+        {
+          "parameters": {
+            "generate_exit_signals": true,
+            "min_separation": 0.0001,
+            "fast_ma.lookback_period": 10,
+            "slow_ma.lookback_period": 20
+          },
+          "score": 0.0,
+          "regime_performance": {}
+        },
+        {
+          "parameters": {
+            "generate_exit_signals": true,
+            "min_separation": 0.0001,
+            "fast_ma.lookback_period": 10,
+            "slow_ma.lookback_period": 30
+          },
+          "score": 0.0,
+          "regime_performance": {}
+        },
+        {
+          "parameters": {
+            "generate_exit_signals": true,
+            "min_separation": 0.0001,
+            "fast_ma.lookback_period": 10,
+            "slow_ma.lookback_period": 40
+          },
+          "score": 0.0,
+          "regime_performance": {}
+        },
+        {
+          "parameters": {
+            "generate_exit_signals": true,
+            "min_separation": 0.0001,
+            "fast_ma.lookback_period": 15,
+            "slow_ma.lookback_period": 20
+          },
+          "score": 0.0,
+          "regime_performance": {}
+        },
+        {
+          "parameters": {
+            "generate_exit_signals": true,
+            "min_separation": 0.0001,
+            "fast_ma.lookback_period": 15,
+            "slow_ma.lookback_period": 30
+          },
+          "score": 0.0,
+          "regime_performance": {}
+        },
+        {
+          "parameters": {
+            "generate_exit_signals": true,
+            "min_separation": 0.0001,
+            "fast_ma.lookback_period": 15,
+            "slow_ma.lookback_period": 40
+          },
+          "score": 0.0,
+          "regime_performance": {}
+        }
+      ],
+      "regime_best_parameters": {},
+      "regime_statistics": {},
+      "timestamp": "2025-05-26T18:20:15.837346"
+    }
+  },
+  "timestamp": "2025-05-26T18:20:15.837961"
+}

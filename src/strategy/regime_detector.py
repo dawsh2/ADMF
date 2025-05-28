@@ -113,7 +113,7 @@ class RegimeDetector(ComponentBase):
     def _setup_regime_indicators(self):
         indicator_configs: Dict[str, Any] = self.get_specific_config("indicators", {})
         if not indicator_configs:
-            self.logger.warning(f"No indicators configured for RegimeDetector '{self.instance_name}'. It will likely always classify as 'default'.")
+            self.logger.info(f"No indicators configured for RegimeDetector '{self.instance_name}'. It will likely always classify as 'default'.")
             return
 
         for indicator_instance_name, config_dict in indicator_configs.items():

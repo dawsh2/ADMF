@@ -1,0 +1,3994 @@
+{
+  "method": "grid_search",
+  "component": "strategy_rsi_rule",
+  "parameter_space": "strategy_rsi_rule_space",
+  "combinations_tested": 80,
+  "best_parameters": {
+    "oversold_threshold": 35.0,
+    "overbought_threshold": 80.0,
+    "rsi_indicator.lookback_period": 14
+  },
+  "best_score": 1757.2836425712999,
+  "test_score": null,
+  "all_results": [
+    {
+      "parameters": {
+        "oversold_threshold": 20.0,
+        "overbought_threshold": 60.0,
+        "rsi_indicator.lookback_period": 9
+      },
+      "score": 3.3566207916610256,
+      "regime_performance": {
+        "trending_down": {
+          "total_return": -139.24000000013166,
+          "sharpe_ratio": -1.6940111762669832,
+          "win_rate": 0.6379310344827587,
+          "trade_count": 58,
+          "avg_win": 0,
+          "avg_loss": 2.4006896551746837,
+          "parameters": {
+            "oversold_threshold": 20.0,
+            "overbought_threshold": 60.0,
+            "rsi_indicator.lookback_period": 9
+          }
+        },
+        "default": {
+          "total_return": 393.63999999994803,
+          "sharpe_ratio": 2.4240338744890253,
+          "win_rate": 0.5842696629213483,
+          "trade_count": 89,
+          "avg_win": 4.422921348314023,
+          "avg_loss": 0,
+          "parameters": {
+            "oversold_threshold": 20.0,
+            "overbought_threshold": 60.0,
+            "rsi_indicator.lookback_period": 9
+          }
+        },
+        "trending_up": {
+          "total_return": -136.95999999991955,
+          "sharpe_ratio": -2.1981055429645653,
+          "win_rate": 0.6285714285714286,
+          "trade_count": 35,
+          "avg_win": 0,
+          "avg_loss": 3.9131428571405587,
+          "parameters": {
+            "oversold_threshold": 20.0,
+            "overbought_threshold": 60.0,
+            "rsi_indicator.lookback_period": 9
+          }
+        }
+      }
+    },
+    {
+      "parameters": {
+        "oversold_threshold": 20.0,
+        "overbought_threshold": 60.0,
+        "rsi_indicator.lookback_period": 14
+      },
+      "score": 1757.2830177207256,
+      "regime_performance": {
+        "trending_down": {
+          "total_return": 20.389999999940756,
+          "sharpe_ratio": 0.30675666669708973,
+          "win_rate": 0.6923076923076923,
+          "trade_count": 52,
+          "avg_win": 0.3921153846142453,
+          "avg_loss": 0,
+          "parameters": {
+            "oversold_threshold": 20.0,
+            "overbought_threshold": 60.0,
+            "rsi_indicator.lookback_period": 14
+          }
+        },
+        "default": {
+          "total_return": 364.28000000000793,
+          "sharpe_ratio": 2.3604990073481704,
+          "win_rate": 0.5454545454545454,
+          "trade_count": 77,
+          "avg_win": 4.7309090909091935,
+          "avg_loss": 0,
+          "parameters": {
+            "oversold_threshold": 20.0,
+            "overbought_threshold": 60.0,
+            "rsi_indicator.lookback_period": 14
+          }
+        },
+        "trending_up": {
+          "total_return": -152.26999999997588,
+          "sharpe_ratio": -2.324581551485044,
+          "win_rate": 0.5652173913043478,
+          "trade_count": 23,
+          "avg_win": 0,
+          "avg_loss": 6.620434782607647,
+          "parameters": {
+            "oversold_threshold": 20.0,
+            "overbought_threshold": 60.0,
+            "rsi_indicator.lookback_period": 14
+          }
+        }
+      }
+    },
+    {
+      "parameters": {
+        "oversold_threshold": 20.0,
+        "overbought_threshold": 60.0,
+        "rsi_indicator.lookback_period": 21
+      },
+      "score": 27.97454869899844,
+      "regime_performance": {
+        "trending_down": {
+          "total_return": -28.570000000047457,
+          "sharpe_ratio": -0.5598747436675082,
+          "win_rate": 0.53125,
+          "trade_count": 32,
+          "avg_win": 0,
+          "avg_loss": 0.892812500001483,
+          "parameters": {
+            "oversold_threshold": 20.0,
+            "overbought_threshold": 60.0,
+            "rsi_indicator.lookback_period": 21
+          }
+        },
+        "default": {
+          "total_return": 257.2800000000143,
+          "sharpe_ratio": 2.0681088306445936,
+          "win_rate": 0.4074074074074074,
+          "trade_count": 54,
+          "avg_win": 4.76444444444471,
+          "avg_loss": 0,
+          "parameters": {
+            "oversold_threshold": 20.0,
+            "overbought_threshold": 60.0,
+            "rsi_indicator.lookback_period": 21
+          }
+        },
+        "trending_up": {
+          "total_return": -225.7099999999582,
+          "sharpe_ratio": -4.82079307497867,
+          "win_rate": 0.45,
+          "trade_count": 20,
+          "avg_win": 0,
+          "avg_loss": 11.28549999999791,
+          "parameters": {
+            "oversold_threshold": 20.0,
+            "overbought_threshold": 60.0,
+            "rsi_indicator.lookback_period": 21
+          }
+        }
+      }
+    },
+    {
+      "parameters": {
+        "oversold_threshold": 20.0,
+        "overbought_threshold": 60.0,
+        "rsi_indicator.lookback_period": 30
+      },
+      "score": 93.90950504640212,
+      "regime_performance": {
+        "trending_down": {
+          "total_return": -112.72000000000162,
+          "sharpe_ratio": -2.568953025553777,
+          "win_rate": 0.4583333333333333,
+          "trade_count": 24,
+          "avg_win": 0,
+          "avg_loss": 4.696666666666734,
+          "parameters": {
+            "oversold_threshold": 20.0,
+            "overbought_threshold": 60.0,
+            "rsi_indicator.lookback_period": 30
+          }
+        },
+        "default": {
+          "total_return": 326.89000000000306,
+          "sharpe_ratio": 2.7040060704318223,
+          "win_rate": 0.4423076923076923,
+          "trade_count": 52,
+          "avg_win": 6.286346153846212,
+          "avg_loss": 0,
+          "parameters": {
+            "oversold_threshold": 20.0,
+            "overbought_threshold": 60.0,
+            "rsi_indicator.lookback_period": 30
+          }
+        },
+        "trending_up": {
+          "total_return": -202.70999999997912,
+          "sharpe_ratio": -4.468348597074995,
+          "win_rate": 0.4,
+          "trade_count": 20,
+          "avg_win": 0,
+          "avg_loss": 10.135499999998956,
+          "parameters": {
+            "oversold_threshold": 20.0,
+            "overbought_threshold": 60.0,
+            "rsi_indicator.lookback_period": 30
+          }
+        }
+      }
+    },
+    {
+      "parameters": {
+        "oversold_threshold": 20.0,
+        "overbought_threshold": 65.0,
+        "rsi_indicator.lookback_period": 9
+      },
+      "score": 4.607499083247478,
+      "regime_performance": {
+        "trending_down": {
+          "total_return": -95.1000000001045,
+          "sharpe_ratio": -1.1098671903344253,
+          "win_rate": 0.65,
+          "trade_count": 60,
+          "avg_win": 0,
+          "avg_loss": 1.5850000000017417,
+          "parameters": {
+            "oversold_threshold": 20.0,
+            "overbought_threshold": 65.0,
+            "rsi_indicator.lookback_period": 9
+          }
+        },
+        "default": {
+          "total_return": 393.63999999994803,
+          "sharpe_ratio": 2.4240338744890253,
+          "win_rate": 0.5842696629213483,
+          "trade_count": 89,
+          "avg_win": 4.422921348314023,
+          "avg_loss": 0,
+          "parameters": {
+            "oversold_threshold": 20.0,
+            "overbought_threshold": 65.0,
+            "rsi_indicator.lookback_period": 9
+          }
+        },
+        "trending_up": {
+          "total_return": -136.95999999991955,
+          "sharpe_ratio": -2.1981055429645653,
+          "win_rate": 0.6285714285714286,
+          "trade_count": 35,
+          "avg_win": 0,
+          "avg_loss": 3.9131428571405587,
+          "parameters": {
+            "oversold_threshold": 20.0,
+            "overbought_threshold": 65.0,
+            "rsi_indicator.lookback_period": 9
+          }
+        }
+      }
+    },
+    {
+      "parameters": {
+        "oversold_threshold": 20.0,
+        "overbought_threshold": 65.0,
+        "rsi_indicator.lookback_period": 14
+      },
+      "score": 1757.2830500047817,
+      "regime_performance": {
+        "trending_down": {
+          "total_return": 20.389999999940756,
+          "sharpe_ratio": 0.30675666669708973,
+          "win_rate": 0.6923076923076923,
+          "trade_count": 52,
+          "avg_win": 0.3921153846142453,
+          "avg_loss": 0,
+          "parameters": {
+            "oversold_threshold": 20.0,
+            "overbought_threshold": 65.0,
+            "rsi_indicator.lookback_period": 14
+          }
+        },
+        "default": {
+          "total_return": 364.28000000000793,
+          "sharpe_ratio": 2.3604990073481704,
+          "win_rate": 0.5454545454545454,
+          "trade_count": 77,
+          "avg_win": 4.7309090909091935,
+          "avg_loss": 0,
+          "parameters": {
+            "oversold_threshold": 20.0,
+            "overbought_threshold": 65.0,
+            "rsi_indicator.lookback_period": 14
+          }
+        },
+        "trending_up": {
+          "total_return": -152.26999999997588,
+          "sharpe_ratio": -2.324581551485044,
+          "win_rate": 0.5652173913043478,
+          "trade_count": 23,
+          "avg_win": 0,
+          "avg_loss": 6.620434782607647,
+          "parameters": {
+            "oversold_threshold": 20.0,
+            "overbought_threshold": 65.0,
+            "rsi_indicator.lookback_period": 14
+          }
+        }
+      }
+    },
+    {
+      "parameters": {
+        "oversold_threshold": 20.0,
+        "overbought_threshold": 65.0,
+        "rsi_indicator.lookback_period": 21
+      },
+      "score": 27.974549213754702,
+      "regime_performance": {
+        "trending_down": {
+          "total_return": -28.570000000047457,
+          "sharpe_ratio": -0.5598747436675082,
+          "win_rate": 0.53125,
+          "trade_count": 32,
+          "avg_win": 0,
+          "avg_loss": 0.892812500001483,
+          "parameters": {
+            "oversold_threshold": 20.0,
+            "overbought_threshold": 65.0,
+            "rsi_indicator.lookback_period": 21
+          }
+        },
+        "default": {
+          "total_return": 257.2800000000143,
+          "sharpe_ratio": 2.0681088306445936,
+          "win_rate": 0.4074074074074074,
+          "trade_count": 54,
+          "avg_win": 4.76444444444471,
+          "avg_loss": 0,
+          "parameters": {
+            "oversold_threshold": 20.0,
+            "overbought_threshold": 65.0,
+            "rsi_indicator.lookback_period": 21
+          }
+        },
+        "trending_up": {
+          "total_return": -225.7099999999582,
+          "sharpe_ratio": -4.82079307497867,
+          "win_rate": 0.45,
+          "trade_count": 20,
+          "avg_win": 0,
+          "avg_loss": 11.28549999999791,
+          "parameters": {
+            "oversold_threshold": 20.0,
+            "overbought_threshold": 65.0,
+            "rsi_indicator.lookback_period": 21
+          }
+        }
+      }
+    },
+    {
+      "parameters": {
+        "oversold_threshold": 20.0,
+        "overbought_threshold": 65.0,
+        "rsi_indicator.lookback_period": 30
+      },
+      "score": 93.90950678092041,
+      "regime_performance": {
+        "trending_down": {
+          "total_return": -112.72000000000162,
+          "sharpe_ratio": -2.568953025553777,
+          "win_rate": 0.4583333333333333,
+          "trade_count": 24,
+          "avg_win": 0,
+          "avg_loss": 4.696666666666734,
+          "parameters": {
+            "oversold_threshold": 20.0,
+            "overbought_threshold": 65.0,
+            "rsi_indicator.lookback_period": 30
+          }
+        },
+        "default": {
+          "total_return": 326.89000000000306,
+          "sharpe_ratio": 2.7040060704318223,
+          "win_rate": 0.4423076923076923,
+          "trade_count": 52,
+          "avg_win": 6.286346153846212,
+          "avg_loss": 0,
+          "parameters": {
+            "oversold_threshold": 20.0,
+            "overbought_threshold": 65.0,
+            "rsi_indicator.lookback_period": 30
+          }
+        },
+        "trending_up": {
+          "total_return": -202.70999999997912,
+          "sharpe_ratio": -4.468348597074995,
+          "win_rate": 0.4,
+          "trade_count": 20,
+          "avg_win": 0,
+          "avg_loss": 10.135499999998956,
+          "parameters": {
+            "oversold_threshold": 20.0,
+            "overbought_threshold": 65.0,
+            "rsi_indicator.lookback_period": 30
+          }
+        }
+      }
+    },
+    {
+      "parameters": {
+        "oversold_threshold": 20.0,
+        "overbought_threshold": 70.0,
+        "rsi_indicator.lookback_period": 9
+      },
+      "score": 4.607499083247478,
+      "regime_performance": {
+        "trending_down": {
+          "total_return": -95.1000000001045,
+          "sharpe_ratio": -1.1098671903344253,
+          "win_rate": 0.65,
+          "trade_count": 60,
+          "avg_win": 0,
+          "avg_loss": 1.5850000000017417,
+          "parameters": {
+            "oversold_threshold": 20.0,
+            "overbought_threshold": 70.0,
+            "rsi_indicator.lookback_period": 9
+          }
+        },
+        "default": {
+          "total_return": 393.63999999994803,
+          "sharpe_ratio": 2.4240338744890253,
+          "win_rate": 0.5842696629213483,
+          "trade_count": 89,
+          "avg_win": 4.422921348314023,
+          "avg_loss": 0,
+          "parameters": {
+            "oversold_threshold": 20.0,
+            "overbought_threshold": 70.0,
+            "rsi_indicator.lookback_period": 9
+          }
+        },
+        "trending_up": {
+          "total_return": -136.95999999991955,
+          "sharpe_ratio": -2.1981055429645653,
+          "win_rate": 0.6285714285714286,
+          "trade_count": 35,
+          "avg_win": 0,
+          "avg_loss": 3.9131428571405587,
+          "parameters": {
+            "oversold_threshold": 20.0,
+            "overbought_threshold": 70.0,
+            "rsi_indicator.lookback_period": 9
+          }
+        }
+      }
+    },
+    {
+      "parameters": {
+        "oversold_threshold": 20.0,
+        "overbought_threshold": 70.0,
+        "rsi_indicator.lookback_period": 14
+      },
+      "score": 1757.2830824625053,
+      "regime_performance": {
+        "trending_down": {
+          "total_return": 20.389999999940756,
+          "sharpe_ratio": 0.30675666669708973,
+          "win_rate": 0.6923076923076923,
+          "trade_count": 52,
+          "avg_win": 0.3921153846142453,
+          "avg_loss": 0,
+          "parameters": {
+            "oversold_threshold": 20.0,
+            "overbought_threshold": 70.0,
+            "rsi_indicator.lookback_period": 14
+          }
+        },
+        "default": {
+          "total_return": 364.28000000000793,
+          "sharpe_ratio": 2.3604990073481704,
+          "win_rate": 0.5454545454545454,
+          "trade_count": 77,
+          "avg_win": 4.7309090909091935,
+          "avg_loss": 0,
+          "parameters": {
+            "oversold_threshold": 20.0,
+            "overbought_threshold": 70.0,
+            "rsi_indicator.lookback_period": 14
+          }
+        },
+        "trending_up": {
+          "total_return": -152.26999999997588,
+          "sharpe_ratio": -2.324581551485044,
+          "win_rate": 0.5652173913043478,
+          "trade_count": 23,
+          "avg_win": 0,
+          "avg_loss": 6.620434782607647,
+          "parameters": {
+            "oversold_threshold": 20.0,
+            "overbought_threshold": 70.0,
+            "rsi_indicator.lookback_period": 14
+          }
+        }
+      }
+    },
+    {
+      "parameters": {
+        "oversold_threshold": 20.0,
+        "overbought_threshold": 70.0,
+        "rsi_indicator.lookback_period": 21
+      },
+      "score": 27.974549729594372,
+      "regime_performance": {
+        "trending_down": {
+          "total_return": -28.570000000047457,
+          "sharpe_ratio": -0.5598747436675082,
+          "win_rate": 0.53125,
+          "trade_count": 32,
+          "avg_win": 0,
+          "avg_loss": 0.892812500001483,
+          "parameters": {
+            "oversold_threshold": 20.0,
+            "overbought_threshold": 70.0,
+            "rsi_indicator.lookback_period": 21
+          }
+        },
+        "default": {
+          "total_return": 257.2800000000143,
+          "sharpe_ratio": 2.0681088306445936,
+          "win_rate": 0.4074074074074074,
+          "trade_count": 54,
+          "avg_win": 4.76444444444471,
+          "avg_loss": 0,
+          "parameters": {
+            "oversold_threshold": 20.0,
+            "overbought_threshold": 70.0,
+            "rsi_indicator.lookback_period": 21
+          }
+        },
+        "trending_up": {
+          "total_return": -225.7099999999582,
+          "sharpe_ratio": -4.82079307497867,
+          "win_rate": 0.45,
+          "trade_count": 20,
+          "avg_win": 0,
+          "avg_loss": 11.28549999999791,
+          "parameters": {
+            "oversold_threshold": 20.0,
+            "overbought_threshold": 70.0,
+            "rsi_indicator.lookback_period": 21
+          }
+        }
+      }
+    },
+    {
+      "parameters": {
+        "oversold_threshold": 20.0,
+        "overbought_threshold": 70.0,
+        "rsi_indicator.lookback_period": 30
+      },
+      "score": 93.90950851257213,
+      "regime_performance": {
+        "trending_down": {
+          "total_return": -112.72000000000162,
+          "sharpe_ratio": -2.568953025553777,
+          "win_rate": 0.4583333333333333,
+          "trade_count": 24,
+          "avg_win": 0,
+          "avg_loss": 4.696666666666734,
+          "parameters": {
+            "oversold_threshold": 20.0,
+            "overbought_threshold": 70.0,
+            "rsi_indicator.lookback_period": 30
+          }
+        },
+        "default": {
+          "total_return": 326.89000000000306,
+          "sharpe_ratio": 2.7040060704318223,
+          "win_rate": 0.4423076923076923,
+          "trade_count": 52,
+          "avg_win": 6.286346153846212,
+          "avg_loss": 0,
+          "parameters": {
+            "oversold_threshold": 20.0,
+            "overbought_threshold": 70.0,
+            "rsi_indicator.lookback_period": 30
+          }
+        },
+        "trending_up": {
+          "total_return": -202.70999999997912,
+          "sharpe_ratio": -4.468348597074995,
+          "win_rate": 0.4,
+          "trade_count": 20,
+          "avg_win": 0,
+          "avg_loss": 10.135499999998956,
+          "parameters": {
+            "oversold_threshold": 20.0,
+            "overbought_threshold": 70.0,
+            "rsi_indicator.lookback_period": 30
+          }
+        }
+      }
+    },
+    {
+      "parameters": {
+        "oversold_threshold": 20.0,
+        "overbought_threshold": 75.0,
+        "rsi_indicator.lookback_period": 9
+      },
+      "score": 4.607499083247478,
+      "regime_performance": {
+        "trending_down": {
+          "total_return": -95.1000000001045,
+          "sharpe_ratio": -1.1098671903344253,
+          "win_rate": 0.65,
+          "trade_count": 60,
+          "avg_win": 0,
+          "avg_loss": 1.5850000000017417,
+          "parameters": {
+            "oversold_threshold": 20.0,
+            "overbought_threshold": 75.0,
+            "rsi_indicator.lookback_period": 9
+          }
+        },
+        "default": {
+          "total_return": 393.63999999994803,
+          "sharpe_ratio": 2.4240338744890253,
+          "win_rate": 0.5842696629213483,
+          "trade_count": 89,
+          "avg_win": 4.422921348314023,
+          "avg_loss": 0,
+          "parameters": {
+            "oversold_threshold": 20.0,
+            "overbought_threshold": 75.0,
+            "rsi_indicator.lookback_period": 9
+          }
+        },
+        "trending_up": {
+          "total_return": -136.95999999991955,
+          "sharpe_ratio": -2.1981055429645653,
+          "win_rate": 0.6285714285714286,
+          "trade_count": 35,
+          "avg_win": 0,
+          "avg_loss": 3.9131428571405587,
+          "parameters": {
+            "oversold_threshold": 20.0,
+            "overbought_threshold": 75.0,
+            "rsi_indicator.lookback_period": 9
+          }
+        }
+      }
+    },
+    {
+      "parameters": {
+        "oversold_threshold": 20.0,
+        "overbought_threshold": 75.0,
+        "rsi_indicator.lookback_period": 14
+      },
+      "score": 1757.2831151533273,
+      "regime_performance": {
+        "trending_down": {
+          "total_return": 20.389999999940756,
+          "sharpe_ratio": 0.30675666669708973,
+          "win_rate": 0.6923076923076923,
+          "trade_count": 52,
+          "avg_win": 0.3921153846142453,
+          "avg_loss": 0,
+          "parameters": {
+            "oversold_threshold": 20.0,
+            "overbought_threshold": 75.0,
+            "rsi_indicator.lookback_period": 14
+          }
+        },
+        "default": {
+          "total_return": 364.28000000000793,
+          "sharpe_ratio": 2.3604990073481704,
+          "win_rate": 0.5454545454545454,
+          "trade_count": 77,
+          "avg_win": 4.7309090909091935,
+          "avg_loss": 0,
+          "parameters": {
+            "oversold_threshold": 20.0,
+            "overbought_threshold": 75.0,
+            "rsi_indicator.lookback_period": 14
+          }
+        },
+        "trending_up": {
+          "total_return": -152.26999999997588,
+          "sharpe_ratio": -2.324581551485044,
+          "win_rate": 0.5652173913043478,
+          "trade_count": 23,
+          "avg_win": 0,
+          "avg_loss": 6.620434782607647,
+          "parameters": {
+            "oversold_threshold": 20.0,
+            "overbought_threshold": 75.0,
+            "rsi_indicator.lookback_period": 14
+          }
+        }
+      }
+    },
+    {
+      "parameters": {
+        "oversold_threshold": 20.0,
+        "overbought_threshold": 75.0,
+        "rsi_indicator.lookback_period": 21
+      },
+      "score": 27.974550250761926,
+      "regime_performance": {
+        "trending_down": {
+          "total_return": -28.570000000047457,
+          "sharpe_ratio": -0.5598747436675082,
+          "win_rate": 0.53125,
+          "trade_count": 32,
+          "avg_win": 0,
+          "avg_loss": 0.892812500001483,
+          "parameters": {
+            "oversold_threshold": 20.0,
+            "overbought_threshold": 75.0,
+            "rsi_indicator.lookback_period": 21
+          }
+        },
+        "default": {
+          "total_return": 257.2800000000143,
+          "sharpe_ratio": 2.0681088306445936,
+          "win_rate": 0.4074074074074074,
+          "trade_count": 54,
+          "avg_win": 4.76444444444471,
+          "avg_loss": 0,
+          "parameters": {
+            "oversold_threshold": 20.0,
+            "overbought_threshold": 75.0,
+            "rsi_indicator.lookback_period": 21
+          }
+        },
+        "trending_up": {
+          "total_return": -225.7099999999582,
+          "sharpe_ratio": -4.82079307497867,
+          "win_rate": 0.45,
+          "trade_count": 20,
+          "avg_win": 0,
+          "avg_loss": 11.28549999999791,
+          "parameters": {
+            "oversold_threshold": 20.0,
+            "overbought_threshold": 75.0,
+            "rsi_indicator.lookback_period": 21
+          }
+        }
+      }
+    },
+    {
+      "parameters": {
+        "oversold_threshold": 20.0,
+        "overbought_threshold": 75.0,
+        "rsi_indicator.lookback_period": 30
+      },
+      "score": 93.90951026102697,
+      "regime_performance": {
+        "trending_down": {
+          "total_return": -112.72000000000162,
+          "sharpe_ratio": -2.568953025553777,
+          "win_rate": 0.4583333333333333,
+          "trade_count": 24,
+          "avg_win": 0,
+          "avg_loss": 4.696666666666734,
+          "parameters": {
+            "oversold_threshold": 20.0,
+            "overbought_threshold": 75.0,
+            "rsi_indicator.lookback_period": 30
+          }
+        },
+        "default": {
+          "total_return": 326.89000000000306,
+          "sharpe_ratio": 2.7040060704318223,
+          "win_rate": 0.4423076923076923,
+          "trade_count": 52,
+          "avg_win": 6.286346153846212,
+          "avg_loss": 0,
+          "parameters": {
+            "oversold_threshold": 20.0,
+            "overbought_threshold": 75.0,
+            "rsi_indicator.lookback_period": 30
+          }
+        },
+        "trending_up": {
+          "total_return": -202.70999999997912,
+          "sharpe_ratio": -4.468348597074995,
+          "win_rate": 0.4,
+          "trade_count": 20,
+          "avg_win": 0,
+          "avg_loss": 10.135499999998956,
+          "parameters": {
+            "oversold_threshold": 20.0,
+            "overbought_threshold": 75.0,
+            "rsi_indicator.lookback_period": 30
+          }
+        }
+      }
+    },
+    {
+      "parameters": {
+        "oversold_threshold": 20.0,
+        "overbought_threshold": 80.0,
+        "rsi_indicator.lookback_period": 9
+      },
+      "score": 4.607499083247478,
+      "regime_performance": {
+        "trending_down": {
+          "total_return": -95.1000000001045,
+          "sharpe_ratio": -1.1098671903344253,
+          "win_rate": 0.65,
+          "trade_count": 60,
+          "avg_win": 0,
+          "avg_loss": 1.5850000000017417,
+          "parameters": {
+            "oversold_threshold": 20.0,
+            "overbought_threshold": 80.0,
+            "rsi_indicator.lookback_period": 9
+          }
+        },
+        "default": {
+          "total_return": 393.63999999994803,
+          "sharpe_ratio": 2.4240338744890253,
+          "win_rate": 0.5842696629213483,
+          "trade_count": 89,
+          "avg_win": 4.422921348314023,
+          "avg_loss": 0,
+          "parameters": {
+            "oversold_threshold": 20.0,
+            "overbought_threshold": 80.0,
+            "rsi_indicator.lookback_period": 9
+          }
+        },
+        "trending_up": {
+          "total_return": -136.95999999991955,
+          "sharpe_ratio": -2.1981055429645653,
+          "win_rate": 0.6285714285714286,
+          "trade_count": 35,
+          "avg_win": 0,
+          "avg_loss": 3.9131428571405587,
+          "parameters": {
+            "oversold_threshold": 20.0,
+            "overbought_threshold": 80.0,
+            "rsi_indicator.lookback_period": 9
+          }
+        }
+      }
+    },
+    {
+      "parameters": {
+        "oversold_threshold": 20.0,
+        "overbought_threshold": 80.0,
+        "rsi_indicator.lookback_period": 14
+      },
+      "score": 1757.2831476110266,
+      "regime_performance": {
+        "trending_down": {
+          "total_return": 20.389999999940756,
+          "sharpe_ratio": 0.30675666669708973,
+          "win_rate": 0.6923076923076923,
+          "trade_count": 52,
+          "avg_win": 0.3921153846142453,
+          "avg_loss": 0,
+          "parameters": {
+            "oversold_threshold": 20.0,
+            "overbought_threshold": 80.0,
+            "rsi_indicator.lookback_period": 14
+          }
+        },
+        "default": {
+          "total_return": 364.28000000000793,
+          "sharpe_ratio": 2.3604990073481704,
+          "win_rate": 0.5454545454545454,
+          "trade_count": 77,
+          "avg_win": 4.7309090909091935,
+          "avg_loss": 0,
+          "parameters": {
+            "oversold_threshold": 20.0,
+            "overbought_threshold": 80.0,
+            "rsi_indicator.lookback_period": 14
+          }
+        },
+        "trending_up": {
+          "total_return": -152.26999999997588,
+          "sharpe_ratio": -2.324581551485044,
+          "win_rate": 0.5652173913043478,
+          "trade_count": 23,
+          "avg_win": 0,
+          "avg_loss": 6.620434782607647,
+          "parameters": {
+            "oversold_threshold": 20.0,
+            "overbought_threshold": 80.0,
+            "rsi_indicator.lookback_period": 14
+          }
+        }
+      }
+    },
+    {
+      "parameters": {
+        "oversold_threshold": 20.0,
+        "overbought_threshold": 80.0,
+        "rsi_indicator.lookback_period": 21
+      },
+      "score": 27.974550779621065,
+      "regime_performance": {
+        "trending_down": {
+          "total_return": -28.570000000047457,
+          "sharpe_ratio": -0.5598747436675082,
+          "win_rate": 0.53125,
+          "trade_count": 32,
+          "avg_win": 0,
+          "avg_loss": 0.892812500001483,
+          "parameters": {
+            "oversold_threshold": 20.0,
+            "overbought_threshold": 80.0,
+            "rsi_indicator.lookback_period": 21
+          }
+        },
+        "default": {
+          "total_return": 257.2800000000143,
+          "sharpe_ratio": 2.0681088306445936,
+          "win_rate": 0.4074074074074074,
+          "trade_count": 54,
+          "avg_win": 4.76444444444471,
+          "avg_loss": 0,
+          "parameters": {
+            "oversold_threshold": 20.0,
+            "overbought_threshold": 80.0,
+            "rsi_indicator.lookback_period": 21
+          }
+        },
+        "trending_up": {
+          "total_return": -225.7099999999582,
+          "sharpe_ratio": -4.82079307497867,
+          "win_rate": 0.45,
+          "trade_count": 20,
+          "avg_win": 0,
+          "avg_loss": 11.28549999999791,
+          "parameters": {
+            "oversold_threshold": 20.0,
+            "overbought_threshold": 80.0,
+            "rsi_indicator.lookback_period": 21
+          }
+        }
+      }
+    },
+    {
+      "parameters": {
+        "oversold_threshold": 20.0,
+        "overbought_threshold": 80.0,
+        "rsi_indicator.lookback_period": 30
+      },
+      "score": 93.90951203439167,
+      "regime_performance": {
+        "trending_down": {
+          "total_return": -112.72000000000162,
+          "sharpe_ratio": -2.568953025553777,
+          "win_rate": 0.4583333333333333,
+          "trade_count": 24,
+          "avg_win": 0,
+          "avg_loss": 4.696666666666734,
+          "parameters": {
+            "oversold_threshold": 20.0,
+            "overbought_threshold": 80.0,
+            "rsi_indicator.lookback_period": 30
+          }
+        },
+        "default": {
+          "total_return": 326.89000000000306,
+          "sharpe_ratio": 2.7040060704318223,
+          "win_rate": 0.4423076923076923,
+          "trade_count": 52,
+          "avg_win": 6.286346153846212,
+          "avg_loss": 0,
+          "parameters": {
+            "oversold_threshold": 20.0,
+            "overbought_threshold": 80.0,
+            "rsi_indicator.lookback_period": 30
+          }
+        },
+        "trending_up": {
+          "total_return": -202.70999999997912,
+          "sharpe_ratio": -4.468348597074995,
+          "win_rate": 0.4,
+          "trade_count": 20,
+          "avg_win": 0,
+          "avg_loss": 10.135499999998956,
+          "parameters": {
+            "oversold_threshold": 20.0,
+            "overbought_threshold": 80.0,
+            "rsi_indicator.lookback_period": 30
+          }
+        }
+      }
+    },
+    {
+      "parameters": {
+        "oversold_threshold": 25.0,
+        "overbought_threshold": 60.0,
+        "rsi_indicator.lookback_period": 9
+      },
+      "score": 4.607499083247478,
+      "regime_performance": {
+        "trending_down": {
+          "total_return": -95.1000000001045,
+          "sharpe_ratio": -1.1098671903344253,
+          "win_rate": 0.65,
+          "trade_count": 60,
+          "avg_win": 0,
+          "avg_loss": 1.5850000000017417,
+          "parameters": {
+            "oversold_threshold": 25.0,
+            "overbought_threshold": 60.0,
+            "rsi_indicator.lookback_period": 9
+          }
+        },
+        "default": {
+          "total_return": 393.63999999994803,
+          "sharpe_ratio": 2.4240338744890253,
+          "win_rate": 0.5842696629213483,
+          "trade_count": 89,
+          "avg_win": 4.422921348314023,
+          "avg_loss": 0,
+          "parameters": {
+            "oversold_threshold": 25.0,
+            "overbought_threshold": 60.0,
+            "rsi_indicator.lookback_period": 9
+          }
+        },
+        "trending_up": {
+          "total_return": -136.95999999991955,
+          "sharpe_ratio": -2.1981055429645653,
+          "win_rate": 0.6285714285714286,
+          "trade_count": 35,
+          "avg_win": 0,
+          "avg_loss": 3.9131428571405587,
+          "parameters": {
+            "oversold_threshold": 25.0,
+            "overbought_threshold": 60.0,
+            "rsi_indicator.lookback_period": 9
+          }
+        }
+      }
+    },
+    {
+      "parameters": {
+        "oversold_threshold": 25.0,
+        "overbought_threshold": 60.0,
+        "rsi_indicator.lookback_period": 14
+      },
+      "score": 1757.2831808425838,
+      "regime_performance": {
+        "trending_down": {
+          "total_return": 20.389999999940756,
+          "sharpe_ratio": 0.30675666669708973,
+          "win_rate": 0.6923076923076923,
+          "trade_count": 52,
+          "avg_win": 0.3921153846142453,
+          "avg_loss": 0,
+          "parameters": {
+            "oversold_threshold": 25.0,
+            "overbought_threshold": 60.0,
+            "rsi_indicator.lookback_period": 14
+          }
+        },
+        "default": {
+          "total_return": 364.28000000000793,
+          "sharpe_ratio": 2.3604990073481704,
+          "win_rate": 0.5454545454545454,
+          "trade_count": 77,
+          "avg_win": 4.7309090909091935,
+          "avg_loss": 0,
+          "parameters": {
+            "oversold_threshold": 25.0,
+            "overbought_threshold": 60.0,
+            "rsi_indicator.lookback_period": 14
+          }
+        },
+        "trending_up": {
+          "total_return": -152.26999999997588,
+          "sharpe_ratio": -2.324581551485044,
+          "win_rate": 0.5652173913043478,
+          "trade_count": 23,
+          "avg_win": 0,
+          "avg_loss": 6.620434782607647,
+          "parameters": {
+            "oversold_threshold": 25.0,
+            "overbought_threshold": 60.0,
+            "rsi_indicator.lookback_period": 14
+          }
+        }
+      }
+    },
+    {
+      "parameters": {
+        "oversold_threshold": 25.0,
+        "overbought_threshold": 60.0,
+        "rsi_indicator.lookback_period": 21
+      },
+      "score": 27.974551295610162,
+      "regime_performance": {
+        "trending_down": {
+          "total_return": -28.570000000047457,
+          "sharpe_ratio": -0.5598747436675082,
+          "win_rate": 0.53125,
+          "trade_count": 32,
+          "avg_win": 0,
+          "avg_loss": 0.892812500001483,
+          "parameters": {
+            "oversold_threshold": 25.0,
+            "overbought_threshold": 60.0,
+            "rsi_indicator.lookback_period": 21
+          }
+        },
+        "default": {
+          "total_return": 257.2800000000143,
+          "sharpe_ratio": 2.0681088306445936,
+          "win_rate": 0.4074074074074074,
+          "trade_count": 54,
+          "avg_win": 4.76444444444471,
+          "avg_loss": 0,
+          "parameters": {
+            "oversold_threshold": 25.0,
+            "overbought_threshold": 60.0,
+            "rsi_indicator.lookback_period": 21
+          }
+        },
+        "trending_up": {
+          "total_return": -225.7099999999582,
+          "sharpe_ratio": -4.82079307497867,
+          "win_rate": 0.45,
+          "trade_count": 20,
+          "avg_win": 0,
+          "avg_loss": 11.28549999999791,
+          "parameters": {
+            "oversold_threshold": 25.0,
+            "overbought_threshold": 60.0,
+            "rsi_indicator.lookback_period": 21
+          }
+        }
+      }
+    },
+    {
+      "parameters": {
+        "oversold_threshold": 25.0,
+        "overbought_threshold": 60.0,
+        "rsi_indicator.lookback_period": 30
+      },
+      "score": 93.90951376923711,
+      "regime_performance": {
+        "trending_down": {
+          "total_return": -112.72000000000162,
+          "sharpe_ratio": -2.568953025553777,
+          "win_rate": 0.4583333333333333,
+          "trade_count": 24,
+          "avg_win": 0,
+          "avg_loss": 4.696666666666734,
+          "parameters": {
+            "oversold_threshold": 25.0,
+            "overbought_threshold": 60.0,
+            "rsi_indicator.lookback_period": 30
+          }
+        },
+        "default": {
+          "total_return": 326.89000000000306,
+          "sharpe_ratio": 2.7040060704318223,
+          "win_rate": 0.4423076923076923,
+          "trade_count": 52,
+          "avg_win": 6.286346153846212,
+          "avg_loss": 0,
+          "parameters": {
+            "oversold_threshold": 25.0,
+            "overbought_threshold": 60.0,
+            "rsi_indicator.lookback_period": 30
+          }
+        },
+        "trending_up": {
+          "total_return": -202.70999999997912,
+          "sharpe_ratio": -4.468348597074995,
+          "win_rate": 0.4,
+          "trade_count": 20,
+          "avg_win": 0,
+          "avg_loss": 10.135499999998956,
+          "parameters": {
+            "oversold_threshold": 25.0,
+            "overbought_threshold": 60.0,
+            "rsi_indicator.lookback_period": 30
+          }
+        }
+      }
+    },
+    {
+      "parameters": {
+        "oversold_threshold": 25.0,
+        "overbought_threshold": 65.0,
+        "rsi_indicator.lookback_period": 9
+      },
+      "score": 4.607499083247478,
+      "regime_performance": {
+        "trending_down": {
+          "total_return": -95.1000000001045,
+          "sharpe_ratio": -1.1098671903344253,
+          "win_rate": 0.65,
+          "trade_count": 60,
+          "avg_win": 0,
+          "avg_loss": 1.5850000000017417,
+          "parameters": {
+            "oversold_threshold": 25.0,
+            "overbought_threshold": 65.0,
+            "rsi_indicator.lookback_period": 9
+          }
+        },
+        "default": {
+          "total_return": 393.63999999994803,
+          "sharpe_ratio": 2.4240338744890253,
+          "win_rate": 0.5842696629213483,
+          "trade_count": 89,
+          "avg_win": 4.422921348314023,
+          "avg_loss": 0,
+          "parameters": {
+            "oversold_threshold": 25.0,
+            "overbought_threshold": 65.0,
+            "rsi_indicator.lookback_period": 9
+          }
+        },
+        "trending_up": {
+          "total_return": -136.95999999991955,
+          "sharpe_ratio": -2.1981055429645653,
+          "win_rate": 0.6285714285714286,
+          "trade_count": 35,
+          "avg_win": 0,
+          "avg_loss": 3.9131428571405587,
+          "parameters": {
+            "oversold_threshold": 25.0,
+            "overbought_threshold": 65.0,
+            "rsi_indicator.lookback_period": 9
+          }
+        }
+      }
+    },
+    {
+      "parameters": {
+        "oversold_threshold": 25.0,
+        "overbought_threshold": 65.0,
+        "rsi_indicator.lookback_period": 14
+      },
+      "score": 1757.2832132586989,
+      "regime_performance": {
+        "trending_down": {
+          "total_return": 20.389999999940756,
+          "sharpe_ratio": 0.30675666669708973,
+          "win_rate": 0.6923076923076923,
+          "trade_count": 52,
+          "avg_win": 0.3921153846142453,
+          "avg_loss": 0,
+          "parameters": {
+            "oversold_threshold": 25.0,
+            "overbought_threshold": 65.0,
+            "rsi_indicator.lookback_period": 14
+          }
+        },
+        "default": {
+          "total_return": 364.28000000000793,
+          "sharpe_ratio": 2.3604990073481704,
+          "win_rate": 0.5454545454545454,
+          "trade_count": 77,
+          "avg_win": 4.7309090909091935,
+          "avg_loss": 0,
+          "parameters": {
+            "oversold_threshold": 25.0,
+            "overbought_threshold": 65.0,
+            "rsi_indicator.lookback_period": 14
+          }
+        },
+        "trending_up": {
+          "total_return": -152.26999999997588,
+          "sharpe_ratio": -2.324581551485044,
+          "win_rate": 0.5652173913043478,
+          "trade_count": 23,
+          "avg_win": 0,
+          "avg_loss": 6.620434782607647,
+          "parameters": {
+            "oversold_threshold": 25.0,
+            "overbought_threshold": 65.0,
+            "rsi_indicator.lookback_period": 14
+          }
+        }
+      }
+    },
+    {
+      "parameters": {
+        "oversold_threshold": 25.0,
+        "overbought_threshold": 65.0,
+        "rsi_indicator.lookback_period": 21
+      },
+      "score": 27.97455181754965,
+      "regime_performance": {
+        "trending_down": {
+          "total_return": -28.570000000047457,
+          "sharpe_ratio": -0.5598747436675082,
+          "win_rate": 0.53125,
+          "trade_count": 32,
+          "avg_win": 0,
+          "avg_loss": 0.892812500001483,
+          "parameters": {
+            "oversold_threshold": 25.0,
+            "overbought_threshold": 65.0,
+            "rsi_indicator.lookback_period": 21
+          }
+        },
+        "default": {
+          "total_return": 257.2800000000143,
+          "sharpe_ratio": 2.0681088306445936,
+          "win_rate": 0.4074074074074074,
+          "trade_count": 54,
+          "avg_win": 4.76444444444471,
+          "avg_loss": 0,
+          "parameters": {
+            "oversold_threshold": 25.0,
+            "overbought_threshold": 65.0,
+            "rsi_indicator.lookback_period": 21
+          }
+        },
+        "trending_up": {
+          "total_return": -225.7099999999582,
+          "sharpe_ratio": -4.82079307497867,
+          "win_rate": 0.45,
+          "trade_count": 20,
+          "avg_win": 0,
+          "avg_loss": 11.28549999999791,
+          "parameters": {
+            "oversold_threshold": 25.0,
+            "overbought_threshold": 65.0,
+            "rsi_indicator.lookback_period": 21
+          }
+        }
+      }
+    },
+    {
+      "parameters": {
+        "oversold_threshold": 25.0,
+        "overbought_threshold": 65.0,
+        "rsi_indicator.lookback_period": 30
+      },
+      "score": 93.90951555712539,
+      "regime_performance": {
+        "trending_down": {
+          "total_return": -112.72000000000162,
+          "sharpe_ratio": -2.568953025553777,
+          "win_rate": 0.4583333333333333,
+          "trade_count": 24,
+          "avg_win": 0,
+          "avg_loss": 4.696666666666734,
+          "parameters": {
+            "oversold_threshold": 25.0,
+            "overbought_threshold": 65.0,
+            "rsi_indicator.lookback_period": 30
+          }
+        },
+        "default": {
+          "total_return": 326.89000000000306,
+          "sharpe_ratio": 2.7040060704318223,
+          "win_rate": 0.4423076923076923,
+          "trade_count": 52,
+          "avg_win": 6.286346153846212,
+          "avg_loss": 0,
+          "parameters": {
+            "oversold_threshold": 25.0,
+            "overbought_threshold": 65.0,
+            "rsi_indicator.lookback_period": 30
+          }
+        },
+        "trending_up": {
+          "total_return": -202.70999999997912,
+          "sharpe_ratio": -4.468348597074995,
+          "win_rate": 0.4,
+          "trade_count": 20,
+          "avg_win": 0,
+          "avg_loss": 10.135499999998956,
+          "parameters": {
+            "oversold_threshold": 25.0,
+            "overbought_threshold": 65.0,
+            "rsi_indicator.lookback_period": 30
+          }
+        }
+      }
+    },
+    {
+      "parameters": {
+        "oversold_threshold": 25.0,
+        "overbought_threshold": 70.0,
+        "rsi_indicator.lookback_period": 9
+      },
+      "score": 4.607499083247478,
+      "regime_performance": {
+        "trending_down": {
+          "total_return": -95.1000000001045,
+          "sharpe_ratio": -1.1098671903344253,
+          "win_rate": 0.65,
+          "trade_count": 60,
+          "avg_win": 0,
+          "avg_loss": 1.5850000000017417,
+          "parameters": {
+            "oversold_threshold": 25.0,
+            "overbought_threshold": 70.0,
+            "rsi_indicator.lookback_period": 9
+          }
+        },
+        "default": {
+          "total_return": 393.63999999994803,
+          "sharpe_ratio": 2.4240338744890253,
+          "win_rate": 0.5842696629213483,
+          "trade_count": 89,
+          "avg_win": 4.422921348314023,
+          "avg_loss": 0,
+          "parameters": {
+            "oversold_threshold": 25.0,
+            "overbought_threshold": 70.0,
+            "rsi_indicator.lookback_period": 9
+          }
+        },
+        "trending_up": {
+          "total_return": -136.95999999991955,
+          "sharpe_ratio": -2.1981055429645653,
+          "win_rate": 0.6285714285714286,
+          "trade_count": 35,
+          "avg_win": 0,
+          "avg_loss": 3.9131428571405587,
+          "parameters": {
+            "oversold_threshold": 25.0,
+            "overbought_threshold": 70.0,
+            "rsi_indicator.lookback_period": 9
+          }
+        }
+      }
+    },
+    {
+      "parameters": {
+        "oversold_threshold": 25.0,
+        "overbought_threshold": 70.0,
+        "rsi_indicator.lookback_period": 14
+      },
+      "score": 1757.2832476732892,
+      "regime_performance": {
+        "trending_down": {
+          "total_return": 20.389999999940756,
+          "sharpe_ratio": 0.30675666669708973,
+          "win_rate": 0.6923076923076923,
+          "trade_count": 52,
+          "avg_win": 0.3921153846142453,
+          "avg_loss": 0,
+          "parameters": {
+            "oversold_threshold": 25.0,
+            "overbought_threshold": 70.0,
+            "rsi_indicator.lookback_period": 14
+          }
+        },
+        "default": {
+          "total_return": 364.28000000000793,
+          "sharpe_ratio": 2.3604990073481704,
+          "win_rate": 0.5454545454545454,
+          "trade_count": 77,
+          "avg_win": 4.7309090909091935,
+          "avg_loss": 0,
+          "parameters": {
+            "oversold_threshold": 25.0,
+            "overbought_threshold": 70.0,
+            "rsi_indicator.lookback_period": 14
+          }
+        },
+        "trending_up": {
+          "total_return": -152.26999999997588,
+          "sharpe_ratio": -2.324581551485044,
+          "win_rate": 0.5652173913043478,
+          "trade_count": 23,
+          "avg_win": 0,
+          "avg_loss": 6.620434782607647,
+          "parameters": {
+            "oversold_threshold": 25.0,
+            "overbought_threshold": 70.0,
+            "rsi_indicator.lookback_period": 14
+          }
+        }
+      }
+    },
+    {
+      "parameters": {
+        "oversold_threshold": 25.0,
+        "overbought_threshold": 70.0,
+        "rsi_indicator.lookback_period": 21
+      },
+      "score": 27.974552365619925,
+      "regime_performance": {
+        "trending_down": {
+          "total_return": -28.570000000047457,
+          "sharpe_ratio": -0.5598747436675082,
+          "win_rate": 0.53125,
+          "trade_count": 32,
+          "avg_win": 0,
+          "avg_loss": 0.892812500001483,
+          "parameters": {
+            "oversold_threshold": 25.0,
+            "overbought_threshold": 70.0,
+            "rsi_indicator.lookback_period": 21
+          }
+        },
+        "default": {
+          "total_return": 257.2800000000143,
+          "sharpe_ratio": 2.0681088306445936,
+          "win_rate": 0.4074074074074074,
+          "trade_count": 54,
+          "avg_win": 4.76444444444471,
+          "avg_loss": 0,
+          "parameters": {
+            "oversold_threshold": 25.0,
+            "overbought_threshold": 70.0,
+            "rsi_indicator.lookback_period": 21
+          }
+        },
+        "trending_up": {
+          "total_return": -225.7099999999582,
+          "sharpe_ratio": -4.82079307497867,
+          "win_rate": 0.45,
+          "trade_count": 20,
+          "avg_win": 0,
+          "avg_loss": 11.28549999999791,
+          "parameters": {
+            "oversold_threshold": 25.0,
+            "overbought_threshold": 70.0,
+            "rsi_indicator.lookback_period": 21
+          }
+        }
+      }
+    },
+    {
+      "parameters": {
+        "oversold_threshold": 25.0,
+        "overbought_threshold": 70.0,
+        "rsi_indicator.lookback_period": 30
+      },
+      "score": 93.90951736964844,
+      "regime_performance": {
+        "trending_down": {
+          "total_return": -112.72000000000162,
+          "sharpe_ratio": -2.568953025553777,
+          "win_rate": 0.4583333333333333,
+          "trade_count": 24,
+          "avg_win": 0,
+          "avg_loss": 4.696666666666734,
+          "parameters": {
+            "oversold_threshold": 25.0,
+            "overbought_threshold": 70.0,
+            "rsi_indicator.lookback_period": 30
+          }
+        },
+        "default": {
+          "total_return": 326.89000000000306,
+          "sharpe_ratio": 2.7040060704318223,
+          "win_rate": 0.4423076923076923,
+          "trade_count": 52,
+          "avg_win": 6.286346153846212,
+          "avg_loss": 0,
+          "parameters": {
+            "oversold_threshold": 25.0,
+            "overbought_threshold": 70.0,
+            "rsi_indicator.lookback_period": 30
+          }
+        },
+        "trending_up": {
+          "total_return": -202.70999999997912,
+          "sharpe_ratio": -4.468348597074995,
+          "win_rate": 0.4,
+          "trade_count": 20,
+          "avg_win": 0,
+          "avg_loss": 10.135499999998956,
+          "parameters": {
+            "oversold_threshold": 25.0,
+            "overbought_threshold": 70.0,
+            "rsi_indicator.lookback_period": 30
+          }
+        }
+      }
+    },
+    {
+      "parameters": {
+        "oversold_threshold": 25.0,
+        "overbought_threshold": 75.0,
+        "rsi_indicator.lookback_period": 9
+      },
+      "score": 4.607499083247478,
+      "regime_performance": {
+        "trending_down": {
+          "total_return": -95.1000000001045,
+          "sharpe_ratio": -1.1098671903344253,
+          "win_rate": 0.65,
+          "trade_count": 60,
+          "avg_win": 0,
+          "avg_loss": 1.5850000000017417,
+          "parameters": {
+            "oversold_threshold": 25.0,
+            "overbought_threshold": 75.0,
+            "rsi_indicator.lookback_period": 9
+          }
+        },
+        "default": {
+          "total_return": 393.63999999994803,
+          "sharpe_ratio": 2.4240338744890253,
+          "win_rate": 0.5842696629213483,
+          "trade_count": 89,
+          "avg_win": 4.422921348314023,
+          "avg_loss": 0,
+          "parameters": {
+            "oversold_threshold": 25.0,
+            "overbought_threshold": 75.0,
+            "rsi_indicator.lookback_period": 9
+          }
+        },
+        "trending_up": {
+          "total_return": -136.95999999991955,
+          "sharpe_ratio": -2.1981055429645653,
+          "win_rate": 0.6285714285714286,
+          "trade_count": 35,
+          "avg_win": 0,
+          "avg_loss": 3.9131428571405587,
+          "parameters": {
+            "oversold_threshold": 25.0,
+            "overbought_threshold": 75.0,
+            "rsi_indicator.lookback_period": 9
+          }
+        }
+      }
+    },
+    {
+      "parameters": {
+        "oversold_threshold": 25.0,
+        "overbought_threshold": 75.0,
+        "rsi_indicator.lookback_period": 14
+      },
+      "score": 1757.283280540517,
+      "regime_performance": {
+        "trending_down": {
+          "total_return": 20.389999999940756,
+          "sharpe_ratio": 0.30675666669708973,
+          "win_rate": 0.6923076923076923,
+          "trade_count": 52,
+          "avg_win": 0.3921153846142453,
+          "avg_loss": 0,
+          "parameters": {
+            "oversold_threshold": 25.0,
+            "overbought_threshold": 75.0,
+            "rsi_indicator.lookback_period": 14
+          }
+        },
+        "default": {
+          "total_return": 364.28000000000793,
+          "sharpe_ratio": 2.3604990073481704,
+          "win_rate": 0.5454545454545454,
+          "trade_count": 77,
+          "avg_win": 4.7309090909091935,
+          "avg_loss": 0,
+          "parameters": {
+            "oversold_threshold": 25.0,
+            "overbought_threshold": 75.0,
+            "rsi_indicator.lookback_period": 14
+          }
+        },
+        "trending_up": {
+          "total_return": -152.26999999997588,
+          "sharpe_ratio": -2.324581551485044,
+          "win_rate": 0.5652173913043478,
+          "trade_count": 23,
+          "avg_win": 0,
+          "avg_loss": 6.620434782607647,
+          "parameters": {
+            "oversold_threshold": 25.0,
+            "overbought_threshold": 75.0,
+            "rsi_indicator.lookback_period": 14
+          }
+        }
+      }
+    },
+    {
+      "parameters": {
+        "oversold_threshold": 25.0,
+        "overbought_threshold": 75.0,
+        "rsi_indicator.lookback_period": 21
+      },
+      "score": 27.974552881522506,
+      "regime_performance": {
+        "trending_down": {
+          "total_return": -28.570000000047457,
+          "sharpe_ratio": -0.5598747436675082,
+          "win_rate": 0.53125,
+          "trade_count": 32,
+          "avg_win": 0,
+          "avg_loss": 0.892812500001483,
+          "parameters": {
+            "oversold_threshold": 25.0,
+            "overbought_threshold": 75.0,
+            "rsi_indicator.lookback_period": 21
+          }
+        },
+        "default": {
+          "total_return": 257.2800000000143,
+          "sharpe_ratio": 2.0681088306445936,
+          "win_rate": 0.4074074074074074,
+          "trade_count": 54,
+          "avg_win": 4.76444444444471,
+          "avg_loss": 0,
+          "parameters": {
+            "oversold_threshold": 25.0,
+            "overbought_threshold": 75.0,
+            "rsi_indicator.lookback_period": 21
+          }
+        },
+        "trending_up": {
+          "total_return": -225.7099999999582,
+          "sharpe_ratio": -4.82079307497867,
+          "win_rate": 0.45,
+          "trade_count": 20,
+          "avg_win": 0,
+          "avg_loss": 11.28549999999791,
+          "parameters": {
+            "oversold_threshold": 25.0,
+            "overbought_threshold": 75.0,
+            "rsi_indicator.lookback_period": 21
+          }
+        }
+      }
+    },
+    {
+      "parameters": {
+        "oversold_threshold": 25.0,
+        "overbought_threshold": 75.0,
+        "rsi_indicator.lookback_period": 30
+      },
+      "score": 93.9095190918319,
+      "regime_performance": {
+        "trending_down": {
+          "total_return": -112.72000000000162,
+          "sharpe_ratio": -2.568953025553777,
+          "win_rate": 0.4583333333333333,
+          "trade_count": 24,
+          "avg_win": 0,
+          "avg_loss": 4.696666666666734,
+          "parameters": {
+            "oversold_threshold": 25.0,
+            "overbought_threshold": 75.0,
+            "rsi_indicator.lookback_period": 30
+          }
+        },
+        "default": {
+          "total_return": 326.89000000000306,
+          "sharpe_ratio": 2.7040060704318223,
+          "win_rate": 0.4423076923076923,
+          "trade_count": 52,
+          "avg_win": 6.286346153846212,
+          "avg_loss": 0,
+          "parameters": {
+            "oversold_threshold": 25.0,
+            "overbought_threshold": 75.0,
+            "rsi_indicator.lookback_period": 30
+          }
+        },
+        "trending_up": {
+          "total_return": -202.70999999997912,
+          "sharpe_ratio": -4.468348597074995,
+          "win_rate": 0.4,
+          "trade_count": 20,
+          "avg_win": 0,
+          "avg_loss": 10.135499999998956,
+          "parameters": {
+            "oversold_threshold": 25.0,
+            "overbought_threshold": 75.0,
+            "rsi_indicator.lookback_period": 30
+          }
+        }
+      }
+    },
+    {
+      "parameters": {
+        "oversold_threshold": 25.0,
+        "overbought_threshold": 80.0,
+        "rsi_indicator.lookback_period": 9
+      },
+      "score": 4.607499083247478,
+      "regime_performance": {
+        "trending_down": {
+          "total_return": -95.1000000001045,
+          "sharpe_ratio": -1.1098671903344253,
+          "win_rate": 0.65,
+          "trade_count": 60,
+          "avg_win": 0,
+          "avg_loss": 1.5850000000017417,
+          "parameters": {
+            "oversold_threshold": 25.0,
+            "overbought_threshold": 80.0,
+            "rsi_indicator.lookback_period": 9
+          }
+        },
+        "default": {
+          "total_return": 393.63999999994803,
+          "sharpe_ratio": 2.4240338744890253,
+          "win_rate": 0.5842696629213483,
+          "trade_count": 89,
+          "avg_win": 4.422921348314023,
+          "avg_loss": 0,
+          "parameters": {
+            "oversold_threshold": 25.0,
+            "overbought_threshold": 80.0,
+            "rsi_indicator.lookback_period": 9
+          }
+        },
+        "trending_up": {
+          "total_return": -136.95999999991955,
+          "sharpe_ratio": -2.1981055429645653,
+          "win_rate": 0.6285714285714286,
+          "trade_count": 35,
+          "avg_win": 0,
+          "avg_loss": 3.9131428571405587,
+          "parameters": {
+            "oversold_threshold": 25.0,
+            "overbought_threshold": 80.0,
+            "rsi_indicator.lookback_period": 9
+          }
+        }
+      }
+    },
+    {
+      "parameters": {
+        "oversold_threshold": 25.0,
+        "overbought_threshold": 80.0,
+        "rsi_indicator.lookback_period": 14
+      },
+      "score": 1757.2833129601577,
+      "regime_performance": {
+        "trending_down": {
+          "total_return": 20.389999999940756,
+          "sharpe_ratio": 0.30675666669708973,
+          "win_rate": 0.6923076923076923,
+          "trade_count": 52,
+          "avg_win": 0.3921153846142453,
+          "avg_loss": 0,
+          "parameters": {
+            "oversold_threshold": 25.0,
+            "overbought_threshold": 80.0,
+            "rsi_indicator.lookback_period": 14
+          }
+        },
+        "default": {
+          "total_return": 364.28000000000793,
+          "sharpe_ratio": 2.3604990073481704,
+          "win_rate": 0.5454545454545454,
+          "trade_count": 77,
+          "avg_win": 4.7309090909091935,
+          "avg_loss": 0,
+          "parameters": {
+            "oversold_threshold": 25.0,
+            "overbought_threshold": 80.0,
+            "rsi_indicator.lookback_period": 14
+          }
+        },
+        "trending_up": {
+          "total_return": -152.26999999997588,
+          "sharpe_ratio": -2.324581551485044,
+          "win_rate": 0.5652173913043478,
+          "trade_count": 23,
+          "avg_win": 0,
+          "avg_loss": 6.620434782607647,
+          "parameters": {
+            "oversold_threshold": 25.0,
+            "overbought_threshold": 80.0,
+            "rsi_indicator.lookback_period": 14
+          }
+        }
+      }
+    },
+    {
+      "parameters": {
+        "oversold_threshold": 25.0,
+        "overbought_threshold": 80.0,
+        "rsi_indicator.lookback_period": 21
+      },
+      "score": 27.974553398451192,
+      "regime_performance": {
+        "trending_down": {
+          "total_return": -28.570000000047457,
+          "sharpe_ratio": -0.5598747436675082,
+          "win_rate": 0.53125,
+          "trade_count": 32,
+          "avg_win": 0,
+          "avg_loss": 0.892812500001483,
+          "parameters": {
+            "oversold_threshold": 25.0,
+            "overbought_threshold": 80.0,
+            "rsi_indicator.lookback_period": 21
+          }
+        },
+        "default": {
+          "total_return": 257.2800000000143,
+          "sharpe_ratio": 2.0681088306445936,
+          "win_rate": 0.4074074074074074,
+          "trade_count": 54,
+          "avg_win": 4.76444444444471,
+          "avg_loss": 0,
+          "parameters": {
+            "oversold_threshold": 25.0,
+            "overbought_threshold": 80.0,
+            "rsi_indicator.lookback_period": 21
+          }
+        },
+        "trending_up": {
+          "total_return": -225.7099999999582,
+          "sharpe_ratio": -4.82079307497867,
+          "win_rate": 0.45,
+          "trade_count": 20,
+          "avg_win": 0,
+          "avg_loss": 11.28549999999791,
+          "parameters": {
+            "oversold_threshold": 25.0,
+            "overbought_threshold": 80.0,
+            "rsi_indicator.lookback_period": 21
+          }
+        }
+      }
+    },
+    {
+      "parameters": {
+        "oversold_threshold": 25.0,
+        "overbought_threshold": 80.0,
+        "rsi_indicator.lookback_period": 30
+      },
+      "score": 93.9095208308936,
+      "regime_performance": {
+        "trending_down": {
+          "total_return": -112.72000000000162,
+          "sharpe_ratio": -2.568953025553777,
+          "win_rate": 0.4583333333333333,
+          "trade_count": 24,
+          "avg_win": 0,
+          "avg_loss": 4.696666666666734,
+          "parameters": {
+            "oversold_threshold": 25.0,
+            "overbought_threshold": 80.0,
+            "rsi_indicator.lookback_period": 30
+          }
+        },
+        "default": {
+          "total_return": 326.89000000000306,
+          "sharpe_ratio": 2.7040060704318223,
+          "win_rate": 0.4423076923076923,
+          "trade_count": 52,
+          "avg_win": 6.286346153846212,
+          "avg_loss": 0,
+          "parameters": {
+            "oversold_threshold": 25.0,
+            "overbought_threshold": 80.0,
+            "rsi_indicator.lookback_period": 30
+          }
+        },
+        "trending_up": {
+          "total_return": -202.70999999997912,
+          "sharpe_ratio": -4.468348597074995,
+          "win_rate": 0.4,
+          "trade_count": 20,
+          "avg_win": 0,
+          "avg_loss": 10.135499999998956,
+          "parameters": {
+            "oversold_threshold": 25.0,
+            "overbought_threshold": 80.0,
+            "rsi_indicator.lookback_period": 30
+          }
+        }
+      }
+    },
+    {
+      "parameters": {
+        "oversold_threshold": 30.0,
+        "overbought_threshold": 60.0,
+        "rsi_indicator.lookback_period": 9
+      },
+      "score": 4.607499083247478,
+      "regime_performance": {
+        "trending_down": {
+          "total_return": -95.1000000001045,
+          "sharpe_ratio": -1.1098671903344253,
+          "win_rate": 0.65,
+          "trade_count": 60,
+          "avg_win": 0,
+          "avg_loss": 1.5850000000017417,
+          "parameters": {
+            "oversold_threshold": 30.0,
+            "overbought_threshold": 60.0,
+            "rsi_indicator.lookback_period": 9
+          }
+        },
+        "default": {
+          "total_return": 393.63999999994803,
+          "sharpe_ratio": 2.4240338744890253,
+          "win_rate": 0.5842696629213483,
+          "trade_count": 89,
+          "avg_win": 4.422921348314023,
+          "avg_loss": 0,
+          "parameters": {
+            "oversold_threshold": 30.0,
+            "overbought_threshold": 60.0,
+            "rsi_indicator.lookback_period": 9
+          }
+        },
+        "trending_up": {
+          "total_return": -136.95999999991955,
+          "sharpe_ratio": -2.1981055429645653,
+          "win_rate": 0.6285714285714286,
+          "trade_count": 35,
+          "avg_win": 0,
+          "avg_loss": 3.9131428571405587,
+          "parameters": {
+            "oversold_threshold": 30.0,
+            "overbought_threshold": 60.0,
+            "rsi_indicator.lookback_period": 9
+          }
+        }
+      }
+    },
+    {
+      "parameters": {
+        "oversold_threshold": 30.0,
+        "overbought_threshold": 60.0,
+        "rsi_indicator.lookback_period": 14
+      },
+      "score": 1757.2833458142065,
+      "regime_performance": {
+        "trending_down": {
+          "total_return": 20.389999999940756,
+          "sharpe_ratio": 0.30675666669708973,
+          "win_rate": 0.6923076923076923,
+          "trade_count": 52,
+          "avg_win": 0.3921153846142453,
+          "avg_loss": 0,
+          "parameters": {
+            "oversold_threshold": 30.0,
+            "overbought_threshold": 60.0,
+            "rsi_indicator.lookback_period": 14
+          }
+        },
+        "default": {
+          "total_return": 364.28000000000793,
+          "sharpe_ratio": 2.3604990073481704,
+          "win_rate": 0.5454545454545454,
+          "trade_count": 77,
+          "avg_win": 4.7309090909091935,
+          "avg_loss": 0,
+          "parameters": {
+            "oversold_threshold": 30.0,
+            "overbought_threshold": 60.0,
+            "rsi_indicator.lookback_period": 14
+          }
+        },
+        "trending_up": {
+          "total_return": -152.26999999997588,
+          "sharpe_ratio": -2.324581551485044,
+          "win_rate": 0.5652173913043478,
+          "trade_count": 23,
+          "avg_win": 0,
+          "avg_loss": 6.620434782607647,
+          "parameters": {
+            "oversold_threshold": 30.0,
+            "overbought_threshold": 60.0,
+            "rsi_indicator.lookback_period": 14
+          }
+        }
+      }
+    },
+    {
+      "parameters": {
+        "oversold_threshold": 30.0,
+        "overbought_threshold": 60.0,
+        "rsi_indicator.lookback_period": 21
+      },
+      "score": 27.974553923460686,
+      "regime_performance": {
+        "trending_down": {
+          "total_return": -28.570000000047457,
+          "sharpe_ratio": -0.5598747436675082,
+          "win_rate": 0.53125,
+          "trade_count": 32,
+          "avg_win": 0,
+          "avg_loss": 0.892812500001483,
+          "parameters": {
+            "oversold_threshold": 30.0,
+            "overbought_threshold": 60.0,
+            "rsi_indicator.lookback_period": 21
+          }
+        },
+        "default": {
+          "total_return": 257.2800000000143,
+          "sharpe_ratio": 2.0681088306445936,
+          "win_rate": 0.4074074074074074,
+          "trade_count": 54,
+          "avg_win": 4.76444444444471,
+          "avg_loss": 0,
+          "parameters": {
+            "oversold_threshold": 30.0,
+            "overbought_threshold": 60.0,
+            "rsi_indicator.lookback_period": 21
+          }
+        },
+        "trending_up": {
+          "total_return": -225.7099999999582,
+          "sharpe_ratio": -4.82079307497867,
+          "win_rate": 0.45,
+          "trade_count": 20,
+          "avg_win": 0,
+          "avg_loss": 11.28549999999791,
+          "parameters": {
+            "oversold_threshold": 30.0,
+            "overbought_threshold": 60.0,
+            "rsi_indicator.lookback_period": 21
+          }
+        }
+      }
+    },
+    {
+      "parameters": {
+        "oversold_threshold": 30.0,
+        "overbought_threshold": 60.0,
+        "rsi_indicator.lookback_period": 30
+      },
+      "score": 93.90952259995385,
+      "regime_performance": {
+        "trending_down": {
+          "total_return": -112.72000000000162,
+          "sharpe_ratio": -2.568953025553777,
+          "win_rate": 0.4583333333333333,
+          "trade_count": 24,
+          "avg_win": 0,
+          "avg_loss": 4.696666666666734,
+          "parameters": {
+            "oversold_threshold": 30.0,
+            "overbought_threshold": 60.0,
+            "rsi_indicator.lookback_period": 30
+          }
+        },
+        "default": {
+          "total_return": 326.89000000000306,
+          "sharpe_ratio": 2.7040060704318223,
+          "win_rate": 0.4423076923076923,
+          "trade_count": 52,
+          "avg_win": 6.286346153846212,
+          "avg_loss": 0,
+          "parameters": {
+            "oversold_threshold": 30.0,
+            "overbought_threshold": 60.0,
+            "rsi_indicator.lookback_period": 30
+          }
+        },
+        "trending_up": {
+          "total_return": -202.70999999997912,
+          "sharpe_ratio": -4.468348597074995,
+          "win_rate": 0.4,
+          "trade_count": 20,
+          "avg_win": 0,
+          "avg_loss": 10.135499999998956,
+          "parameters": {
+            "oversold_threshold": 30.0,
+            "overbought_threshold": 60.0,
+            "rsi_indicator.lookback_period": 30
+          }
+        }
+      }
+    },
+    {
+      "parameters": {
+        "oversold_threshold": 30.0,
+        "overbought_threshold": 65.0,
+        "rsi_indicator.lookback_period": 9
+      },
+      "score": 4.607499083247478,
+      "regime_performance": {
+        "trending_down": {
+          "total_return": -95.1000000001045,
+          "sharpe_ratio": -1.1098671903344253,
+          "win_rate": 0.65,
+          "trade_count": 60,
+          "avg_win": 0,
+          "avg_loss": 1.5850000000017417,
+          "parameters": {
+            "oversold_threshold": 30.0,
+            "overbought_threshold": 65.0,
+            "rsi_indicator.lookback_period": 9
+          }
+        },
+        "default": {
+          "total_return": 393.63999999994803,
+          "sharpe_ratio": 2.4240338744890253,
+          "win_rate": 0.5842696629213483,
+          "trade_count": 89,
+          "avg_win": 4.422921348314023,
+          "avg_loss": 0,
+          "parameters": {
+            "oversold_threshold": 30.0,
+            "overbought_threshold": 65.0,
+            "rsi_indicator.lookback_period": 9
+          }
+        },
+        "trending_up": {
+          "total_return": -136.95999999991955,
+          "sharpe_ratio": -2.1981055429645653,
+          "win_rate": 0.6285714285714286,
+          "trade_count": 35,
+          "avg_win": 0,
+          "avg_loss": 3.9131428571405587,
+          "parameters": {
+            "oversold_threshold": 30.0,
+            "overbought_threshold": 65.0,
+            "rsi_indicator.lookback_period": 9
+          }
+        }
+      }
+    },
+    {
+      "parameters": {
+        "oversold_threshold": 30.0,
+        "overbought_threshold": 65.0,
+        "rsi_indicator.lookback_period": 14
+      },
+      "score": 1757.2833787318557,
+      "regime_performance": {
+        "trending_down": {
+          "total_return": 20.389999999940756,
+          "sharpe_ratio": 0.30675666669708973,
+          "win_rate": 0.6923076923076923,
+          "trade_count": 52,
+          "avg_win": 0.3921153846142453,
+          "avg_loss": 0,
+          "parameters": {
+            "oversold_threshold": 30.0,
+            "overbought_threshold": 65.0,
+            "rsi_indicator.lookback_period": 14
+          }
+        },
+        "default": {
+          "total_return": 364.28000000000793,
+          "sharpe_ratio": 2.3604990073481704,
+          "win_rate": 0.5454545454545454,
+          "trade_count": 77,
+          "avg_win": 4.7309090909091935,
+          "avg_loss": 0,
+          "parameters": {
+            "oversold_threshold": 30.0,
+            "overbought_threshold": 65.0,
+            "rsi_indicator.lookback_period": 14
+          }
+        },
+        "trending_up": {
+          "total_return": -152.26999999997588,
+          "sharpe_ratio": -2.324581551485044,
+          "win_rate": 0.5652173913043478,
+          "trade_count": 23,
+          "avg_win": 0,
+          "avg_loss": 6.620434782607647,
+          "parameters": {
+            "oversold_threshold": 30.0,
+            "overbought_threshold": 65.0,
+            "rsi_indicator.lookback_period": 14
+          }
+        }
+      }
+    },
+    {
+      "parameters": {
+        "oversold_threshold": 30.0,
+        "overbought_threshold": 65.0,
+        "rsi_indicator.lookback_period": 21
+      },
+      "score": 27.97455444902135,
+      "regime_performance": {
+        "trending_down": {
+          "total_return": -28.570000000047457,
+          "sharpe_ratio": -0.5598747436675082,
+          "win_rate": 0.53125,
+          "trade_count": 32,
+          "avg_win": 0,
+          "avg_loss": 0.892812500001483,
+          "parameters": {
+            "oversold_threshold": 30.0,
+            "overbought_threshold": 65.0,
+            "rsi_indicator.lookback_period": 21
+          }
+        },
+        "default": {
+          "total_return": 257.2800000000143,
+          "sharpe_ratio": 2.0681088306445936,
+          "win_rate": 0.4074074074074074,
+          "trade_count": 54,
+          "avg_win": 4.76444444444471,
+          "avg_loss": 0,
+          "parameters": {
+            "oversold_threshold": 30.0,
+            "overbought_threshold": 65.0,
+            "rsi_indicator.lookback_period": 21
+          }
+        },
+        "trending_up": {
+          "total_return": -225.7099999999582,
+          "sharpe_ratio": -4.82079307497867,
+          "win_rate": 0.45,
+          "trade_count": 20,
+          "avg_win": 0,
+          "avg_loss": 11.28549999999791,
+          "parameters": {
+            "oversold_threshold": 30.0,
+            "overbought_threshold": 65.0,
+            "rsi_indicator.lookback_period": 21
+          }
+        }
+      }
+    },
+    {
+      "parameters": {
+        "oversold_threshold": 30.0,
+        "overbought_threshold": 65.0,
+        "rsi_indicator.lookback_period": 30
+      },
+      "score": 93.90952435972808,
+      "regime_performance": {
+        "trending_down": {
+          "total_return": -112.72000000000162,
+          "sharpe_ratio": -2.568953025553777,
+          "win_rate": 0.4583333333333333,
+          "trade_count": 24,
+          "avg_win": 0,
+          "avg_loss": 4.696666666666734,
+          "parameters": {
+            "oversold_threshold": 30.0,
+            "overbought_threshold": 65.0,
+            "rsi_indicator.lookback_period": 30
+          }
+        },
+        "default": {
+          "total_return": 326.89000000000306,
+          "sharpe_ratio": 2.7040060704318223,
+          "win_rate": 0.4423076923076923,
+          "trade_count": 52,
+          "avg_win": 6.286346153846212,
+          "avg_loss": 0,
+          "parameters": {
+            "oversold_threshold": 30.0,
+            "overbought_threshold": 65.0,
+            "rsi_indicator.lookback_period": 30
+          }
+        },
+        "trending_up": {
+          "total_return": -202.70999999997912,
+          "sharpe_ratio": -4.468348597074995,
+          "win_rate": 0.4,
+          "trade_count": 20,
+          "avg_win": 0,
+          "avg_loss": 10.135499999998956,
+          "parameters": {
+            "oversold_threshold": 30.0,
+            "overbought_threshold": 65.0,
+            "rsi_indicator.lookback_period": 30
+          }
+        }
+      }
+    },
+    {
+      "parameters": {
+        "oversold_threshold": 30.0,
+        "overbought_threshold": 70.0,
+        "rsi_indicator.lookback_period": 9
+      },
+      "score": 4.607499083247478,
+      "regime_performance": {
+        "trending_down": {
+          "total_return": -95.1000000001045,
+          "sharpe_ratio": -1.1098671903344253,
+          "win_rate": 0.65,
+          "trade_count": 60,
+          "avg_win": 0,
+          "avg_loss": 1.5850000000017417,
+          "parameters": {
+            "oversold_threshold": 30.0,
+            "overbought_threshold": 70.0,
+            "rsi_indicator.lookback_period": 9
+          }
+        },
+        "default": {
+          "total_return": 393.63999999994803,
+          "sharpe_ratio": 2.4240338744890253,
+          "win_rate": 0.5842696629213483,
+          "trade_count": 89,
+          "avg_win": 4.422921348314023,
+          "avg_loss": 0,
+          "parameters": {
+            "oversold_threshold": 30.0,
+            "overbought_threshold": 70.0,
+            "rsi_indicator.lookback_period": 9
+          }
+        },
+        "trending_up": {
+          "total_return": -136.95999999991955,
+          "sharpe_ratio": -2.1981055429645653,
+          "win_rate": 0.6285714285714286,
+          "trade_count": 35,
+          "avg_win": 0,
+          "avg_loss": 3.9131428571405587,
+          "parameters": {
+            "oversold_threshold": 30.0,
+            "overbought_threshold": 70.0,
+            "rsi_indicator.lookback_period": 9
+          }
+        }
+      }
+    },
+    {
+      "parameters": {
+        "oversold_threshold": 30.0,
+        "overbought_threshold": 70.0,
+        "rsi_indicator.lookback_period": 14
+      },
+      "score": 1757.2834115813284,
+      "regime_performance": {
+        "trending_down": {
+          "total_return": 20.389999999940756,
+          "sharpe_ratio": 0.30675666669708973,
+          "win_rate": 0.6923076923076923,
+          "trade_count": 52,
+          "avg_win": 0.3921153846142453,
+          "avg_loss": 0,
+          "parameters": {
+            "oversold_threshold": 30.0,
+            "overbought_threshold": 70.0,
+            "rsi_indicator.lookback_period": 14
+          }
+        },
+        "default": {
+          "total_return": 364.28000000000793,
+          "sharpe_ratio": 2.3604990073481704,
+          "win_rate": 0.5454545454545454,
+          "trade_count": 77,
+          "avg_win": 4.7309090909091935,
+          "avg_loss": 0,
+          "parameters": {
+            "oversold_threshold": 30.0,
+            "overbought_threshold": 70.0,
+            "rsi_indicator.lookback_period": 14
+          }
+        },
+        "trending_up": {
+          "total_return": -152.26999999997588,
+          "sharpe_ratio": -2.324581551485044,
+          "win_rate": 0.5652173913043478,
+          "trade_count": 23,
+          "avg_win": 0,
+          "avg_loss": 6.620434782607647,
+          "parameters": {
+            "oversold_threshold": 30.0,
+            "overbought_threshold": 70.0,
+            "rsi_indicator.lookback_period": 14
+          }
+        }
+      }
+    },
+    {
+      "parameters": {
+        "oversold_threshold": 30.0,
+        "overbought_threshold": 70.0,
+        "rsi_indicator.lookback_period": 21
+      },
+      "score": 27.974554968528803,
+      "regime_performance": {
+        "trending_down": {
+          "total_return": -28.570000000047457,
+          "sharpe_ratio": -0.5598747436675082,
+          "win_rate": 0.53125,
+          "trade_count": 32,
+          "avg_win": 0,
+          "avg_loss": 0.892812500001483,
+          "parameters": {
+            "oversold_threshold": 30.0,
+            "overbought_threshold": 70.0,
+            "rsi_indicator.lookback_period": 21
+          }
+        },
+        "default": {
+          "total_return": 257.2800000000143,
+          "sharpe_ratio": 2.0681088306445936,
+          "win_rate": 0.4074074074074074,
+          "trade_count": 54,
+          "avg_win": 4.76444444444471,
+          "avg_loss": 0,
+          "parameters": {
+            "oversold_threshold": 30.0,
+            "overbought_threshold": 70.0,
+            "rsi_indicator.lookback_period": 21
+          }
+        },
+        "trending_up": {
+          "total_return": -225.7099999999582,
+          "sharpe_ratio": -4.82079307497867,
+          "win_rate": 0.45,
+          "trade_count": 20,
+          "avg_win": 0,
+          "avg_loss": 11.28549999999791,
+          "parameters": {
+            "oversold_threshold": 30.0,
+            "overbought_threshold": 70.0,
+            "rsi_indicator.lookback_period": 21
+          }
+        }
+      }
+    },
+    {
+      "parameters": {
+        "oversold_threshold": 30.0,
+        "overbought_threshold": 70.0,
+        "rsi_indicator.lookback_period": 30
+      },
+      "score": 93.90952609530297,
+      "regime_performance": {
+        "trending_down": {
+          "total_return": -112.72000000000162,
+          "sharpe_ratio": -2.568953025553777,
+          "win_rate": 0.4583333333333333,
+          "trade_count": 24,
+          "avg_win": 0,
+          "avg_loss": 4.696666666666734,
+          "parameters": {
+            "oversold_threshold": 30.0,
+            "overbought_threshold": 70.0,
+            "rsi_indicator.lookback_period": 30
+          }
+        },
+        "default": {
+          "total_return": 326.89000000000306,
+          "sharpe_ratio": 2.7040060704318223,
+          "win_rate": 0.4423076923076923,
+          "trade_count": 52,
+          "avg_win": 6.286346153846212,
+          "avg_loss": 0,
+          "parameters": {
+            "oversold_threshold": 30.0,
+            "overbought_threshold": 70.0,
+            "rsi_indicator.lookback_period": 30
+          }
+        },
+        "trending_up": {
+          "total_return": -202.70999999997912,
+          "sharpe_ratio": -4.468348597074995,
+          "win_rate": 0.4,
+          "trade_count": 20,
+          "avg_win": 0,
+          "avg_loss": 10.135499999998956,
+          "parameters": {
+            "oversold_threshold": 30.0,
+            "overbought_threshold": 70.0,
+            "rsi_indicator.lookback_period": 30
+          }
+        }
+      }
+    },
+    {
+      "parameters": {
+        "oversold_threshold": 30.0,
+        "overbought_threshold": 75.0,
+        "rsi_indicator.lookback_period": 9
+      },
+      "score": 4.607499083247478,
+      "regime_performance": {
+        "trending_down": {
+          "total_return": -95.1000000001045,
+          "sharpe_ratio": -1.1098671903344253,
+          "win_rate": 0.65,
+          "trade_count": 60,
+          "avg_win": 0,
+          "avg_loss": 1.5850000000017417,
+          "parameters": {
+            "oversold_threshold": 30.0,
+            "overbought_threshold": 75.0,
+            "rsi_indicator.lookback_period": 9
+          }
+        },
+        "default": {
+          "total_return": 393.63999999994803,
+          "sharpe_ratio": 2.4240338744890253,
+          "win_rate": 0.5842696629213483,
+          "trade_count": 89,
+          "avg_win": 4.422921348314023,
+          "avg_loss": 0,
+          "parameters": {
+            "oversold_threshold": 30.0,
+            "overbought_threshold": 75.0,
+            "rsi_indicator.lookback_period": 9
+          }
+        },
+        "trending_up": {
+          "total_return": -136.95999999991955,
+          "sharpe_ratio": -2.1981055429645653,
+          "win_rate": 0.6285714285714286,
+          "trade_count": 35,
+          "avg_win": 0,
+          "avg_loss": 3.9131428571405587,
+          "parameters": {
+            "oversold_threshold": 30.0,
+            "overbought_threshold": 75.0,
+            "rsi_indicator.lookback_period": 9
+          }
+        }
+      }
+    },
+    {
+      "parameters": {
+        "oversold_threshold": 30.0,
+        "overbought_threshold": 75.0,
+        "rsi_indicator.lookback_period": 14
+      },
+      "score": 1757.2834438203156,
+      "regime_performance": {
+        "trending_down": {
+          "total_return": 20.389999999940756,
+          "sharpe_ratio": 0.30675666669708973,
+          "win_rate": 0.6923076923076923,
+          "trade_count": 52,
+          "avg_win": 0.3921153846142453,
+          "avg_loss": 0,
+          "parameters": {
+            "oversold_threshold": 30.0,
+            "overbought_threshold": 75.0,
+            "rsi_indicator.lookback_period": 14
+          }
+        },
+        "default": {
+          "total_return": 364.28000000000793,
+          "sharpe_ratio": 2.3604990073481704,
+          "win_rate": 0.5454545454545454,
+          "trade_count": 77,
+          "avg_win": 4.7309090909091935,
+          "avg_loss": 0,
+          "parameters": {
+            "oversold_threshold": 30.0,
+            "overbought_threshold": 75.0,
+            "rsi_indicator.lookback_period": 14
+          }
+        },
+        "trending_up": {
+          "total_return": -152.26999999997588,
+          "sharpe_ratio": -2.324581551485044,
+          "win_rate": 0.5652173913043478,
+          "trade_count": 23,
+          "avg_win": 0,
+          "avg_loss": 6.620434782607647,
+          "parameters": {
+            "oversold_threshold": 30.0,
+            "overbought_threshold": 75.0,
+            "rsi_indicator.lookback_period": 14
+          }
+        }
+      }
+    },
+    {
+      "parameters": {
+        "oversold_threshold": 30.0,
+        "overbought_threshold": 75.0,
+        "rsi_indicator.lookback_period": 21
+      },
+      "score": 27.974555480696683,
+      "regime_performance": {
+        "trending_down": {
+          "total_return": -28.570000000047457,
+          "sharpe_ratio": -0.5598747436675082,
+          "win_rate": 0.53125,
+          "trade_count": 32,
+          "avg_win": 0,
+          "avg_loss": 0.892812500001483,
+          "parameters": {
+            "oversold_threshold": 30.0,
+            "overbought_threshold": 75.0,
+            "rsi_indicator.lookback_period": 21
+          }
+        },
+        "default": {
+          "total_return": 257.2800000000143,
+          "sharpe_ratio": 2.0681088306445936,
+          "win_rate": 0.4074074074074074,
+          "trade_count": 54,
+          "avg_win": 4.76444444444471,
+          "avg_loss": 0,
+          "parameters": {
+            "oversold_threshold": 30.0,
+            "overbought_threshold": 75.0,
+            "rsi_indicator.lookback_period": 21
+          }
+        },
+        "trending_up": {
+          "total_return": -225.7099999999582,
+          "sharpe_ratio": -4.82079307497867,
+          "win_rate": 0.45,
+          "trade_count": 20,
+          "avg_win": 0,
+          "avg_loss": 11.28549999999791,
+          "parameters": {
+            "oversold_threshold": 30.0,
+            "overbought_threshold": 75.0,
+            "rsi_indicator.lookback_period": 21
+          }
+        }
+      }
+    },
+    {
+      "parameters": {
+        "oversold_threshold": 30.0,
+        "overbought_threshold": 75.0,
+        "rsi_indicator.lookback_period": 30
+      },
+      "score": 93.90952782252019,
+      "regime_performance": {
+        "trending_down": {
+          "total_return": -112.72000000000162,
+          "sharpe_ratio": -2.568953025553777,
+          "win_rate": 0.4583333333333333,
+          "trade_count": 24,
+          "avg_win": 0,
+          "avg_loss": 4.696666666666734,
+          "parameters": {
+            "oversold_threshold": 30.0,
+            "overbought_threshold": 75.0,
+            "rsi_indicator.lookback_period": 30
+          }
+        },
+        "default": {
+          "total_return": 326.89000000000306,
+          "sharpe_ratio": 2.7040060704318223,
+          "win_rate": 0.4423076923076923,
+          "trade_count": 52,
+          "avg_win": 6.286346153846212,
+          "avg_loss": 0,
+          "parameters": {
+            "oversold_threshold": 30.0,
+            "overbought_threshold": 75.0,
+            "rsi_indicator.lookback_period": 30
+          }
+        },
+        "trending_up": {
+          "total_return": -202.70999999997912,
+          "sharpe_ratio": -4.468348597074995,
+          "win_rate": 0.4,
+          "trade_count": 20,
+          "avg_win": 0,
+          "avg_loss": 10.135499999998956,
+          "parameters": {
+            "oversold_threshold": 30.0,
+            "overbought_threshold": 75.0,
+            "rsi_indicator.lookback_period": 30
+          }
+        }
+      }
+    },
+    {
+      "parameters": {
+        "oversold_threshold": 30.0,
+        "overbought_threshold": 80.0,
+        "rsi_indicator.lookback_period": 9
+      },
+      "score": 4.607499083247478,
+      "regime_performance": {
+        "trending_down": {
+          "total_return": -95.1000000001045,
+          "sharpe_ratio": -1.1098671903344253,
+          "win_rate": 0.65,
+          "trade_count": 60,
+          "avg_win": 0,
+          "avg_loss": 1.5850000000017417,
+          "parameters": {
+            "oversold_threshold": 30.0,
+            "overbought_threshold": 80.0,
+            "rsi_indicator.lookback_period": 9
+          }
+        },
+        "default": {
+          "total_return": 393.63999999994803,
+          "sharpe_ratio": 2.4240338744890253,
+          "win_rate": 0.5842696629213483,
+          "trade_count": 89,
+          "avg_win": 4.422921348314023,
+          "avg_loss": 0,
+          "parameters": {
+            "oversold_threshold": 30.0,
+            "overbought_threshold": 80.0,
+            "rsi_indicator.lookback_period": 9
+          }
+        },
+        "trending_up": {
+          "total_return": -136.95999999991955,
+          "sharpe_ratio": -2.1981055429645653,
+          "win_rate": 0.6285714285714286,
+          "trade_count": 35,
+          "avg_win": 0,
+          "avg_loss": 3.9131428571405587,
+          "parameters": {
+            "oversold_threshold": 30.0,
+            "overbought_threshold": 80.0,
+            "rsi_indicator.lookback_period": 9
+          }
+        }
+      }
+    },
+    {
+      "parameters": {
+        "oversold_threshold": 30.0,
+        "overbought_threshold": 80.0,
+        "rsi_indicator.lookback_period": 14
+      },
+      "score": 1757.283476880153,
+      "regime_performance": {
+        "trending_down": {
+          "total_return": 20.389999999940756,
+          "sharpe_ratio": 0.30675666669708973,
+          "win_rate": 0.6923076923076923,
+          "trade_count": 52,
+          "avg_win": 0.3921153846142453,
+          "avg_loss": 0,
+          "parameters": {
+            "oversold_threshold": 30.0,
+            "overbought_threshold": 80.0,
+            "rsi_indicator.lookback_period": 14
+          }
+        },
+        "default": {
+          "total_return": 364.28000000000793,
+          "sharpe_ratio": 2.3604990073481704,
+          "win_rate": 0.5454545454545454,
+          "trade_count": 77,
+          "avg_win": 4.7309090909091935,
+          "avg_loss": 0,
+          "parameters": {
+            "oversold_threshold": 30.0,
+            "overbought_threshold": 80.0,
+            "rsi_indicator.lookback_period": 14
+          }
+        },
+        "trending_up": {
+          "total_return": -152.26999999997588,
+          "sharpe_ratio": -2.324581551485044,
+          "win_rate": 0.5652173913043478,
+          "trade_count": 23,
+          "avg_win": 0,
+          "avg_loss": 6.620434782607647,
+          "parameters": {
+            "oversold_threshold": 30.0,
+            "overbought_threshold": 80.0,
+            "rsi_indicator.lookback_period": 14
+          }
+        }
+      }
+    },
+    {
+      "parameters": {
+        "oversold_threshold": 30.0,
+        "overbought_threshold": 80.0,
+        "rsi_indicator.lookback_period": 21
+      },
+      "score": 27.97455601684408,
+      "regime_performance": {
+        "trending_down": {
+          "total_return": -28.570000000047457,
+          "sharpe_ratio": -0.5598747436675082,
+          "win_rate": 0.53125,
+          "trade_count": 32,
+          "avg_win": 0,
+          "avg_loss": 0.892812500001483,
+          "parameters": {
+            "oversold_threshold": 30.0,
+            "overbought_threshold": 80.0,
+            "rsi_indicator.lookback_period": 21
+          }
+        },
+        "default": {
+          "total_return": 257.2800000000143,
+          "sharpe_ratio": 2.0681088306445936,
+          "win_rate": 0.4074074074074074,
+          "trade_count": 54,
+          "avg_win": 4.76444444444471,
+          "avg_loss": 0,
+          "parameters": {
+            "oversold_threshold": 30.0,
+            "overbought_threshold": 80.0,
+            "rsi_indicator.lookback_period": 21
+          }
+        },
+        "trending_up": {
+          "total_return": -225.7099999999582,
+          "sharpe_ratio": -4.82079307497867,
+          "win_rate": 0.45,
+          "trade_count": 20,
+          "avg_win": 0,
+          "avg_loss": 11.28549999999791,
+          "parameters": {
+            "oversold_threshold": 30.0,
+            "overbought_threshold": 80.0,
+            "rsi_indicator.lookback_period": 21
+          }
+        }
+      }
+    },
+    {
+      "parameters": {
+        "oversold_threshold": 30.0,
+        "overbought_threshold": 80.0,
+        "rsi_indicator.lookback_period": 30
+      },
+      "score": 93.90952965609439,
+      "regime_performance": {
+        "trending_down": {
+          "total_return": -112.72000000000162,
+          "sharpe_ratio": -2.568953025553777,
+          "win_rate": 0.4583333333333333,
+          "trade_count": 24,
+          "avg_win": 0,
+          "avg_loss": 4.696666666666734,
+          "parameters": {
+            "oversold_threshold": 30.0,
+            "overbought_threshold": 80.0,
+            "rsi_indicator.lookback_period": 30
+          }
+        },
+        "default": {
+          "total_return": 326.89000000000306,
+          "sharpe_ratio": 2.7040060704318223,
+          "win_rate": 0.4423076923076923,
+          "trade_count": 52,
+          "avg_win": 6.286346153846212,
+          "avg_loss": 0,
+          "parameters": {
+            "oversold_threshold": 30.0,
+            "overbought_threshold": 80.0,
+            "rsi_indicator.lookback_period": 30
+          }
+        },
+        "trending_up": {
+          "total_return": -202.70999999997912,
+          "sharpe_ratio": -4.468348597074995,
+          "win_rate": 0.4,
+          "trade_count": 20,
+          "avg_win": 0,
+          "avg_loss": 10.135499999998956,
+          "parameters": {
+            "oversold_threshold": 30.0,
+            "overbought_threshold": 80.0,
+            "rsi_indicator.lookback_period": 30
+          }
+        }
+      }
+    },
+    {
+      "parameters": {
+        "oversold_threshold": 35.0,
+        "overbought_threshold": 60.0,
+        "rsi_indicator.lookback_period": 9
+      },
+      "score": 4.607499083247478,
+      "regime_performance": {
+        "trending_down": {
+          "total_return": -95.1000000001045,
+          "sharpe_ratio": -1.1098671903344253,
+          "win_rate": 0.65,
+          "trade_count": 60,
+          "avg_win": 0,
+          "avg_loss": 1.5850000000017417,
+          "parameters": {
+            "oversold_threshold": 35.0,
+            "overbought_threshold": 60.0,
+            "rsi_indicator.lookback_period": 9
+          }
+        },
+        "default": {
+          "total_return": 393.63999999994803,
+          "sharpe_ratio": 2.4240338744890253,
+          "win_rate": 0.5842696629213483,
+          "trade_count": 89,
+          "avg_win": 4.422921348314023,
+          "avg_loss": 0,
+          "parameters": {
+            "oversold_threshold": 35.0,
+            "overbought_threshold": 60.0,
+            "rsi_indicator.lookback_period": 9
+          }
+        },
+        "trending_up": {
+          "total_return": -136.95999999991955,
+          "sharpe_ratio": -2.1981055429645653,
+          "win_rate": 0.6285714285714286,
+          "trade_count": 35,
+          "avg_win": 0,
+          "avg_loss": 3.9131428571405587,
+          "parameters": {
+            "oversold_threshold": 35.0,
+            "overbought_threshold": 60.0,
+            "rsi_indicator.lookback_period": 9
+          }
+        }
+      }
+    },
+    {
+      "parameters": {
+        "oversold_threshold": 35.0,
+        "overbought_threshold": 60.0,
+        "rsi_indicator.lookback_period": 14
+      },
+      "score": 1757.2835111552408,
+      "regime_performance": {
+        "trending_down": {
+          "total_return": 20.389999999940756,
+          "sharpe_ratio": 0.30675666669708973,
+          "win_rate": 0.6923076923076923,
+          "trade_count": 52,
+          "avg_win": 0.3921153846142453,
+          "avg_loss": 0,
+          "parameters": {
+            "oversold_threshold": 35.0,
+            "overbought_threshold": 60.0,
+            "rsi_indicator.lookback_period": 14
+          }
+        },
+        "default": {
+          "total_return": 364.28000000000793,
+          "sharpe_ratio": 2.3604990073481704,
+          "win_rate": 0.5454545454545454,
+          "trade_count": 77,
+          "avg_win": 4.7309090909091935,
+          "avg_loss": 0,
+          "parameters": {
+            "oversold_threshold": 35.0,
+            "overbought_threshold": 60.0,
+            "rsi_indicator.lookback_period": 14
+          }
+        },
+        "trending_up": {
+          "total_return": -152.26999999997588,
+          "sharpe_ratio": -2.324581551485044,
+          "win_rate": 0.5652173913043478,
+          "trade_count": 23,
+          "avg_win": 0,
+          "avg_loss": 6.620434782607647,
+          "parameters": {
+            "oversold_threshold": 35.0,
+            "overbought_threshold": 60.0,
+            "rsi_indicator.lookback_period": 14
+          }
+        }
+      }
+    },
+    {
+      "parameters": {
+        "oversold_threshold": 35.0,
+        "overbought_threshold": 60.0,
+        "rsi_indicator.lookback_period": 21
+      },
+      "score": 27.974556558537863,
+      "regime_performance": {
+        "trending_down": {
+          "total_return": -28.570000000047457,
+          "sharpe_ratio": -0.5598747436675082,
+          "win_rate": 0.53125,
+          "trade_count": 32,
+          "avg_win": 0,
+          "avg_loss": 0.892812500001483,
+          "parameters": {
+            "oversold_threshold": 35.0,
+            "overbought_threshold": 60.0,
+            "rsi_indicator.lookback_period": 21
+          }
+        },
+        "default": {
+          "total_return": 257.2800000000143,
+          "sharpe_ratio": 2.0681088306445936,
+          "win_rate": 0.4074074074074074,
+          "trade_count": 54,
+          "avg_win": 4.76444444444471,
+          "avg_loss": 0,
+          "parameters": {
+            "oversold_threshold": 35.0,
+            "overbought_threshold": 60.0,
+            "rsi_indicator.lookback_period": 21
+          }
+        },
+        "trending_up": {
+          "total_return": -225.7099999999582,
+          "sharpe_ratio": -4.82079307497867,
+          "win_rate": 0.45,
+          "trade_count": 20,
+          "avg_win": 0,
+          "avg_loss": 11.28549999999791,
+          "parameters": {
+            "oversold_threshold": 35.0,
+            "overbought_threshold": 60.0,
+            "rsi_indicator.lookback_period": 21
+          }
+        }
+      }
+    },
+    {
+      "parameters": {
+        "oversold_threshold": 35.0,
+        "overbought_threshold": 60.0,
+        "rsi_indicator.lookback_period": 30
+      },
+      "score": 93.90953143975196,
+      "regime_performance": {
+        "trending_down": {
+          "total_return": -112.72000000000162,
+          "sharpe_ratio": -2.568953025553777,
+          "win_rate": 0.4583333333333333,
+          "trade_count": 24,
+          "avg_win": 0,
+          "avg_loss": 4.696666666666734,
+          "parameters": {
+            "oversold_threshold": 35.0,
+            "overbought_threshold": 60.0,
+            "rsi_indicator.lookback_period": 30
+          }
+        },
+        "default": {
+          "total_return": 326.89000000000306,
+          "sharpe_ratio": 2.7040060704318223,
+          "win_rate": 0.4423076923076923,
+          "trade_count": 52,
+          "avg_win": 6.286346153846212,
+          "avg_loss": 0,
+          "parameters": {
+            "oversold_threshold": 35.0,
+            "overbought_threshold": 60.0,
+            "rsi_indicator.lookback_period": 30
+          }
+        },
+        "trending_up": {
+          "total_return": -202.70999999997912,
+          "sharpe_ratio": -4.468348597074995,
+          "win_rate": 0.4,
+          "trade_count": 20,
+          "avg_win": 0,
+          "avg_loss": 10.135499999998956,
+          "parameters": {
+            "oversold_threshold": 35.0,
+            "overbought_threshold": 60.0,
+            "rsi_indicator.lookback_period": 30
+          }
+        }
+      }
+    },
+    {
+      "parameters": {
+        "oversold_threshold": 35.0,
+        "overbought_threshold": 65.0,
+        "rsi_indicator.lookback_period": 9
+      },
+      "score": 4.607499083247478,
+      "regime_performance": {
+        "trending_down": {
+          "total_return": -95.1000000001045,
+          "sharpe_ratio": -1.1098671903344253,
+          "win_rate": 0.65,
+          "trade_count": 60,
+          "avg_win": 0,
+          "avg_loss": 1.5850000000017417,
+          "parameters": {
+            "oversold_threshold": 35.0,
+            "overbought_threshold": 65.0,
+            "rsi_indicator.lookback_period": 9
+          }
+        },
+        "default": {
+          "total_return": 393.63999999994803,
+          "sharpe_ratio": 2.4240338744890253,
+          "win_rate": 0.5842696629213483,
+          "trade_count": 89,
+          "avg_win": 4.422921348314023,
+          "avg_loss": 0,
+          "parameters": {
+            "oversold_threshold": 35.0,
+            "overbought_threshold": 65.0,
+            "rsi_indicator.lookback_period": 9
+          }
+        },
+        "trending_up": {
+          "total_return": -136.95999999991955,
+          "sharpe_ratio": -2.1981055429645653,
+          "win_rate": 0.6285714285714286,
+          "trade_count": 35,
+          "avg_win": 0,
+          "avg_loss": 3.9131428571405587,
+          "parameters": {
+            "oversold_threshold": 35.0,
+            "overbought_threshold": 65.0,
+            "rsi_indicator.lookback_period": 9
+          }
+        }
+      }
+    },
+    {
+      "parameters": {
+        "oversold_threshold": 35.0,
+        "overbought_threshold": 65.0,
+        "rsi_indicator.lookback_period": 14
+      },
+      "score": 1757.2835440959539,
+      "regime_performance": {
+        "trending_down": {
+          "total_return": 20.389999999940756,
+          "sharpe_ratio": 0.30675666669708973,
+          "win_rate": 0.6923076923076923,
+          "trade_count": 52,
+          "avg_win": 0.3921153846142453,
+          "avg_loss": 0,
+          "parameters": {
+            "oversold_threshold": 35.0,
+            "overbought_threshold": 65.0,
+            "rsi_indicator.lookback_period": 14
+          }
+        },
+        "default": {
+          "total_return": 364.28000000000793,
+          "sharpe_ratio": 2.3604990073481704,
+          "win_rate": 0.5454545454545454,
+          "trade_count": 77,
+          "avg_win": 4.7309090909091935,
+          "avg_loss": 0,
+          "parameters": {
+            "oversold_threshold": 35.0,
+            "overbought_threshold": 65.0,
+            "rsi_indicator.lookback_period": 14
+          }
+        },
+        "trending_up": {
+          "total_return": -152.26999999997588,
+          "sharpe_ratio": -2.324581551485044,
+          "win_rate": 0.5652173913043478,
+          "trade_count": 23,
+          "avg_win": 0,
+          "avg_loss": 6.620434782607647,
+          "parameters": {
+            "oversold_threshold": 35.0,
+            "overbought_threshold": 65.0,
+            "rsi_indicator.lookback_period": 14
+          }
+        }
+      }
+    },
+    {
+      "parameters": {
+        "oversold_threshold": 35.0,
+        "overbought_threshold": 65.0,
+        "rsi_indicator.lookback_period": 21
+      },
+      "score": 27.97455707973905,
+      "regime_performance": {
+        "trending_down": {
+          "total_return": -28.570000000047457,
+          "sharpe_ratio": -0.5598747436675082,
+          "win_rate": 0.53125,
+          "trade_count": 32,
+          "avg_win": 0,
+          "avg_loss": 0.892812500001483,
+          "parameters": {
+            "oversold_threshold": 35.0,
+            "overbought_threshold": 65.0,
+            "rsi_indicator.lookback_period": 21
+          }
+        },
+        "default": {
+          "total_return": 257.2800000000143,
+          "sharpe_ratio": 2.0681088306445936,
+          "win_rate": 0.4074074074074074,
+          "trade_count": 54,
+          "avg_win": 4.76444444444471,
+          "avg_loss": 0,
+          "parameters": {
+            "oversold_threshold": 35.0,
+            "overbought_threshold": 65.0,
+            "rsi_indicator.lookback_period": 21
+          }
+        },
+        "trending_up": {
+          "total_return": -225.7099999999582,
+          "sharpe_ratio": -4.82079307497867,
+          "win_rate": 0.45,
+          "trade_count": 20,
+          "avg_win": 0,
+          "avg_loss": 11.28549999999791,
+          "parameters": {
+            "oversold_threshold": 35.0,
+            "overbought_threshold": 65.0,
+            "rsi_indicator.lookback_period": 21
+          }
+        }
+      }
+    },
+    {
+      "parameters": {
+        "oversold_threshold": 35.0,
+        "overbought_threshold": 65.0,
+        "rsi_indicator.lookback_period": 30
+      },
+      "score": 93.90953319076982,
+      "regime_performance": {
+        "trending_down": {
+          "total_return": -112.72000000000162,
+          "sharpe_ratio": -2.568953025553777,
+          "win_rate": 0.4583333333333333,
+          "trade_count": 24,
+          "avg_win": 0,
+          "avg_loss": 4.696666666666734,
+          "parameters": {
+            "oversold_threshold": 35.0,
+            "overbought_threshold": 65.0,
+            "rsi_indicator.lookback_period": 30
+          }
+        },
+        "default": {
+          "total_return": 326.89000000000306,
+          "sharpe_ratio": 2.7040060704318223,
+          "win_rate": 0.4423076923076923,
+          "trade_count": 52,
+          "avg_win": 6.286346153846212,
+          "avg_loss": 0,
+          "parameters": {
+            "oversold_threshold": 35.0,
+            "overbought_threshold": 65.0,
+            "rsi_indicator.lookback_period": 30
+          }
+        },
+        "trending_up": {
+          "total_return": -202.70999999997912,
+          "sharpe_ratio": -4.468348597074995,
+          "win_rate": 0.4,
+          "trade_count": 20,
+          "avg_win": 0,
+          "avg_loss": 10.135499999998956,
+          "parameters": {
+            "oversold_threshold": 35.0,
+            "overbought_threshold": 65.0,
+            "rsi_indicator.lookback_period": 30
+          }
+        }
+      }
+    },
+    {
+      "parameters": {
+        "oversold_threshold": 35.0,
+        "overbought_threshold": 70.0,
+        "rsi_indicator.lookback_period": 9
+      },
+      "score": 4.607499083247478,
+      "regime_performance": {
+        "trending_down": {
+          "total_return": -95.1000000001045,
+          "sharpe_ratio": -1.1098671903344253,
+          "win_rate": 0.65,
+          "trade_count": 60,
+          "avg_win": 0,
+          "avg_loss": 1.5850000000017417,
+          "parameters": {
+            "oversold_threshold": 35.0,
+            "overbought_threshold": 70.0,
+            "rsi_indicator.lookback_period": 9
+          }
+        },
+        "default": {
+          "total_return": 393.63999999994803,
+          "sharpe_ratio": 2.4240338744890253,
+          "win_rate": 0.5842696629213483,
+          "trade_count": 89,
+          "avg_win": 4.422921348314023,
+          "avg_loss": 0,
+          "parameters": {
+            "oversold_threshold": 35.0,
+            "overbought_threshold": 70.0,
+            "rsi_indicator.lookback_period": 9
+          }
+        },
+        "trending_up": {
+          "total_return": -136.95999999991955,
+          "sharpe_ratio": -2.1981055429645653,
+          "win_rate": 0.6285714285714286,
+          "trade_count": 35,
+          "avg_win": 0,
+          "avg_loss": 3.9131428571405587,
+          "parameters": {
+            "oversold_threshold": 35.0,
+            "overbought_threshold": 70.0,
+            "rsi_indicator.lookback_period": 9
+          }
+        }
+      }
+    },
+    {
+      "parameters": {
+        "oversold_threshold": 35.0,
+        "overbought_threshold": 70.0,
+        "rsi_indicator.lookback_period": 14
+      },
+      "score": 1757.283576910251,
+      "regime_performance": {
+        "trending_down": {
+          "total_return": 20.389999999940756,
+          "sharpe_ratio": 0.30675666669708973,
+          "win_rate": 0.6923076923076923,
+          "trade_count": 52,
+          "avg_win": 0.3921153846142453,
+          "avg_loss": 0,
+          "parameters": {
+            "oversold_threshold": 35.0,
+            "overbought_threshold": 70.0,
+            "rsi_indicator.lookback_period": 14
+          }
+        },
+        "default": {
+          "total_return": 364.28000000000793,
+          "sharpe_ratio": 2.3604990073481704,
+          "win_rate": 0.5454545454545454,
+          "trade_count": 77,
+          "avg_win": 4.7309090909091935,
+          "avg_loss": 0,
+          "parameters": {
+            "oversold_threshold": 35.0,
+            "overbought_threshold": 70.0,
+            "rsi_indicator.lookback_period": 14
+          }
+        },
+        "trending_up": {
+          "total_return": -152.26999999997588,
+          "sharpe_ratio": -2.324581551485044,
+          "win_rate": 0.5652173913043478,
+          "trade_count": 23,
+          "avg_win": 0,
+          "avg_loss": 6.620434782607647,
+          "parameters": {
+            "oversold_threshold": 35.0,
+            "overbought_threshold": 70.0,
+            "rsi_indicator.lookback_period": 14
+          }
+        }
+      }
+    },
+    {
+      "parameters": {
+        "oversold_threshold": 35.0,
+        "overbought_threshold": 70.0,
+        "rsi_indicator.lookback_period": 21
+      },
+      "score": 27.974557602623005,
+      "regime_performance": {
+        "trending_down": {
+          "total_return": -28.570000000047457,
+          "sharpe_ratio": -0.5598747436675082,
+          "win_rate": 0.53125,
+          "trade_count": 32,
+          "avg_win": 0,
+          "avg_loss": 0.892812500001483,
+          "parameters": {
+            "oversold_threshold": 35.0,
+            "overbought_threshold": 70.0,
+            "rsi_indicator.lookback_period": 21
+          }
+        },
+        "default": {
+          "total_return": 257.2800000000143,
+          "sharpe_ratio": 2.0681088306445936,
+          "win_rate": 0.4074074074074074,
+          "trade_count": 54,
+          "avg_win": 4.76444444444471,
+          "avg_loss": 0,
+          "parameters": {
+            "oversold_threshold": 35.0,
+            "overbought_threshold": 70.0,
+            "rsi_indicator.lookback_period": 21
+          }
+        },
+        "trending_up": {
+          "total_return": -225.7099999999582,
+          "sharpe_ratio": -4.82079307497867,
+          "win_rate": 0.45,
+          "trade_count": 20,
+          "avg_win": 0,
+          "avg_loss": 11.28549999999791,
+          "parameters": {
+            "oversold_threshold": 35.0,
+            "overbought_threshold": 70.0,
+            "rsi_indicator.lookback_period": 21
+          }
+        }
+      }
+    },
+    {
+      "parameters": {
+        "oversold_threshold": 35.0,
+        "overbought_threshold": 70.0,
+        "rsi_indicator.lookback_period": 30
+      },
+      "score": 93.90953494833443,
+      "regime_performance": {
+        "trending_down": {
+          "total_return": -112.72000000000162,
+          "sharpe_ratio": -2.568953025553777,
+          "win_rate": 0.4583333333333333,
+          "trade_count": 24,
+          "avg_win": 0,
+          "avg_loss": 4.696666666666734,
+          "parameters": {
+            "oversold_threshold": 35.0,
+            "overbought_threshold": 70.0,
+            "rsi_indicator.lookback_period": 30
+          }
+        },
+        "default": {
+          "total_return": 326.89000000000306,
+          "sharpe_ratio": 2.7040060704318223,
+          "win_rate": 0.4423076923076923,
+          "trade_count": 52,
+          "avg_win": 6.286346153846212,
+          "avg_loss": 0,
+          "parameters": {
+            "oversold_threshold": 35.0,
+            "overbought_threshold": 70.0,
+            "rsi_indicator.lookback_period": 30
+          }
+        },
+        "trending_up": {
+          "total_return": -202.70999999997912,
+          "sharpe_ratio": -4.468348597074995,
+          "win_rate": 0.4,
+          "trade_count": 20,
+          "avg_win": 0,
+          "avg_loss": 10.135499999998956,
+          "parameters": {
+            "oversold_threshold": 35.0,
+            "overbought_threshold": 70.0,
+            "rsi_indicator.lookback_period": 30
+          }
+        }
+      }
+    },
+    {
+      "parameters": {
+        "oversold_threshold": 35.0,
+        "overbought_threshold": 75.0,
+        "rsi_indicator.lookback_period": 9
+      },
+      "score": 4.607499083247478,
+      "regime_performance": {
+        "trending_down": {
+          "total_return": -95.1000000001045,
+          "sharpe_ratio": -1.1098671903344253,
+          "win_rate": 0.65,
+          "trade_count": 60,
+          "avg_win": 0,
+          "avg_loss": 1.5850000000017417,
+          "parameters": {
+            "oversold_threshold": 35.0,
+            "overbought_threshold": 75.0,
+            "rsi_indicator.lookback_period": 9
+          }
+        },
+        "default": {
+          "total_return": 393.63999999994803,
+          "sharpe_ratio": 2.4240338744890253,
+          "win_rate": 0.5842696629213483,
+          "trade_count": 89,
+          "avg_win": 4.422921348314023,
+          "avg_loss": 0,
+          "parameters": {
+            "oversold_threshold": 35.0,
+            "overbought_threshold": 75.0,
+            "rsi_indicator.lookback_period": 9
+          }
+        },
+        "trending_up": {
+          "total_return": -136.95999999991955,
+          "sharpe_ratio": -2.1981055429645653,
+          "win_rate": 0.6285714285714286,
+          "trade_count": 35,
+          "avg_win": 0,
+          "avg_loss": 3.9131428571405587,
+          "parameters": {
+            "oversold_threshold": 35.0,
+            "overbought_threshold": 75.0,
+            "rsi_indicator.lookback_period": 9
+          }
+        }
+      }
+    },
+    {
+      "parameters": {
+        "oversold_threshold": 35.0,
+        "overbought_threshold": 75.0,
+        "rsi_indicator.lookback_period": 14
+      },
+      "score": 1757.2836098401447,
+      "regime_performance": {
+        "trending_down": {
+          "total_return": 20.389999999940756,
+          "sharpe_ratio": 0.30675666669708973,
+          "win_rate": 0.6923076923076923,
+          "trade_count": 52,
+          "avg_win": 0.3921153846142453,
+          "avg_loss": 0,
+          "parameters": {
+            "oversold_threshold": 35.0,
+            "overbought_threshold": 75.0,
+            "rsi_indicator.lookback_period": 14
+          }
+        },
+        "default": {
+          "total_return": 364.28000000000793,
+          "sharpe_ratio": 2.3604990073481704,
+          "win_rate": 0.5454545454545454,
+          "trade_count": 77,
+          "avg_win": 4.7309090909091935,
+          "avg_loss": 0,
+          "parameters": {
+            "oversold_threshold": 35.0,
+            "overbought_threshold": 75.0,
+            "rsi_indicator.lookback_period": 14
+          }
+        },
+        "trending_up": {
+          "total_return": -152.26999999997588,
+          "sharpe_ratio": -2.324581551485044,
+          "win_rate": 0.5652173913043478,
+          "trade_count": 23,
+          "avg_win": 0,
+          "avg_loss": 6.620434782607647,
+          "parameters": {
+            "oversold_threshold": 35.0,
+            "overbought_threshold": 75.0,
+            "rsi_indicator.lookback_period": 14
+          }
+        }
+      }
+    },
+    {
+      "parameters": {
+        "oversold_threshold": 35.0,
+        "overbought_threshold": 75.0,
+        "rsi_indicator.lookback_period": 21
+      },
+      "score": 27.97455812566513,
+      "regime_performance": {
+        "trending_down": {
+          "total_return": -28.570000000047457,
+          "sharpe_ratio": -0.5598747436675082,
+          "win_rate": 0.53125,
+          "trade_count": 32,
+          "avg_win": 0,
+          "avg_loss": 0.892812500001483,
+          "parameters": {
+            "oversold_threshold": 35.0,
+            "overbought_threshold": 75.0,
+            "rsi_indicator.lookback_period": 21
+          }
+        },
+        "default": {
+          "total_return": 257.2800000000143,
+          "sharpe_ratio": 2.0681088306445936,
+          "win_rate": 0.4074074074074074,
+          "trade_count": 54,
+          "avg_win": 4.76444444444471,
+          "avg_loss": 0,
+          "parameters": {
+            "oversold_threshold": 35.0,
+            "overbought_threshold": 75.0,
+            "rsi_indicator.lookback_period": 21
+          }
+        },
+        "trending_up": {
+          "total_return": -225.7099999999582,
+          "sharpe_ratio": -4.82079307497867,
+          "win_rate": 0.45,
+          "trade_count": 20,
+          "avg_win": 0,
+          "avg_loss": 11.28549999999791,
+          "parameters": {
+            "oversold_threshold": 35.0,
+            "overbought_threshold": 75.0,
+            "rsi_indicator.lookback_period": 21
+          }
+        }
+      }
+    },
+    {
+      "parameters": {
+        "oversold_threshold": 35.0,
+        "overbought_threshold": 75.0,
+        "rsi_indicator.lookback_period": 30
+      },
+      "score": 93.90953669881736,
+      "regime_performance": {
+        "trending_down": {
+          "total_return": -112.72000000000162,
+          "sharpe_ratio": -2.568953025553777,
+          "win_rate": 0.4583333333333333,
+          "trade_count": 24,
+          "avg_win": 0,
+          "avg_loss": 4.696666666666734,
+          "parameters": {
+            "oversold_threshold": 35.0,
+            "overbought_threshold": 75.0,
+            "rsi_indicator.lookback_period": 30
+          }
+        },
+        "default": {
+          "total_return": 326.89000000000306,
+          "sharpe_ratio": 2.7040060704318223,
+          "win_rate": 0.4423076923076923,
+          "trade_count": 52,
+          "avg_win": 6.286346153846212,
+          "avg_loss": 0,
+          "parameters": {
+            "oversold_threshold": 35.0,
+            "overbought_threshold": 75.0,
+            "rsi_indicator.lookback_period": 30
+          }
+        },
+        "trending_up": {
+          "total_return": -202.70999999997912,
+          "sharpe_ratio": -4.468348597074995,
+          "win_rate": 0.4,
+          "trade_count": 20,
+          "avg_win": 0,
+          "avg_loss": 10.135499999998956,
+          "parameters": {
+            "oversold_threshold": 35.0,
+            "overbought_threshold": 75.0,
+            "rsi_indicator.lookback_period": 30
+          }
+        }
+      }
+    },
+    {
+      "parameters": {
+        "oversold_threshold": 35.0,
+        "overbought_threshold": 80.0,
+        "rsi_indicator.lookback_period": 9
+      },
+      "score": 4.607499083247478,
+      "regime_performance": {
+        "trending_down": {
+          "total_return": -95.1000000001045,
+          "sharpe_ratio": -1.1098671903344253,
+          "win_rate": 0.65,
+          "trade_count": 60,
+          "avg_win": 0,
+          "avg_loss": 1.5850000000017417,
+          "parameters": {
+            "oversold_threshold": 35.0,
+            "overbought_threshold": 80.0,
+            "rsi_indicator.lookback_period": 9
+          }
+        },
+        "default": {
+          "total_return": 393.63999999994803,
+          "sharpe_ratio": 2.4240338744890253,
+          "win_rate": 0.5842696629213483,
+          "trade_count": 89,
+          "avg_win": 4.422921348314023,
+          "avg_loss": 0,
+          "parameters": {
+            "oversold_threshold": 35.0,
+            "overbought_threshold": 80.0,
+            "rsi_indicator.lookback_period": 9
+          }
+        },
+        "trending_up": {
+          "total_return": -136.95999999991955,
+          "sharpe_ratio": -2.1981055429645653,
+          "win_rate": 0.6285714285714286,
+          "trade_count": 35,
+          "avg_win": 0,
+          "avg_loss": 3.9131428571405587,
+          "parameters": {
+            "oversold_threshold": 35.0,
+            "overbought_threshold": 80.0,
+            "rsi_indicator.lookback_period": 9
+          }
+        }
+      }
+    },
+    {
+      "parameters": {
+        "oversold_threshold": 35.0,
+        "overbought_threshold": 80.0,
+        "rsi_indicator.lookback_period": 14
+      },
+      "score": 1757.2836425712999,
+      "regime_performance": {
+        "trending_down": {
+          "total_return": 20.389999999940756,
+          "sharpe_ratio": 0.30675666669708973,
+          "win_rate": 0.6923076923076923,
+          "trade_count": 52,
+          "avg_win": 0.3921153846142453,
+          "avg_loss": 0,
+          "parameters": {
+            "oversold_threshold": 35.0,
+            "overbought_threshold": 80.0,
+            "rsi_indicator.lookback_period": 14
+          }
+        },
+        "default": {
+          "total_return": 364.28000000000793,
+          "sharpe_ratio": 2.3604990073481704,
+          "win_rate": 0.5454545454545454,
+          "trade_count": 77,
+          "avg_win": 4.7309090909091935,
+          "avg_loss": 0,
+          "parameters": {
+            "oversold_threshold": 35.0,
+            "overbought_threshold": 80.0,
+            "rsi_indicator.lookback_period": 14
+          }
+        },
+        "trending_up": {
+          "total_return": -152.26999999997588,
+          "sharpe_ratio": -2.324581551485044,
+          "win_rate": 0.5652173913043478,
+          "trade_count": 23,
+          "avg_win": 0,
+          "avg_loss": 6.620434782607647,
+          "parameters": {
+            "oversold_threshold": 35.0,
+            "overbought_threshold": 80.0,
+            "rsi_indicator.lookback_period": 14
+          }
+        }
+      }
+    },
+    {
+      "parameters": {
+        "oversold_threshold": 35.0,
+        "overbought_threshold": 80.0,
+        "rsi_indicator.lookback_period": 21
+      },
+      "score": 27.974558648129126,
+      "regime_performance": {
+        "trending_down": {
+          "total_return": -28.570000000047457,
+          "sharpe_ratio": -0.5598747436675082,
+          "win_rate": 0.53125,
+          "trade_count": 32,
+          "avg_win": 0,
+          "avg_loss": 0.892812500001483,
+          "parameters": {
+            "oversold_threshold": 35.0,
+            "overbought_threshold": 80.0,
+            "rsi_indicator.lookback_period": 21
+          }
+        },
+        "default": {
+          "total_return": 257.2800000000143,
+          "sharpe_ratio": 2.0681088306445936,
+          "win_rate": 0.4074074074074074,
+          "trade_count": 54,
+          "avg_win": 4.76444444444471,
+          "avg_loss": 0,
+          "parameters": {
+            "oversold_threshold": 35.0,
+            "overbought_threshold": 80.0,
+            "rsi_indicator.lookback_period": 21
+          }
+        },
+        "trending_up": {
+          "total_return": -225.7099999999582,
+          "sharpe_ratio": -4.82079307497867,
+          "win_rate": 0.45,
+          "trade_count": 20,
+          "avg_win": 0,
+          "avg_loss": 11.28549999999791,
+          "parameters": {
+            "oversold_threshold": 35.0,
+            "overbought_threshold": 80.0,
+            "rsi_indicator.lookback_period": 21
+          }
+        }
+      }
+    },
+    {
+      "parameters": {
+        "oversold_threshold": 35.0,
+        "overbought_threshold": 80.0,
+        "rsi_indicator.lookback_period": 30
+      },
+      "score": 93.90953845580758,
+      "regime_performance": {
+        "trending_down": {
+          "total_return": -112.72000000000162,
+          "sharpe_ratio": -2.568953025553777,
+          "win_rate": 0.4583333333333333,
+          "trade_count": 24,
+          "avg_win": 0,
+          "avg_loss": 4.696666666666734,
+          "parameters": {
+            "oversold_threshold": 35.0,
+            "overbought_threshold": 80.0,
+            "rsi_indicator.lookback_period": 30
+          }
+        },
+        "default": {
+          "total_return": 326.89000000000306,
+          "sharpe_ratio": 2.7040060704318223,
+          "win_rate": 0.4423076923076923,
+          "trade_count": 52,
+          "avg_win": 6.286346153846212,
+          "avg_loss": 0,
+          "parameters": {
+            "oversold_threshold": 35.0,
+            "overbought_threshold": 80.0,
+            "rsi_indicator.lookback_period": 30
+          }
+        },
+        "trending_up": {
+          "total_return": -202.70999999997912,
+          "sharpe_ratio": -4.468348597074995,
+          "win_rate": 0.4,
+          "trade_count": 20,
+          "avg_win": 0,
+          "avg_loss": 10.135499999998956,
+          "parameters": {
+            "oversold_threshold": 35.0,
+            "overbought_threshold": 80.0,
+            "rsi_indicator.lookback_period": 30
+          }
+        }
+      }
+    }
+  ],
+  "regime_best_parameters": {
+    "trending_down": {
+      "parameters": {
+        "oversold_threshold": 20.0,
+        "overbought_threshold": 60.0,
+        "rsi_indicator.lookback_period": 14
+      },
+      "sharpe_ratio": 0.30675666669708973,
+      "win_rate": 0.6923076923076923,
+      "total_return": 20.389999999940756
+    },
+    "default": {
+      "parameters": {
+        "oversold_threshold": 20.0,
+        "overbought_threshold": 60.0,
+        "rsi_indicator.lookback_period": 30
+      },
+      "sharpe_ratio": 2.7040060704318223,
+      "win_rate": 0.4423076923076923,
+      "total_return": 326.89000000000306
+    },
+    "trending_up": {
+      "parameters": {
+        "oversold_threshold": 20.0,
+        "overbought_threshold": 60.0,
+        "rsi_indicator.lookback_period": 9
+      },
+      "sharpe_ratio": -2.1981055429645653,
+      "win_rate": 0.6285714285714286,
+      "total_return": -136.95999999991955
+    }
+  },
+  "regime_statistics": {
+    "trending_down": {
+      "avg_return": -54.55175000005354,
+      "std_return": 53.84101612095561,
+      "avg_sharpe": -0.9902863730388122,
+      "avg_win_rate": 0.5828218943412908,
+      "total_trades": 3358,
+      "parameter_sets_tested": 80
+    },
+    "default": {
+      "avg_return": 335.52249999999333,
+      "std_return": 50.9927604542844,
+      "avg_sharpe": 2.389161945728403,
+      "avg_win_rate": 0.49485982702274833,
+      "total_trades": 5440,
+      "parameter_sets_tested": 80
+    },
+    "trending_up": {
+      "avg_return": -179.4124999999582,
+      "std_return": 36.1426412807756,
+      "avg_sharpe": -3.4529571916258184,
+      "avg_win_rate": 0.5109472049689441,
+      "total_trades": 1960,
+      "parameter_sets_tested": 80
+    }
+  },
+  "timestamp": "2025-05-27T00:46:46.871424"
+}

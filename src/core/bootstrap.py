@@ -61,6 +61,7 @@ class RunMode(Enum):
     PRODUCTION = "production"
     OPTIMIZATION = "optimization"
     BACKTEST = "backtest"
+    LIVE_TRADING = "live_trading"
     TEST = "test"
 
 
@@ -697,6 +698,10 @@ class Bootstrap:
         elif run_mode == RunMode.BACKTEST:
             # Backtest needs everything including the backtest runner
             return base_components + ['execution_handler', 'risk_manager', 'strategy', 'MyPrimaryRegimeDetector', 'backtest_runner']
+            
+        elif run_mode == RunMode.LIVE_TRADING:
+            # Live trading needs same as production but with live components
+            return base_components + ['execution_handler', 'risk_manager', 'strategy', 'MyPrimaryRegimeDetector']
             
         elif run_mode == RunMode.TEST:
             # Test mode - minimal components

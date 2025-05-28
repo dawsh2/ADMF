@@ -6,6 +6,7 @@ from abc import ABC, abstractmethod
 from typing import Dict, Any, Optional, List, Tuple
 from dataclasses import dataclass
 import numpy as np
+import logging
 
 from ...core.component_base import ComponentBase
 from .parameter import ParameterSpace, Parameter
@@ -36,6 +37,10 @@ class IndicatorBase(ComponentBase, ABC):
         """Initialize indicator with ComponentBase pattern."""
         super().__init__(instance_name, config_key)
         
+        # Ensure we have a logger even if not initialized yet
+        if not hasattr(self, 'logger') or self.logger is None:
+            self.logger = logging.getLogger(instance_name)
+        
         # Indicator-specific state
         self._lookback_period = lookback_period
         self._buffer: List[float] = []
@@ -45,6 +50,9 @@ class IndicatorBase(ComponentBase, ABC):
         self._parameters: Dict[str, Any] = {
             'lookback_period': lookback_period
         }
+        
+        # Will be set based on parameter space to ensure we maintain enough history
+        self._max_possible_lookback: Optional[int] = None
     
     def _initialize(self) -> None:
         """Component-specific initialization."""
@@ -54,12 +62,35 @@ class IndicatorBase(ComponentBase, ABC):
             self._min_periods = self.component_config.get('min_periods', self._lookback_period)
             self._parameters['lookback_period'] = self._lookback_period
         
+        # Determine maximum possible lookback from parameter space
+        self._determine_max_lookback()
+        
         # Reset state
         self.reset()
+    
+    def _determine_max_lookback(self) -> None:
+        """Determine the maximum lookback period from parameter space."""
+        try:
+            param_space = self.get_parameter_space()
+            for param in param_space.parameters.values():
+                if param.name == 'lookback_period' and param.param_type == 'discrete':
+                    # Use the maximum value from the discrete values
+                    self._max_possible_lookback = max(param.values)
+                    if hasattr(self, 'logger') and self.logger:
+                        self.logger.info(f"Indicator {self.instance_name} will maintain buffer for max lookback: {self._max_possible_lookback}")
+                    return
+        except:
+            pass
+        
+        # Default to 2x current lookback if we can't determine from parameter space
+        self._max_possible_lookback = max(50, self._lookback_period * 2)
+        if hasattr(self, 'logger') and self.logger:
+            self.logger.info(f"Indicator {self.instance_name} using default max lookback: {self._max_possible_lookback}")
         
     def _start(self) -> None:
         """Component-specific start logic."""
-        self.logger.debug(f"Indicator '{self.instance_name}' started")
+        if hasattr(self, 'logger') and self.logger:
+            self.logger.debug(f"Indicator '{self.instance_name}' started")
         
     def _stop(self) -> None:
         """Component-specific stop logic."""
@@ -93,17 +124,22 @@ class IndicatorBase(ComponentBase, ABC):
         # Add to buffer
         self._buffer.append(price)
         
-        # Trim buffer to max size
-        if len(self._buffer) > self._lookback_period * 2:  # Keep some extra
-            self._buffer = self._buffer[-self._lookback_period * 2:]
+        # Trim buffer to max possible size we might need
+        max_buffer_size = self._max_possible_lookback if self._max_possible_lookback else self._lookback_period * 2
+        if len(self._buffer) > max_buffer_size * 2:  # Keep 2x for safety
+            self._buffer = self._buffer[-max_buffer_size * 2:]
             
         # Check if we have enough data
         if len(self._buffer) >= self._min_periods:
+            if not self._ready and hasattr(self, 'logger') and self.logger:
+                self.logger.info(f"Indicator {self.instance_name} now READY with {len(self._buffer)} bars (needed {self._min_periods})")
             self._ready = True
             result = self._calculate(self._buffer[-self._lookback_period:])
             self._value = result.value
             return result
         else:
+            if self._ready and hasattr(self, 'logger') and self.logger:
+                self.logger.warning(f"Indicator {self.instance_name} NOT ready - only {len(self._buffer)} bars, need {self._min_periods}")
             self._ready = False
             return IndicatorResult(value=0.0, ready=False)
             
@@ -128,18 +164,36 @@ class IndicatorBase(ComponentBase, ABC):
         
     def set_parameters(self, params: Dict[str, Any]) -> None:
         """Set parameter values."""
+        old_lookback = self._lookback_period
+        
         if 'lookback_period' in params:
             self._lookback_period = params['lookback_period']
         if 'min_periods' in params:
             self._min_periods = params['min_periods']
+        else:
+            # Update min_periods to match new lookback if not explicitly set
+            self._min_periods = self._lookback_period
             
         # Update any additional parameters
         for key, value in params.items():
             if key not in ['lookback_period', 'min_periods']:
                 self._parameters[key] = value
                 
-        # Reset on parameter change
-        self.reset()
+        # Only reset if we don't have enough data for the new parameters
+        # This preserves history when possible
+        new_min_periods = self._min_periods
+        
+        # For lookback period changes, update the min_periods requirement
+        if 'lookback_period' in params:
+            new_min_periods = max(params['lookback_period'], self._min_periods)
+            
+        if len(self._buffer) < new_min_periods:
+            if hasattr(self, 'logger') and self.logger:
+                self.logger.warning(f"Indicator {self.instance_name} RESET - buffer has {len(self._buffer)} bars but needs {new_min_periods}")
+            self.reset()
+        else:
+            if hasattr(self, 'logger') and self.logger:
+                self.logger.info(f"Indicator {self.instance_name} preserving buffer with {len(self._buffer)} bars after parameter change")
         
     def get_parameter_space(self) -> ParameterSpace:
         """Get parameter space for optimization."""
@@ -187,6 +241,8 @@ class IndicatorBase(ComponentBase, ABC):
     
     def reset(self) -> None:
         """Reset indicator state."""
+        if hasattr(self, 'logger') and self.logger:
+            self.logger.info(f"Indicator {self.instance_name} RESET - clearing {len(self._buffer)} bars of history")
         self._buffer.clear()
         self._value = None
         self._ready = False

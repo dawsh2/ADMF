@@ -109,15 +109,28 @@ class Strategy(ComponentBase):
             # or if regime switching is explicitly enabled
             should_subscribe_classification = True
             
+            # Debug logging
+            self.logger.debug(f"Strategy '{self.instance_name}' checking optimization mode...")
+            self.logger.debug(f"Has context: {hasattr(self, '_context')}")
+            self.logger.debug(f"Context type: {type(self._context) if hasattr(self, '_context') else 'N/A'}")
+            self.logger.debug(f"Context keys: {self._context.keys() if hasattr(self, '_context') and hasattr(self._context, 'keys') else 'N/A'}")
+            
             # Check if we're in optimization mode
-            if hasattr(self._context, 'metadata') and self._context.metadata.get('cli_args', {}).get('optimize', False):
-                # We're in optimization mode - check if this is the isolated strategy
-                if 'isolated' not in self.instance_name.lower():
-                    # This is the main strategy during optimization - don't subscribe
-                    should_subscribe_classification = False
-                    self.logger.info(f"Strategy '{self.instance_name}' NOT subscribing to classification events - optimization mode")
+            if hasattr(self, '_context') and isinstance(self._context, dict) and 'metadata' in self._context:
+                metadata = self._context['metadata']
+                self.logger.debug(f"Metadata: {metadata}")
+                cli_args = metadata.get('cli_args', {}) if metadata else {}
+                self.logger.debug(f"CLI args: {cli_args}")
+                
+                if cli_args.get('optimize', False):
+                    # We're in optimization mode - check if this is the isolated strategy
+                    if 'isolated' not in self.instance_name.lower():
+                        # This is the main strategy during optimization - don't subscribe
+                        should_subscribe_classification = False
+                        self.logger.info(f"Strategy '{self.instance_name}' NOT subscribing to classification events - optimization mode")
             
             if should_subscribe_classification:
+                self.logger.debug(f"Strategy '{self.instance_name}' subscribing to classification events")
                 self.event_bus.subscribe(EventType.CLASSIFICATION, self._on_classification)
             
         self.logger.info(f"Strategy '{self.instance_name}' started")
@@ -143,11 +156,19 @@ class Strategy(ComponentBase):
         self._indicators[name] = indicator
         self._update_parameter_namespace(f"indicators.{name}", indicator)
         
+        # Initialize the indicator if it's a ComponentBase
+        if hasattr(indicator, 'initialize') and hasattr(self, '_context') and self._context:
+            indicator.initialize(self._context)
+        
     def add_rule(self, name: str, rule: StrategyComponent, weight: float = 1.0) -> None:
         """Add a rule component with optional weight."""
         self._rules[name] = rule
         self._component_weights[name] = weight
         self._update_parameter_namespace(f"rules.{name}", rule)
+        
+        # Initialize the rule if it's a ComponentBase
+        if hasattr(rule, 'initialize') and hasattr(self, '_context') and self._context:
+            rule.initialize(self._context)
         
     def add_feature(self, name: str, feature: StrategyComponent) -> None:
         """Add a feature component."""
@@ -201,12 +222,25 @@ class Strategy(ComponentBase):
         rule_signals = []
         rule_weights = []
         
+        # Debug: check rule readiness
+        ready_rules = 0
+        for name, rule in self._rules.items():
+            if hasattr(rule, 'ready') and rule.ready:
+                ready_rules += 1
+            else:
+                self.logger.debug(f"Rule {name} not ready")
+                
+        if ready_rules == 0:
+            self.logger.debug(f"No rules ready out of {len(self._rules)} total rules")
+            return 0
+        
         for name, rule in self._rules.items():
             if hasattr(rule, 'evaluate') and rule.ready:
                 signal, strength = rule.evaluate(bar_data)
                 if signal != 0:
                     rule_signals.append(signal * strength)
                     rule_weights.append(self._component_weights.get(name, 1.0))
+                    self.logger.debug(f"Rule {name} signal: {signal}, strength: {strength}")
                     
         if not rule_signals:
             return 0

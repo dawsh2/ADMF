@@ -122,9 +122,52 @@ With 10,000 bars, we now see some differentiation in parameter selection:
 
 This shows the optimization is working, but the limited parameter space (only 4 combinations) may not provide enough diversity for truly regime-specific optimization.
 
+## 5. Lack of Scoped Containers in Optimization
+
+### Current Issue
+The optimization framework reuses the same container and event bus across all optimization trials, leading to:
+- State leakage between optimization runs
+- Isolated strategy instances persisting and subscribing to events after their evaluation
+- Duplicate output from multiple isolated strategies processing the same events
+- Potential interference between parameter combinations
+
+### Symptoms
+During test phase after optimization, we see multiple active subscribers:
+```
+Active subscribers to CLASSIFICATION: 15
+- 9 instances of IsolatedStrategy 'isolated_strategy_ma_crossover'
+- 4 instances of IsolatedStrategy 'isolated_strategy_rsi'
+- 1 instance of RegimeAdaptiveEnsembleComposed 'strategy'
+```
+
+### Root Cause
+As documented in `docs/modules/core/2_CORE_BOOTSTRAP_CONFIGURATION_DEPENDENCIES.MD`, each independent execution unit (like optimization trials) should have its own scoped container for proper state isolation. Currently, the optimization engine reuses the global container.
+
+### Proper Solution - Scoped Containers
+Each optimization trial should:
+1. Create a new, fresh Container instance
+2. Register all required components in this scoped container
+3. Run the backtest with complete isolation
+4. Dispose of the entire container after evaluation
+
+### Current Workaround
+Added cleanup in `isolated_evaluator.py` to explicitly:
+- Unsubscribe isolated strategies from all events
+- Stop and teardown isolated strategies
+- Clear container registrations
+
+This helps but doesn't address the fundamental architectural issue.
+
+### Implementation Requirements
+1. Modify optimization engine to create scoped containers per trial
+2. Ensure event bus isolation between trials
+3. Implement proper container lifecycle management
+4. Follow the pattern shown in conceptual `CleanBacktestEngine`
+
 ## Next Steps
 
 1. Implement proper trade counting in regime analyzer (or accept current limitation)
 2. Fix the bars checked display to show per-backtest count
 3. Remove or properly configure MyPrimaryRegimeDetector
 4. Consider expanding parameter space for better regime differentiation
+5. Implement scoped containers for optimization trials to ensure proper isolation

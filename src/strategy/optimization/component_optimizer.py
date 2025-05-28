@@ -14,6 +14,16 @@ from pathlib import Path
 from src.core.component_base import ComponentBase
 from .regime_analyzer import RegimePerformanceAnalyzer
 
+# Create custom log level for optimization progress
+PROGRESS_LEVEL = 35  # Just above WARNING (30) but below ERROR (40)
+logging.addLevelName(PROGRESS_LEVEL, "PROGRESS")
+
+def progress(self, message, *args, **kwargs):
+    if self.isEnabledFor(PROGRESS_LEVEL):
+        self._log(PROGRESS_LEVEL, message, args, **kwargs)
+
+# Add the progress method to Logger
+logging.Logger.progress = progress
 
 logger = logging.getLogger(__name__)
 
@@ -58,7 +68,7 @@ class ComponentOptimizer(ComponentBase):
             Dictionary with optimization results including best parameters
         """
         isolation_mode = " in isolation" if isolate else ""
-        self.logger.info(f"Starting {method} optimization for component {component.instance_name}{isolation_mode}")
+        self.logger.progress(f"Starting {method} optimization for component {component.instance_name}{isolation_mode}")
         
         # If isolate is requested, wrap the evaluator
         if isolate:
@@ -85,11 +95,17 @@ class ComponentOptimizer(ComponentBase):
                 "message": "Component has no optimizable parameters"
             }
         
+        # For isolated optimization, exclude the weight parameter
+        # since weight is only meaningful in ensemble context
+        if isolate and hasattr(param_space, '_parameters') and 'weight' in param_space._parameters:
+            self.logger.debug(f"Excluding 'weight' parameter for isolated optimization of {component.instance_name}")
+            del param_space._parameters['weight']
+        
         # Debug: Log parameter space details
-        self.logger.info(f"Parameter space for {component.instance_name}:")
+        self.logger.debug(f"Parameter space for {component.instance_name}:")
         if hasattr(param_space, '_parameters'):
             for name, param in param_space._parameters.items():
-                self.logger.info(f"  - {name}: type={param.param_type}, values={param.values if param.param_type == 'discrete' else f'[{param.min_value}, {param.max_value}]'}")
+                self.logger.debug(f"  - {name}: type={param.param_type}, values={param.values if param.param_type == 'discrete' else f'[{param.min_value}, {param.max_value}]'}")
         
         # Store original parameters
         original_params = component.get_optimizable_parameters()
@@ -144,7 +160,7 @@ class ComponentOptimizer(ComponentBase):
                 "component": component.instance_name,
                 "message": "Parameter space generated no combinations"
             }
-        self.logger.info(f"Found {len(combinations)} parameter combinations to test")
+        self.logger.progress(f"Found {len(combinations)} parameter combinations to test")
         
         # Debug: log first few combinations
         for i, combo in enumerate(combinations[:3]):
@@ -158,7 +174,9 @@ class ComponentOptimizer(ComponentBase):
         # Test each combination
         for i, params in enumerate(combinations):
             try:
-                self.logger.info(f"Testing combination {i+1}/{len(combinations)}: {params}")
+                # Format parameters nicely
+                param_str = ", ".join([f"{k}={v}" for k, v in sorted(params.items())])
+                # Don't log here - we'll log with result on same line
                 
                 # Validate parameters
                 valid, error = component.validate_parameters(params)
@@ -185,9 +203,6 @@ class ComponentOptimizer(ComponentBase):
                 if score is None:
                     self.logger.warning(f"Evaluator returned None for parameters {params}")
                     score = float('-inf') if maximize else float('inf')
-                
-                # Log the score
-                self.logger.info(f"Score for {params}: {score}")
                 
                 # Record result
                 result_entry = {
@@ -227,17 +242,33 @@ class ComponentOptimizer(ComponentBase):
                 results.append(result_entry)
                 
                 # Track best
+                is_new_best = False
                 if (maximize and score > best_score) or (not maximize and score < best_score):
                     best_score = score
                     best_params = params.copy()
-                    self.logger.info(f"New best score: {best_score} with params: {best_params}")
+                    is_new_best = True
                     
-                # Log progress
-                if (i + 1) % 10 == 0:
-                    self.logger.info(f"Progress: {i + 1}/{len(combinations)} combinations tested")
+                # Show the test and result on one line with global progress
+                global_progress = ""
+                if hasattr(self, '_global_progress'):
+                    current = self._global_progress['current'] + i + 1
+                    total = self._global_progress['total']
+                    global_progress = f"[{current}/{total}] "
+                    
+                result_str = f"{global_progress}Testing {i+1}/{len(combinations)}: {param_str} → Score: {score:.4f}"
+                if is_new_best:
+                    result_str += " ⭐ NEW BEST!"
+                self.logger.progress(result_str)
                     
             except Exception as e:
-                self.logger.error(f"Error evaluating parameters {params}: {e}")
+                global_progress = ""
+                if hasattr(self, '_global_progress'):
+                    current = self._global_progress['current'] + i + 1
+                    total = self._global_progress['total']
+                    global_progress = f"[{current}/{total}] "
+                    
+                error_str = f"{global_progress}Testing {i+1}/{len(combinations)}: {param_str} → Error: {str(e)}"
+                self.logger.progress(error_str)
                 continue
         
         # Grid search should NOT handle test evaluation - that's the workflow orchestrator's job
@@ -264,6 +295,33 @@ class ComponentOptimizer(ComponentBase):
         }
         
         self.logger.info(f"Grid search complete. Best score: {best_score}")
+        
+        # Display regime-specific best parameters if available
+        if regime_best_params:
+            self.logger.warning("\n" + "="*80)
+            self.logger.warning(f"REGIME-SPECIFIC BEST PARAMETERS for {component.instance_name}:")
+            self.logger.warning("="*80)
+            
+            for regime, params in regime_best_params.items():
+                # Format parameters nicely
+                param_strs = []
+                for param_name, param_value in sorted(params.items()):
+                    if isinstance(param_value, float):
+                        param_strs.append(f"{param_name}={param_value:.4f}")
+                    else:
+                        param_strs.append(f"{param_name}={param_value}")
+                
+                # Get regime performance if available
+                perf_str = ""
+                if hasattr(self, '_regime_analyzer') and self._regime_analyzer:
+                    regime_stats = self._regime_analyzer.get_regime_statistics()
+                    if regime in regime_stats:
+                        stats = regime_stats[regime]
+                        perf_str = f" | Sharpe: {stats.get('avg_sharpe', 'N/A'):.4f}, Trades: {stats.get('total_trades', 'N/A')}"
+                
+                self.logger.warning(f"  {regime.upper()}: {', '.join(param_strs)}{perf_str}")
+            
+            self.logger.warning("="*80 + "\n")
         
         # Save results
         self._save_results(optimization_results)

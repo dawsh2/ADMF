@@ -11,9 +11,10 @@ import json
 import os
 from typing import Dict, Any, Optional, List, Tuple
 
-from src.strategy.base.strategy import Strategy
+from src.strategy.base import Strategy
 from src.strategy.base.indicator import MovingAverageIndicator, RSIIndicator
-from src.strategy.base.rule import CrossoverRule, ThresholdRule
+from src.strategy.components.rules.ma_crossover_rule import MACrossoverRule
+from src.strategy.components.rules.rsi_rules import RSIRule
 from src.core.event import Event, EventType
 from src.strategy.base.parameter import ParameterSet, Parameter, ParameterSpace
 
@@ -50,16 +51,18 @@ class RegimeAdaptiveEnsembleComposed(Strategy):
         self._enable_regime_switching = config.get('enable_regime_switching', True)
         
         # Check if we're in optimization mode via CLI args
-        if hasattr(self._context, 'metadata'):
-            cli_args = self._context.metadata.get('cli_args', {})
-            if cli_args.get('optimize', False):
-                self._enable_regime_switching = False
-                self.logger.info("Regime switching DISABLED - optimization mode detected via CLI")
-        
-        # Also check for explicit optimization_mode flag
-        if hasattr(self._context, 'metadata') and self._context.metadata.get('optimization_mode', False):
-            self._enable_regime_switching = False
-            self.logger.info("Regime switching DISABLED - optimization mode detected")
+        if hasattr(self, '_context') and isinstance(self._context, dict) and 'metadata' in self._context:
+            metadata = self._context['metadata']
+            if metadata:
+                cli_args = metadata.get('cli_args', {})
+                if cli_args.get('optimize', False):
+                    self._enable_regime_switching = False
+                    self.logger.info("Regime switching DISABLED - optimization mode detected via CLI")
+                
+                # Also check for explicit optimization_mode flag
+                if metadata.get('optimization_mode', False):
+                    self._enable_regime_switching = False
+                    self.logger.info("Regime switching DISABLED - optimization mode detected")
         
         # Initialize components
         self._create_components(config)
@@ -98,25 +101,83 @@ class RegimeAdaptiveEnsembleComposed(Strategy):
         )
         self.add_indicator('rsi', rsi_indicator)
         
+        # Create Bollinger Bands indicator (if configured)
+        bb_config = config.get('bb_indicator', {})
+        if bb_config.get('enabled', True):  # Enable by default
+            from src.strategy.components.indicators.bollinger_bands import BollingerBandsIndicator
+            bb_indicator = BollingerBandsIndicator(instance_name=f"{self.instance_name}_bb")
+            bb_indicator.lookback_period = bb_config.get('period', 20)
+            bb_indicator.num_std_dev = bb_config.get('std_dev', 2.0)
+            self.add_indicator('bb', bb_indicator)
+        else:
+            bb_indicator = None
+            
+        # Create MACD indicator (if configured)
+        macd_config = config.get('macd_indicator', {})
+        if macd_config.get('enabled', True):  # Enable by default
+            from src.strategy.components.indicators.macd import MACDIndicator
+            macd_indicator = MACDIndicator(instance_name=f"{self.instance_name}_macd")
+            macd_indicator.fast_period = macd_config.get('fast_period', 12)
+            macd_indicator.slow_period = macd_config.get('slow_period', 26)
+            macd_indicator.signal_period = macd_config.get('signal_period', 9)
+            self.add_indicator('macd', macd_indicator)
+        else:
+            macd_indicator = None
+        
         # Create MA crossover rule
         ma_rule_config = config.get('ma_rule', {})
-        ma_rule = CrossoverRule(name=f"{self.instance_name}_ma_crossover")
-        ma_rule.add_dependency('fast_ma', fast_ma)
-        ma_rule.add_dependency('slow_ma', slow_ma)
-        ma_weight = ma_rule_config.get('weight', 0.5)
+        ma_rule = MACrossoverRule(
+            instance_name=f"{self.instance_name}_ma_crossover",
+            fast_ma=fast_ma,
+            slow_ma=slow_ma,
+            parameters={
+                'min_separation': ma_rule_config.get('min_separation', 0.0)
+            }
+        )
+        ma_weight = ma_rule_config.get('weight', 0.25)  # Adjust default weight for more rules
         self.add_rule('ma_crossover', ma_rule, weight=ma_weight)
         
-        # Create RSI threshold rule
+        # Create RSI rule
         rsi_rule_config = config.get('rsi_rule', {})
-        rsi_rule = ThresholdRule(name=f"{self.instance_name}_rsi_threshold")
-        rsi_rule.add_dependency('indicator', rsi_indicator)
-        rsi_rule.set_parameters({
-            'buy_threshold': rsi_rule_config.get('oversold_threshold', 30.0),
-            'sell_threshold': rsi_rule_config.get('overbought_threshold', 70.0),
-            'indicator_name': 'indicator'
-        })
-        rsi_weight = rsi_rule_config.get('weight', 0.5)
+        rsi_rule = RSIRule(
+            instance_name=f"{self.instance_name}_rsi_rule",
+            rsi_indicator=rsi_indicator,
+            parameters={
+                'oversold_threshold': rsi_rule_config.get('oversold_threshold', 30.0),
+                'overbought_threshold': rsi_rule_config.get('overbought_threshold', 70.0)
+            }
+        )
+        rsi_weight = rsi_rule_config.get('weight', 0.25)  # Adjust default weight
         self.add_rule('rsi', rsi_rule, weight=rsi_weight)
+        
+        # Create Bollinger Bands rule (if indicator exists)
+        if bb_indicator:
+            bb_rule_config = config.get('bb_rule', {})
+            from src.strategy.components.rules.bollinger_bands_rule import BollingerBandsRule
+            bb_rule = BollingerBandsRule(
+                instance_name=f"{self.instance_name}_bb_rule",
+                bb_indicator=bb_indicator,
+                parameters={
+                    'band_width_filter': bb_rule_config.get('band_width_filter', 0.0)
+                }
+            )
+            bb_weight = bb_rule_config.get('weight', 0.25)
+            self.add_rule('bb', bb_rule, weight=bb_weight)
+            
+        # Create MACD rule (if indicator exists)
+        if macd_indicator:
+            macd_rule_config = config.get('macd_rule', {})
+            from src.strategy.components.rules.macd_rule import MACDRule
+            macd_rule = MACDRule(
+                instance_name=f"{self.instance_name}_macd_rule",
+                macd_indicator=macd_indicator,
+                parameters={
+                    'use_histogram': macd_rule_config.get('use_histogram', False),
+                    'min_histogram_threshold': macd_rule_config.get('min_histogram_threshold', 0.0)
+                }
+            )
+            macd_weight = macd_rule_config.get('weight', 0.25)
+            self.add_rule('macd', macd_rule, weight=macd_weight)
         
         # Normalize weights
         self._normalize_weights()
@@ -230,73 +291,143 @@ class RegimeAdaptiveEnsembleComposed(Strategy):
                 self.logger.info(f"  slow_ma.lookback_period: {self._indicators['slow_ma'].lookback_period}")
             if 'rsi' in self._indicators:
                 self.logger.info(f"  rsi.lookback_period: {self._indicators['rsi'].lookback_period}")
-            self.logger.info(f"  weights: MA={self._component_weights.get('ma_crossover', 0):.2f}, RSI={self._component_weights.get('rsi', 0):.2f}")
+            if 'bb' in self._indicators:
+                self.logger.info(f"  bb.lookback_period: {self._indicators['bb'].lookback_period}")
+                self.logger.info(f"  bb.num_std_dev: {self._indicators['bb'].num_std_dev}")
+            if 'macd' in self._indicators:
+                self.logger.info(f"  macd.fast_period: {self._indicators['macd'].fast_period}")
+                self.logger.info(f"  macd.slow_period: {self._indicators['macd'].slow_period}")
+                self.logger.info(f"  macd.signal_period: {self._indicators['macd'].signal_period}")
+            weights_str = ", ".join([f"{rule}={weight:.2f}" for rule, weight in self._component_weights.items()])
+            self.logger.info(f"  weights: {weights_str}")
             
             self._apply_regime_parameters(params)
             
             # Log confirmation of applied parameters
+            # Give indicators a moment to update their internal state
             self.logger.info("Parameters after update:")
             if 'fast_ma' in self._indicators:
-                self.logger.info(f"  fast_ma.lookback_period: {self._indicators['fast_ma'].lookback_period}")
+                actual_period = self._indicators['fast_ma'].lookback_period
+                self.logger.info(f"  fast_ma.lookback_period: {actual_period}")
             if 'slow_ma' in self._indicators:
-                self.logger.info(f"  slow_ma.lookback_period: {self._indicators['slow_ma'].lookback_period}")
+                actual_period = self._indicators['slow_ma'].lookback_period
+                self.logger.info(f"  slow_ma.lookback_period: {actual_period}")
             if 'rsi' in self._indicators:
-                self.logger.info(f"  rsi.lookback_period: {self._indicators['rsi'].lookback_period}")
-            self.logger.info(f"  weights: MA={self._component_weights.get('ma_crossover', 0):.2f}, RSI={self._component_weights.get('rsi', 0):.2f}")
+                actual_period = self._indicators['rsi'].lookback_period
+                self.logger.info(f"  rsi.lookback_period: {actual_period}")
+            if 'bb' in self._indicators:
+                self.logger.info(f"  bb.lookback_period: {self._indicators['bb'].lookback_period}")
+                self.logger.info(f"  bb.num_std_dev: {self._indicators['bb'].num_std_dev}")
+            if 'macd' in self._indicators:
+                self.logger.info(f"  macd.fast_period: {self._indicators['macd'].fast_period}")
+                self.logger.info(f"  macd.slow_period: {self._indicators['macd'].slow_period}")
+                self.logger.info(f"  macd.signal_period: {self._indicators['macd'].signal_period}")
+                
+            # Log actual weights
+            weights_str = ", ".join([f"{rule}={weight:.2f}" for rule, weight in self._component_weights.items()])
+            self.logger.info(f"  weights: {weights_str}")
+            
+            # Also verify if ThresholdRule parameters were set
+            if 'rsi' in self._rules and hasattr(self._rules['rsi'], '_parameters'):
+                rsi_params = self._rules['rsi']._parameters
+                self.logger.info(f"  RSI thresholds: buy={rsi_params.get('buy_threshold', 'N/A')}, sell={rsi_params.get('sell_threshold', 'N/A')}")
         
         self.logger.info(f"{'='*60}")
             
     def _apply_regime_parameters(self, params: Dict[str, Any]):
-        """Apply parameters to components."""
-        # Handle both old and new parameter formats
+        """Apply parameters to components dynamically."""
         
-        # Apply MA indicator parameters
-        # Check for new format first
-        if 'strategy_ma_crossover.fast_ma.lookback_period' in params and 'fast_ma' in self._indicators:
-            self._indicators['fast_ma'].set_parameters({'lookback_period': int(params['strategy_ma_crossover.fast_ma.lookback_period'])})
-        elif 'short_window' in params and 'fast_ma' in self._indicators:
-            self._indicators['fast_ma'].set_parameters({'lookback_period': int(params['short_window'])})
+        # Parse and apply parameters dynamically
+        for param_key, param_value in params.items():
+            # Parse the parameter key to understand its structure
+            parts = param_key.split('.')
             
-        if 'strategy_ma_crossover.slow_ma.lookback_period' in params and 'slow_ma' in self._indicators:
-            self._indicators['slow_ma'].set_parameters({'lookback_period': int(params['strategy_ma_crossover.slow_ma.lookback_period'])})
-        elif 'long_window' in params and 'slow_ma' in self._indicators:
-            self._indicators['slow_ma'].set_parameters({'lookback_period': int(params['long_window'])})
+            # Handle weight parameters (e.g., "ma_crossover.weight", "rsi.weight")
+            if len(parts) >= 2 and parts[-1] == 'weight':
+                rule_name = parts[0] if len(parts) == 2 else parts[1]
+                # Map common variations to standard names
+                rule_mapping = {
+                    'ma_rule': 'ma_crossover',
+                    'rsi_rule': 'rsi',
+                    'bb_rule': 'bb',
+                    'macd_rule': 'macd'
+                }
+                rule_name = rule_mapping.get(rule_name, rule_name)
+                
+                if rule_name in self._rules:
+                    old_val = self._component_weights.get(rule_name, 0)
+                    new_val = float(param_value)
+                    self.logger.debug(f"Setting {rule_name} weight: {old_val} -> {new_val}")
+                    self._component_weights[rule_name] = new_val
             
-        # Apply RSI indicator parameters
-        if 'strategy_rsi.lookback_period' in params and 'rsi' in self._indicators:
-            self._indicators['rsi'].set_parameters({'lookback_period': int(params['strategy_rsi.lookback_period'])})
-        elif 'rsi_indicator.period' in params and 'rsi' in self._indicators:
-            self._indicators['rsi'].set_parameters({'lookback_period': int(params['rsi_indicator.period'])})
-            
-        # Apply RSI rule parameters  
-        if 'rsi' in self._rules:
-            rule_params = {}
-            if 'rsi_rule.oversold_threshold' in params:
-                rule_params['buy_threshold'] = float(params['rsi_rule.oversold_threshold'])
-            if 'rsi_rule.overbought_threshold' in params:
-                rule_params['sell_threshold'] = float(params['rsi_rule.overbought_threshold'])
-            if rule_params:
-                self._rules['rsi'].set_parameters(rule_params)
-            
-        # Apply weights
-        if 'ma_rule.weight' in params:
-            self._component_weights['ma_crossover'] = float(params['ma_rule.weight'])
-            
-        if 'rsi_rule.weight' in params:
-            self._component_weights['rsi'] = float(params['rsi_rule.weight'])
+            # Handle indicator parameters dynamically
+            else:
+                # Extract indicator name and parameter name from various formats
+                indicator_name = None
+                param_name = None
+                
+                # Format: "strategy_<indicator>.<param>" or "<indicator>.<param>"
+                if '.' in param_key:
+                    prefix_parts = param_key.split('.')
+                    
+                    # Handle "strategy_xxx.yyy" format
+                    if prefix_parts[0].startswith('strategy_'):
+                        indicator_base = prefix_parts[0].replace('strategy_', '')
+                        # Check if it's a known indicator
+                        for ind_name in self._indicators:
+                            if indicator_base == ind_name or indicator_base.startswith(ind_name + '_'):
+                                indicator_name = ind_name
+                                param_name = '.'.join(prefix_parts[1:])
+                                break
+                    else:
+                        # Direct format like "rsi.lookback_period" or "bb.num_std_dev"
+                        indicator_name = prefix_parts[0]
+                        param_name = '.'.join(prefix_parts[1:])
+                
+                # Apply to indicator if found
+                if indicator_name and indicator_name in self._indicators:
+                    indicator = self._indicators[indicator_name]
+                    
+                    # Build parameter dict for the indicator
+                    indicator_params = {}
+                    
+                    # Convert parameter value to appropriate type
+                    if hasattr(indicator, param_name):
+                        current_val = getattr(indicator, param_name)
+                        if isinstance(current_val, int):
+                            new_val = int(param_value)
+                        elif isinstance(current_val, float):
+                            new_val = float(param_value)
+                        else:
+                            new_val = param_value
+                            
+                        indicator_params[param_name] = new_val
+                        self.logger.debug(f"Setting {indicator_name}.{param_name}: {current_val} -> {new_val}")
+                        
+                        # Apply parameters
+                        indicator.set_parameters(indicator_params)
             
         # Normalize weights after update
         self._normalize_weights()
         
+        # Log summary of applied parameters
         fast_ma_period = self._indicators['fast_ma'].lookback_period if 'fast_ma' in self._indicators else 'N/A'
         slow_ma_period = self._indicators['slow_ma'].lookback_period if 'slow_ma' in self._indicators else 'N/A'
         rsi_period = self._indicators['rsi'].lookback_period if 'rsi' in self._indicators else 'N/A'
+        bb_period = self._indicators['bb'].lookback_period if 'bb' in self._indicators else 'N/A'
+        bb_std = self._indicators['bb'].num_std_dev if 'bb' in self._indicators else 'N/A'
         
+        if 'macd' in self._indicators:
+            macd_info = f"MACD: {self._indicators['macd'].fast_period}/{self._indicators['macd'].slow_period}/{self._indicators['macd'].signal_period}"
+        else:
+            macd_info = "MACD: N/A"
+        
+        # Log all rule weights
+        weights_str = ", ".join([f"{rule}={weight:.2f}" for rule, weight in self._component_weights.items()])
         self.logger.info(
             f"Applied parameters - MA: {fast_ma_period}/{slow_ma_period}, "
-            f"RSI: {rsi_period}, "
-            f"Weights: MA={self._component_weights.get('ma_crossover', 0):.2f}, "
-            f"RSI={self._component_weights.get('rsi', 0):.2f}"
+            f"RSI: {rsi_period}, BB: {bb_period}/{bb_std}, {macd_info}, "
+            f"Weights: {weights_str}"
         )
         
     def get_parameter_space(self) -> ParameterSpace:

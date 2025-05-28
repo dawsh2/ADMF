@@ -122,13 +122,18 @@ class ApplicationLauncher:
         
         # Optional overrides that get passed to AppRunner
         parser.add_argument("--bars", type=int, help="Override max bars to process")
-        parser.add_argument("--log-level", choices=['DEBUG', 'INFO', 'WARNING', 'ERROR', 'CRITICAL'])
+        parser.add_argument("--log-level", choices=['DEBUG', 'SIGNAL', 'INFO', 'TRADE', 'WARNING', 'TEMP', 'ERROR', 'CRITICAL'])
         parser.add_argument("--debug-log", type=str, help="Debug log file path")
         parser.add_argument("--dataset", choices=['full', 'train', 'test'], 
                           help="Select dataset to use (requires train_test_split_ratio in config)")
+        parser.add_argument("--options", action="store_true", help="Trade options instead of shares (for --live mode)")
+        
+        # Mode flags
+        parser.add_argument("--optimize", action="store_true", help="Run optimization")
+        parser.add_argument("--live", action="store_true", help="Run live trading (paper or real)")
+        parser.add_argument("--paper", action="store_true", help="Use paper trading account (default for --live)")
         
         # Legacy optimization flags (for compatibility)
-        parser.add_argument("--optimize", action="store_true", help="Run optimization")
         parser.add_argument("--optimize-ma", action="store_true", help="Optimize MA parameters")
         parser.add_argument("--optimize-rsi", action="store_true", help="Optimize RSI parameters")
         parser.add_argument("--optimize-seq", action="store_true", help="Sequential optimization")
@@ -161,11 +166,17 @@ class ApplicationLauncher:
         Determine run mode from CLI args first, then configuration.
         
         Priority order:
-        1. CLI --optimize flag (overrides config)
-        2. Config file run_mode setting
-        3. Default to backtest
+        1. CLI --live flag (highest priority)
+        2. CLI --optimize flag
+        3. Config file run_mode setting
+        4. Default to backtest
         """
-        # Check CLI args first - --optimize flag takes precedence
+        # Check CLI args first - --live flag takes highest precedence
+        if hasattr(args, 'live') and args.live:
+            self.logger.info("Live trading mode enabled via --live flag")
+            return RunMode.LIVE_TRADING
+            
+        # --optimize flag takes second precedence
         if hasattr(args, 'optimize') and args.optimize:
             self.logger.info("Optimization mode enabled via --optimize flag")
             return RunMode.OPTIMIZATION
@@ -197,8 +208,8 @@ class ApplicationLauncher:
         """
         Get component overrides based on run mode and CLI args.
         
-        This allows us to use different strategy implementations based on
-        whether we're optimizing or doing verification.
+        This allows us to swap components for live trading while keeping
+        the same strategy configuration.
         
         Args:
             run_mode: The current run mode
@@ -207,8 +218,30 @@ class ApplicationLauncher:
         Returns:
             Dictionary of component name -> class name overrides
         """
-        # No overrides needed - we'll handle this in the config loading instead
-        return None
+        overrides = {}
+        
+        # For live trading, swap the data handler and execution handler
+        if run_mode == RunMode.LIVE_TRADING:
+            self.logger.info("Configuring components for live trading mode")
+            
+            # Override data handler to use live data
+            overrides['data_handler'] = 'src.data.live_data_handler.LiveDataHandler'
+            
+            # Override execution handler based on options flag
+            if hasattr(args, 'options') and args.options:
+                overrides['execution_handler'] = 'src.execution.options_execution_handler.OptionsExecutionHandler'
+                self.logger.info("Options trading mode enabled - will trade 1DTE options")
+            else:
+                overrides['execution_handler'] = 'src.execution.live_execution_handler.LiveExecutionHandler'
+                self.logger.info("Stock trading mode enabled")
+            
+            # Add paper trading flag to metadata
+            if hasattr(args, 'paper') and args.paper:
+                self.logger.info("Paper trading mode enabled")
+            else:
+                self.logger.info("Live trading mode (use --paper for paper trading)")
+        
+        return overrides if overrides else None
         
     def _register_app_runner(self, bootstrap: Bootstrap):
         """Register AppRunner as a component."""

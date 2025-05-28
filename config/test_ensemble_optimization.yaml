@@ -3,7 +3,7 @@
 
 # Core system configuration
 logging:
-  level: INFO
+  level: WARNING
   format: "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
 
 # Run mode - will be overridden by --optimize flag
@@ -39,13 +39,59 @@ optimization:
       method: "grid_search"
       metric: "sharpe_ratio"
       
-    # Step 3: Optimize ensemble weights
+    # Step 3: Optimize Bollinger Bands rule in isolation
+    - name: "optimize_bb_isolated"
+      type: "rulewise"
+      targets: ["bb"]
+      isolate: true
+      method: "grid_search"
+      metric: "sharpe_ratio"
+      
+    # Step 4: Optimize MACD rule in isolation
+    - name: "optimize_macd_isolated"
+      type: "rulewise"
+      targets: ["macd"]
+      isolate: true
+      method: "grid_search"
+      metric: "sharpe_ratio"
+      
+    # Step 5: Optimize ensemble weights for all 4 rules
     - name: "optimize_weights"
       type: "ensemble_weights"
       method: "grid_search"
-      depends_on: ["optimize_ma_isolated", "optimize_rsi_isolated"]
+      depends_on: ["optimize_ma_isolated", "optimize_rsi_isolated", "optimize_bb_isolated", "optimize_macd_isolated"]
+      weight_combinations:
+        # Balanced combinations (no zeros)
+        - [0.2, 0.2, 0.2, 0.4]      # MACD slightly dominant
+        - [0.2, 0.2, 0.4, 0.2]      # BB slightly dominant  
+        - [0.2, 0.4, 0.2, 0.2]      # RSI slightly dominant
+        - [0.4, 0.2, 0.2, 0.2]      # MA slightly dominant
+        
+        # Single rule very dominant (>= 0.6)
+        - [0.6, 0.2, 0.2, 0.0]      # MA very dominant, no MACD
+        - [0.2, 0.6, 0.2, 0.0]      # RSI very dominant, no MACD
+        - [0.2, 0.2, 0.6, 0.0]      # BB very dominant, no MACD
+        - [0.0, 0.2, 0.2, 0.6]      # MACD very dominant, no MA
+        
+        # Single rule extremely dominant (>= 0.8)
+        - [0.8, 0.0, 0.0, 0.2]      # MA extreme, only MACD backup
+        - [0.0, 0.8, 0.2, 0.0]      # RSI extreme, only BB backup
+        - [0.0, 0.0, 0.8, 0.2]      # BB extreme, only MACD backup
+        - [0.2, 0.0, 0.0, 0.8]      # MACD extreme, only MA backup
+        
+        # Two-rule combinations
+        - [0.4, 0.4, 0.2, 0.0]      # MA/RSI focused, no MACD
+        - [0.4, 0.0, 0.4, 0.2]      # MA/BB focused
+        - [0.0, 0.4, 0.4, 0.2]      # RSI/BB focused
+        - [0.2, 0.2, 0.0, 0.6]      # MACD dominant with MA/RSI backup
+        
+        # Single rule only
+        - [1.0, 0.0, 0.0, 0.0]      # MA only
+        - [0.0, 1.0, 0.0, 0.0]      # RSI only
+        - [0.0, 0.0, 1.0, 0.0]      # BB only
+        - [0.0, 0.0, 0.0, 1.0]      # MACD only
       
-    # Step 4: Regime-specific optimization
+    # Step 6: Regime-specific optimization
     - name: "regime_optimization"
       type: "regime"
       config:
@@ -77,7 +123,7 @@ components:
     class_path: src.strategy.implementations.regime_adaptive_ensemble_composed.RegimeAdaptiveEnsembleComposed
     config:
       symbol: "SPY"
-      regime_params_file_path: "regime_optimized_parameters.json"
+      regime_params_file_path: "test_regime_parameters.json"
       fallback_to_overall_best: true
       
       # MA indicator configuration
@@ -89,15 +135,40 @@ components:
       rsi_indicator:
         period: 14
         
+      # Bollinger Bands indicator configuration
+      bb_indicator:
+        enabled: true
+        period: 20
+        num_std_dev: 2.0
+        
+      # MACD indicator configuration
+      macd_indicator:
+        enabled: true
+        fast_period: 12
+        slow_period: 26
+        signal_period: 9
+        
       # MA rule configuration
       ma_rule:
-        weight: 0.5
+        weight: 0.25
         
       # RSI rule configuration
       rsi_rule:
         oversold_threshold: 30.0
         overbought_threshold: 70.0
-        weight: 0.5
+        weight: 0.25
+        
+      # Bollinger Bands rule configuration
+      bb_rule:
+        enabled: true
+        weight: 0.25
+        band_width_filter: 0.0
+        
+      # MACD rule configuration
+      macd_rule:
+        enabled: true
+        weight: 0.25
+        signal_threshold: 0.0
   
   # Optimizer entry point
   optimizer:

@@ -1,0 +1,239 @@
+# Test configuration for 4-rule ensemble optimization
+# Tests MA Crossover, RSI, Bollinger Bands, and MACD rules
+
+# Core system configuration
+logging:
+  level: ERROR
+  format: "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
+
+# Run mode - will be overridden by --optimize flag
+run_mode: backtest
+
+# Optimization configuration with workflow
+optimization:
+  strategy_name: strategy
+  method: grid
+  metric: sharpe_ratio
+  max_iterations: 100
+  regime_specific: true
+  regimes: ["trending_up", "trending_down", "volatile", "default"]
+  # Train/test split parameters
+  optimization_method: "regime_specific_with_split"
+  train_ratio: 0.8
+  
+  # Config-driven workflow with isolated optimization
+  workflow:
+    # Step 1: Optimize MA crossover rule in isolation
+    - name: "optimize_ma_isolated"
+      type: "rulewise"
+      targets: ["ma_crossover"]
+      isolate: true
+      method: "grid_search"
+      metric: "sharpe_ratio"
+      
+    # Step 2: Optimize RSI rule in isolation
+    - name: "optimize_rsi_isolated"
+      type: "rulewise"
+      targets: ["rsi"]
+      isolate: true
+      method: "grid_search"
+      metric: "sharpe_ratio"
+      
+    # Step 3: Optimize Bollinger Bands rule in isolation
+    - name: "optimize_bb_isolated"
+      type: "rulewise"
+      targets: ["bb"]
+      isolate: true
+      method: "grid_search"
+      metric: "sharpe_ratio"
+      
+    # Step 4: Optimize MACD rule in isolation
+    - name: "optimize_macd_isolated"
+      type: "rulewise"
+      targets: ["macd"]
+      isolate: true
+      method: "grid_search"
+      metric: "sharpe_ratio"
+      
+    # Step 5: Optimize ensemble weights per regime
+    - name: "optimize_weights"
+      type: "ensemble_weight_optimization"
+      method: "grid_search"
+      depends_on: ["optimize_ma_isolated", "optimize_rsi_isolated", "optimize_bb_isolated", "optimize_macd_isolated"]
+      config:
+        # Test more weight combinations for 4 rules
+        # These should sum to 1.0 for each combination
+        weight_combinations:
+          - ma_crossover.weight: 0.4
+            rsi.weight: 0.3
+            bb.weight: 0.2
+            macd.weight: 0.1
+          - ma_crossover.weight: 0.3
+            rsi.weight: 0.3
+            bb.weight: 0.2
+            macd.weight: 0.2
+          - ma_crossover.weight: 0.25
+            rsi.weight: 0.25
+            bb.weight: 0.25
+            macd.weight: 0.25
+          - ma_crossover.weight: 0.2
+            rsi.weight: 0.3
+            bb.weight: 0.3
+            macd.weight: 0.2
+          - ma_crossover.weight: 0.1
+            rsi.weight: 0.2
+            bb.weight: 0.3
+            macd.weight: 0.4
+
+# Component configurations
+components:
+  # Event bus
+  event_bus:
+    class_path: src.core.event_bus.EventBus
+    config:
+      name: "main_event_bus"
+
+  # Data handler with train/test split support
+  data_handler:
+    class_path: src.data.csv_data_handler.CSVDataHandler
+    config:
+      csv_file_path: "data/SPY_1min.csv"
+      symbol: "SPY"
+      timestamp_column: "timestamp"
+      # Train/test split ratio for both optimization and verification
+      train_test_split_ratio: 0.8
+
+  # Strategy configuration - the 4-rule ensemble strategy
+  strategy:
+    class_path: src.strategy.implementations.regime_adaptive_ensemble_composed.RegimeAdaptiveEnsembleComposed
+    config:
+      symbol: "SPY"
+      regime_params_file_path: "test_4_rules_regime_parameters.json"
+      fallback_to_overall_best: true
+      
+      # MA indicator configuration
+      ma_indicator:
+        short_window: 10
+        long_window: 20
+        
+      # RSI indicator configuration  
+      rsi_indicator:
+        period: 14
+        
+      # Bollinger Bands indicator configuration
+      bb_indicator:
+        enabled: true
+        period: 20
+        std_dev: 2.0
+        
+      # MACD indicator configuration
+      macd_indicator:
+        enabled: true
+        fast_period: 12
+        slow_period: 26
+        signal_period: 9
+        
+      # MA rule configuration
+      ma_rule:
+        weight: 0.25
+        min_separation: 0.0001
+        
+      # RSI rule configuration
+      rsi_rule:
+        oversold_threshold: 30.0
+        overbought_threshold: 70.0
+        weight: 0.25
+        
+      # Bollinger Bands rule configuration
+      bb_rule:
+        weight: 0.25
+        band_width_filter: 0.0
+        
+      # MACD rule configuration
+      macd_rule:
+        weight: 0.25
+        use_histogram: false
+        min_histogram_threshold: 0.0
+  
+  # Optimizer entry point
+  optimizer:
+    class_path: src.execution.optimization_entrypoint.OptimizationEntrypoint
+    config:
+      strategy_name: strategy
+      method: grid
+      metric: sharpe_ratio
+      regime_specific: true
+      optimization_method: "regime_specific_with_split"
+      train_ratio: 0.8
+      regimes: ["trending_up", "trending_down", "volatile", "default"]
+  
+  # Workflow orchestrator component
+  workflow_orchestrator:
+    class_path: src.strategy.optimization.workflow_orchestrator.OptimizationWorkflowOrchestrator
+    config:
+      # Config is in optimization.workflow section above
+
+  # Regime detector with indicators
+  regime_detector:
+    class_path: src.strategy.regime_detector.RegimeDetector
+    config:
+      min_regime_duration: 1
+      indicators:
+        ma_trend:
+          type: simple_ma_trend
+          parameters:
+            short_period: 10
+            long_period: 30
+        rsi:
+          type: rsi
+          parameters:
+            period: 14
+        atr:
+          type: atr
+          parameters:
+            period: 14
+      regime_thresholds:
+        trending_up:
+          ma_trend:
+            min: 0.01
+          rsi:
+            min: 55
+            max: 80
+        trending_down:
+          ma_trend:
+            max: -0.01
+          rsi:
+            min: 20
+            max: 45
+        volatile:
+          atr:
+            min: 0.5
+        default:
+          priority: 0
+
+  # Risk management
+  risk_manager:
+    class_path: src.risk.basic_risk_manager.BasicRiskManager
+    config:
+      max_position_size: 100
+      stop_loss_pct: 0.02
+
+  # Portfolio management
+  portfolio_manager:
+    class_path: src.risk.basic_portfolio.BasicPortfolio
+    config:
+      initial_cash: 100000
+      max_positions: 1
+
+  # Execution handler
+  execution_handler:
+    class_path: src.execution.simulated_execution_handler.SimulatedExecutionHandler
+    config:
+      latency_ms: 10
+
+  # Backtest runner
+  backtest_runner:
+    class_path: src.execution.backtest_runner.BacktestRunner
+    config:
+      start_date: "2024-01-01"
+      end_date: "2024-12-31"

@@ -1,0 +1,236 @@
+{
+  "timestamp": "20250526_205333",
+  "workflow_hash": "2f82142a",
+  "workflow_steps": [
+    {
+      "name": "optimize_ma_isolated",
+      "type": "rulewise",
+      "targets": [
+        "ma_crossover"
+      ],
+      "isolate": true,
+      "method": "grid_search",
+      "metric": "sharpe_ratio"
+    },
+    {
+      "name": "optimize_rsi_isolated",
+      "type": "rulewise",
+      "targets": [
+        "rsi"
+      ],
+      "isolate": true,
+      "method": "grid_search",
+      "metric": "sharpe_ratio"
+    },
+    {
+      "name": "optimize_weights",
+      "type": "ensemble_weights",
+      "method": "grid_search",
+      "depends_on": [
+        "optimize_ma_isolated",
+        "optimize_rsi_isolated"
+      ]
+    },
+    {
+      "name": "regime_optimization",
+      "type": "regime",
+      "config": {
+        "strategy_name": "strategy",
+        "regime_detector": "regime_detector",
+        "optimization_method": "grid_search",
+        "optimization_metric": "sharpe_ratio"
+      }
+    }
+  ],
+  "results": {
+    "optimize_ma_isolated": {
+      "optimization_type": "component",
+      "targets": [
+        "ma_crossover"
+      ],
+      "method": "grid_search",
+      "components_optimized": 1,
+      "results": {
+        "strategy_ma_crossover": {
+          "method": "grid_search",
+          "component": "strategy_ma_crossover",
+          "parameter_space": "strategy_ma_crossover_space",
+          "combinations_tested": 12,
+          "best_parameters": {
+            "weight": 0.4,
+            "min_separation": 0.0
+          },
+          "best_score": 0.0,
+          "test_score": null,
+          "all_results": [
+            {
+              "parameters": {
+                "weight": 0.4,
+                "min_separation": 0.0
+              },
+              "score": 0.0,
+              "regime_performance": {}
+            },
+            {
+              "parameters": {
+                "weight": 0.4,
+                "min_separation": 0.001
+              },
+              "score": 0.0,
+              "regime_performance": {}
+            },
+            {
+              "parameters": {
+                "weight": 0.4,
+                "min_separation": 0.002
+              },
+              "score": 0.0,
+              "regime_performance": {}
+            },
+            {
+              "parameters": {
+                "weight": 0.6,
+                "min_separation": 0.0
+              },
+              "score": 0.0,
+              "regime_performance": {}
+            },
+            {
+              "parameters": {
+                "weight": 0.6,
+                "min_separation": 0.001
+              },
+              "score": 0.0,
+              "regime_performance": {}
+            },
+            {
+              "parameters": {
+                "weight": 0.6,
+                "min_separation": 0.002
+              },
+              "score": 0.0,
+              "regime_performance": {}
+            },
+            {
+              "parameters": {
+                "weight": 0.8,
+                "min_separation": 0.0
+              },
+              "score": 0.0,
+              "regime_performance": {}
+            },
+            {
+              "parameters": {
+                "weight": 0.8,
+                "min_separation": 0.001
+              },
+              "score": 0.0,
+              "regime_performance": {}
+            },
+            {
+              "parameters": {
+                "weight": 0.8,
+                "min_separation": 0.002
+              },
+              "score": 0.0,
+              "regime_performance": {}
+            },
+            {
+              "parameters": {
+                "weight": 1.0,
+                "min_separation": 0.0
+              },
+              "score": 0.0,
+              "regime_performance": {}
+            },
+            {
+              "parameters": {
+                "weight": 1.0,
+                "min_separation": 0.001
+              },
+              "score": 0.0,
+              "regime_performance": {}
+            },
+            {
+              "parameters": {
+                "weight": 1.0,
+                "min_separation": 0.002
+              },
+              "score": 0.0,
+              "regime_performance": {}
+            }
+          ],
+          "regime_best_parameters": {},
+          "regime_statistics": {},
+          "timestamp": "2025-05-26T20:53:32.374497"
+        }
+      },
+      "timestamp": "2025-05-26T20:53:32.375330"
+    },
+    "optimize_rsi_isolated": {
+      "optimization_type": "component",
+      "targets": [
+        "rsi"
+      ],
+      "method": "grid_search",
+      "components_optimized": 1,
+      "results": {
+        "strategy_rsi": {
+          "method": "grid_search",
+          "component": "strategy_rsi",
+          "parameter_space": "strategy_rsi_params",
+          "combinations_tested": 4,
+          "best_parameters": {
+            "lookback_period": 9
+          },
+          "best_score": 0.0,
+          "test_score": null,
+          "all_results": [
+            {
+              "parameters": {
+                "lookback_period": 9
+              },
+              "score": 0.0,
+              "regime_performance": {}
+            },
+            {
+              "parameters": {
+                "lookback_period": 14
+              },
+              "score": 0.0,
+              "regime_performance": {}
+            },
+            {
+              "parameters": {
+                "lookback_period": 21
+              },
+              "score": 0.0,
+              "regime_performance": {}
+            },
+            {
+              "parameters": {
+                "lookback_period": 30
+              },
+              "score": 0.0,
+              "regime_performance": {}
+            }
+          ],
+          "regime_best_parameters": {},
+          "regime_statistics": {},
+          "timestamp": "2025-05-26T20:53:33.334141"
+        }
+      },
+      "timestamp": "2025-05-26T20:53:33.335360"
+    },
+    "optimize_weights": {
+      "status": "no_regime_params",
+      "message": "Weight optimization requires regime-specific parameters from previous steps"
+    },
+    "regime_optimization": {
+      "error": "Container not available"
+    },
+    "final_test_evaluation": {
+      "error": "unsupported format string passed to NoneType.__format__"
+    }
+  }
+}

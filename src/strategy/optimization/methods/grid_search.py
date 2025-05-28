@@ -49,7 +49,7 @@ class GridSearchOptimizer(OptimizationMethod):
         param_combinations = parameter_space.sample(method='grid')
         total_combinations = len(param_combinations)
         
-        self.logger.info(f"Starting grid search with {total_combinations} parameter combinations")
+        self.logger.warning(f"Starting grid search with {total_combinations} parameter combinations")
         
         # Early stopping parameters
         early_stopping_rounds = kwargs.get('early_stopping_rounds', None)
@@ -60,13 +60,11 @@ class GridSearchOptimizer(OptimizationMethod):
         for i, params in enumerate(param_combinations):
             self._iteration = i + 1
             
-            # Log progress
-            if (i + 1) % 10 == 0 or i == 0:
-                self.logger.info(f"Evaluating combination {i+1}/{total_combinations}")
+            # Show each parameter combination being tested
+            param_str = ", ".join([f"{k}={v}" for k, v in sorted(params.items())])
+            self.logger.warning(f"Testing {i+1}/{total_combinations}: {param_str}")
                 
             try:
-                # Log parameters being tested
-                self.logger.info(f"Testing parameters: {params}")
                 
                 # Evaluate parameters
                 score = objective_func(params)
@@ -75,15 +73,19 @@ class GridSearchOptimizer(OptimizationMethod):
                 previous_best = self._best_score
                 self._record_result(params, score)
                 
+                # Show result immediately
+                result_str = f"  → Score: {score:.4f}"
+                
                 # Check for improvement
                 if previous_best is not None and self._best_score is not None:
                     improvement = self._best_score - previous_best
                     if improvement > min_improvement:
                         rounds_without_improvement = 0
-                        self.logger.info(f"New best score: {self._best_score:.6f} "
-                                       f"(improvement: {improvement:.6f})")
+                        result_str += " ⭐ NEW BEST!"
                     else:
                         rounds_without_improvement += 1
+                
+                self.logger.warning(result_str)
                         
                 # Early stopping check
                 if (early_stopping_rounds is not None and 
@@ -93,7 +95,7 @@ class GridSearchOptimizer(OptimizationMethod):
                     break
                     
             except Exception as e:
-                self.logger.error(f"Error evaluating parameters {params}: {e}")
+                self.logger.warning(f"  → Error: {str(e)}")
                 # Record failed evaluation
                 self._record_result(params, float('-inf'), {'error': str(e)})
                 

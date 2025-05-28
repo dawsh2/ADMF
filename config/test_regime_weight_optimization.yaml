@@ -1,0 +1,129 @@
+# Test configuration for regime-specific weight optimization
+# This runs rulewise optimization first, then optimizes weights per regime
+
+bootstrap:
+  components:
+    data_handler:
+      class: 'src.data.csv_data_handler.CSVDataHandler'
+      config:
+        file_path: 'data/SPY_1min.csv'
+        warmup_rows: 100
+    
+    portfolio_manager:
+      class: 'src.risk.basic_portfolio.BasicPortfolio'
+      config:
+        initial_capital: 100000
+        position_sizer:
+          type: 'fixed'
+          size: 1000
+    
+    risk_manager:
+      class: 'src.risk.basic_risk_manager.BasicRiskManager'
+      config:
+        max_position_size: 10000
+        max_portfolio_risk: 0.02
+        stop_loss_pct: 0.02
+    
+    execution_handler:
+      class: 'src.execution.simulated_execution_handler.SimulatedExecutionHandler'
+      config: {}
+    
+    strategy:
+      class: 'src.strategy.implementations.regime_adaptive_ensemble_composed.RegimeAdaptiveEnsembleComposed'
+      config:
+        regime_params:
+          default:
+            ma_rule.fast_period: 20
+            ma_rule.slow_period: 50
+            rsi_rule.period: 14
+            rsi_rule.oversold: 30
+            rsi_rule.overbought: 70
+            ma_rule.weight: 0.5
+            rsi_rule.weight: 0.5
+        components:
+          regime_detector:
+            class: 'src.strategy.regime_detector.RegimeDetector'
+            config:
+              window_sizes:
+                trend: 20
+                volatility: 20
+              trend_threshold: 0.001
+              volatility_percentile: 75
+          ma_rule:
+            class: 'src.strategy.components.rules.ma_crossover_rule.MACrossoverRule'
+            config:
+              fast_period: 20
+              slow_period: 50
+          rsi_rule:
+            class: 'src.strategy.components.rules.rsi_rule.RSIRule'
+            config:
+              period: 14
+              oversold: 30
+              overbought: 70
+
+optimization:
+  workflow:
+    steps:
+      # Step 1: Optimize MA rule parameters
+      - name: 'optimize_ma_isolated'
+        type: 'rulewise'
+        targets:
+          - 'ma_rule'
+        method: 'grid_search'
+        isolate: true
+        metric: 'sharpe_ratio'
+        config:
+          parameter_space:
+            fast_period: [10, 15, 20]
+            slow_period: [40, 50, 60]
+      
+      # Step 2: Optimize RSI rule parameters
+      - name: 'optimize_rsi_isolated'
+        type: 'rulewise'
+        targets:
+          - 'rsi_rule'
+        method: 'grid_search'
+        isolate: true
+        metric: 'sharpe_ratio'
+        config:
+          parameter_space:
+            period: [10, 14, 18]
+            oversold: [25, 30]
+            overbought: [70, 75]
+      
+      # Step 3: Optimize ensemble weights per regime
+      - name: 'optimize_weights'
+        type: 'ensemble_weight_optimization'
+        method: 'grid_search'
+        metric: 'sharpe_ratio'
+        depends_on:
+          - 'optimize_ma_isolated'
+          - 'optimize_rsi_isolated'
+        config:
+          weight_combinations:
+            - ma_rule.weight: 0.8
+              rsi_rule.weight: 0.2
+            - ma_rule.weight: 0.6
+              rsi_rule.weight: 0.4
+            - ma_rule.weight: 0.5
+              rsi_rule.weight: 0.5
+            - ma_rule.weight: 0.4
+              rsi_rule.weight: 0.6
+            - ma_rule.weight: 0.2
+              rsi_rule.weight: 0.8
+    
+    # Date ranges for optimization
+    train_start: '2024-01-02'
+    train_end: '2024-01-31'
+    test_start: '2024-02-01'
+    test_end: '2024-02-15'
+
+# Logging configuration
+logging:
+  level: 'ERROR'
+  handlers:
+    console:
+      level: 'INFO'
+    file:
+      level: 'DEBUG'
+      filename: 'logs/regime_weight_optimization.log'

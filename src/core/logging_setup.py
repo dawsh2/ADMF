@@ -2,14 +2,17 @@
 import logging
 import sys
 import os
+from logging.handlers import RotatingFileHandler
 
 # Define custom log levels
 TRADE_LEVEL = 25  # Between INFO (20) and WARNING (30)
 SIGNAL_LEVEL = 15  # Between DEBUG (10) and INFO (20)
+TEMP_LEVEL = 35  # Between WARNING (30) and ERROR (40)
 
 # Add custom levels to logging
 logging.addLevelName(TRADE_LEVEL, "TRADE")
 logging.addLevelName(SIGNAL_LEVEL, "SIGNAL")
+logging.addLevelName(TEMP_LEVEL, "TEMP")
 
 # Add convenience methods to Logger class
 def trade(self, message, *args, **kwargs):
@@ -20,13 +23,19 @@ def signal(self, message, *args, **kwargs):
     if self.isEnabledFor(SIGNAL_LEVEL):
         self._log(SIGNAL_LEVEL, message, args, **kwargs)
 
+def temp(self, message, *args, **kwargs):
+    if self.isEnabledFor(TEMP_LEVEL):
+        self._log(TEMP_LEVEL, message, args, **kwargs)
+
 # Attach methods to Logger class
 logging.Logger.trade = trade
 logging.Logger.signal = signal
+logging.Logger.temp = temp
 
 LOG_LEVEL_STRINGS = {
     'CRITICAL': logging.CRITICAL,
     'ERROR': logging.ERROR,
+    'TEMP': TEMP_LEVEL,
     'WARNING': logging.WARNING,
     'TRADE': TRADE_LEVEL,
     'INFO': logging.INFO,
@@ -174,24 +183,29 @@ def setup_logging(config_loader, cmd_log_level=None, optimization_mode=False, de
     stdout_handler.setFormatter(console_formatter)
     root_logger.addHandler(stdout_handler)
     
-    # File handler - always logs at DEBUG level
-    file_handler = logging.FileHandler(debug_file, mode='w', encoding='utf-8')
-    file_handler.setLevel(logging.DEBUG)  # File always gets DEBUG level
+    # File handler - respects configured log level by default
+    # Uses rotating file handler to prevent massive log files
+    file_log_level = log_level  # Use same level as console by default
+    # Max 100MB per file, keep 5 backup files
+    file_handler = RotatingFileHandler(
+        debug_file, 
+        maxBytes=100*1024*1024,  # 100MB
+        backupCount=5,
+        encoding='utf-8'
+    )
+    file_handler.setLevel(file_log_level)
     file_handler.setFormatter(FORMATTERS['debug'])
     root_logger.addHandler(file_handler)
-    print(f"Logging to file: {debug_file}")
+    print(f"Logging to file: {debug_file} (level: {log_level_str}, max 100MB per file)")
     
-    # Setup additional debug file logging if requested specifically
-    if debug_file and debug_file != str(debug_file):
-        debug_handler = create_debug_file_logger(debug_file)
-        print(f"Additional detailed DEBUG logging enabled to file: {debug_file}")
-    
-    # Set specific loggers to DEBUG level to capture all events
-    for module in ['src.strategy.regime_detector', 'src.strategy.regime_adaptive_strategy',
-                  'src.core.event_bus', 'src.strategy.ma_strategy']:
-        component_logger = logging.getLogger(module)
-        component_logger.setLevel(logging.DEBUG)
+    # Only set specific loggers to DEBUG if explicitly requested
+    if cmd_log_level and cmd_log_level.upper() == 'DEBUG':
+        # Set specific loggers to DEBUG level to capture all events
+        for module in ['src.strategy.regime_detector', 'src.strategy.regime_adaptive_strategy',
+                      'src.core.event_bus', 'src.strategy.ma_strategy']:
+            component_logger = logging.getLogger(module)
+            component_logger.setLevel(logging.DEBUG)
     
     # Log the level change to file only (debug level)
     setup_logger = logging.getLogger('src.core.logging_setup')
-    setup_logger.debug(f"Console logging level: {log_level_str}, File logging level: DEBUG")
+    setup_logger.debug(f"Console logging level: {log_level_str}, File logging level: {log_level_str}")

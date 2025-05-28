@@ -75,9 +75,25 @@ class IsolatedStrategy(Strategy):
     
     def _setup_rule_wrapper(self):
         """Create a rule wrapper for non-RuleBase components."""
-        # This would wrap components like RSIRule or MACrossoverRule
-        # that don't inherit from RuleBase but still generate signals
-        self.logger.warning("Rule wrapping for non-RuleBase components not yet implemented")
+        # Handle MACrossoverRule and similar components
+        if hasattr(self._isolated_component, 'fast_ma') and hasattr(self._isolated_component, 'slow_ma'):
+            # MA Crossover rule - add its indicator dependencies
+            if self._isolated_component.fast_ma:
+                self.add_indicator('fast_ma', self._isolated_component.fast_ma)
+                self.logger.debug("Added fast_ma indicator to isolated strategy")
+            if self._isolated_component.slow_ma:
+                self.add_indicator('slow_ma', self._isolated_component.slow_ma)
+                self.logger.debug("Added slow_ma indicator to isolated strategy")
+                
+        elif hasattr(self._isolated_component, 'rsi_indicator'):
+            # RSI rule - add its indicator dependency
+            if self._isolated_component.rsi_indicator:
+                self.add_indicator('rsi', self._isolated_component.rsi_indicator)
+                self.logger.debug("Added rsi indicator to isolated strategy")
+                
+        # Add the rule itself
+        self.add_rule('isolated_rule', self._isolated_component, weight=1.0)
+        self.logger.info(f"Added rule {self._isolated_component.instance_name} with its dependencies")
         
     def _setup_indicator_wrapper(self):
         """Create signal generation logic for indicators."""
@@ -185,8 +201,16 @@ class IsolatedComponentEvaluator:
         if component_type is None:
             if hasattr(component, 'evaluate') and callable(getattr(component, 'evaluate')):
                 component_type = 'rule'
-            elif hasattr(component, 'update') and hasattr(component, 'value'):
-                component_type = 'indicator'
+            elif hasattr(component, 'update') and callable(getattr(component, 'update')):
+                # Check for various indicator types
+                if (hasattr(component, 'value') or 
+                    hasattr(component, 'upper_band') or  # BB indicator
+                    hasattr(component, 'macd_line') or   # MACD indicator
+                    hasattr(component, 'get_parameter_space')):  # Generic indicator with parameter space
+                    component_type = 'indicator'
+                else:
+                    # If it has update method and parameter space, it's likely an indicator
+                    component_type = 'indicator'
             else:
                 raise ValueError(f"Cannot determine component type for {component.instance_name}")
         
@@ -195,7 +219,7 @@ class IsolatedComponentEvaluator:
         
         # Create isolated strategy
         isolated_strategy = IsolatedStrategy(
-            instance_name=f"isolated_{component.instance_name}",
+            instance_name=f"isolated_strategy_{component.instance_name}",
             component=component,
             component_type=component_type
         )
@@ -281,6 +305,51 @@ class IsolatedComponentEvaluator:
         except Exception as e:
             self.logger.error(f"Error evaluating component {component.instance_name}: {e}")
             return float('-inf'), {}  # Return worst possible score and empty results on error
+        finally:
+            # CRITICAL: Clean up the isolated strategy to prevent leakage
+            try:
+                # Ensure we have the isolated_strategy variable
+                if 'isolated_strategy' in locals():
+                    # Manually unsubscribe from events before stopping
+                    if hasattr(isolated_strategy, 'event_bus') and isolated_strategy.event_bus:
+                        try:
+                            # Unsubscribe from all event types this strategy might have subscribed to
+                            for event_type in [EventType.BAR, EventType.CLASSIFICATION, EventType.FILL, EventType.ORDER]:
+                                try:
+                                    isolated_strategy.event_bus.unsubscribe(event_type, isolated_strategy)
+                                except:
+                                    pass  # Ignore if not subscribed
+                            self.logger.debug(f"Unsubscribed isolated strategy from all events")
+                        except Exception as unsub_error:
+                            self.logger.warning(f"Error unsubscribing events: {unsub_error}")
+                    
+                    # Stop the isolated strategy
+                    if isolated_strategy.running:
+                        isolated_strategy.stop()
+                        self.logger.debug(f"Stopped isolated strategy for {component.instance_name}")
+                    
+                    # Teardown the isolated strategy to clean up
+                    isolated_strategy.teardown()
+                    self.logger.debug(f"Torn down isolated strategy for {component.instance_name}")
+                    
+                    # Clear the container registration if we registered it
+                    if container and hasattr(self, 'backtest_runner') and self.backtest_runner.container:
+                        try:
+                            # If we temporarily registered this strategy, remove it
+                            current_strategy = container.resolve('strategy')
+                            if current_strategy == isolated_strategy:
+                                # Re-register the original strategy if we have it
+                                if 'original_strategy' in locals() and original_strategy:
+                                    container.register('strategy', original_strategy)
+                                    self.logger.debug("Restored original strategy in container")
+                        except:
+                            pass
+                    
+                    # Remove any references
+                    isolated_strategy = None
+                
+            except Exception as cleanup_error:
+                self.logger.error(f"Error during isolated strategy cleanup: {cleanup_error}")
     
     def create_evaluator_function(self, metric: str = "sharpe_ratio", 
                                 component_type: Optional[str] = None) -> Callable:

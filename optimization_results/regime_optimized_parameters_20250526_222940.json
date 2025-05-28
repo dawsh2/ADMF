@@ -1,0 +1,36 @@
+{
+  "timestamp": "20250526_222940",
+  "regimes": {
+    "default": {
+      "strategy_ma_crossover.weight": 0.4,
+      "strategy_ma_crossover.min_separation": 0.001,
+      "strategy_rsi.lookback_period": 21,
+      "ma_crossover.weight": 0.25,
+      "rsi.weight": 0.25,
+      "bb.weight": 0.25,
+      "macd.weight": 0.25
+    },
+    "trending_up": {
+      "strategy_ma_crossover.weight": 0.4,
+      "strategy_ma_crossover.min_separation": 0.0,
+      "strategy_rsi.lookback_period": 30,
+      "ma_crossover.weight": 0.25,
+      "rsi.weight": 0.25,
+      "bb.weight": 0.25,
+      "macd.weight": 0.25
+    },
+    "trending_down": {
+      "strategy_ma_crossover.weight": 0.4,
+      "strategy_ma_crossover.min_separation": 0.0,
+      "strategy_rsi.lookback_period": 30,
+      "ma_crossover.weight": 0.25,
+      "rsi.weight": 0.25,
+      "bb.weight": 0.25,
+      "macd.weight": 0.25
+    }
+  },
+  "metadata": {
+    "source": "workflow_optimization",
+    "workflow": "workflow_orchestrator"
+  }
+}
