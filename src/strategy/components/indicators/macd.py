@@ -165,21 +165,21 @@ class MACDIndicator(ComponentBase):
         space.add_parameter(Parameter(
             name="fast_period",
             param_type="discrete",
-            values=[8, 12, 16],
+            values=[8, 12],
             default=self.fast_period
         ))
         
         space.add_parameter(Parameter(
             name="slow_period",
             param_type="discrete",
-            values=[20, 26, 32],
+            values=[20, 26],
             default=self.slow_period
         ))
         
         space.add_parameter(Parameter(
             name="signal_period",
             param_type="discrete",
-            values=[7, 9, 11],
+            values=[7, 9],
             default=self.signal_period
         ))
         
@@ -189,9 +189,9 @@ class MACDIndicator(ComponentBase):
     def parameter_space(self) -> Dict[str, List[Any]]:
         """Returns the parameter space for optimization (legacy interface)."""
         return {
-            'fast_period': [8, 12, 16],
-            'slow_period': [20, 26, 32],
-            'signal_period': [7, 9, 11]
+            'fast_period': [8, 12],
+            'slow_period': [20, 26],
+            'signal_period': [7, 9]
         }
         
     def reset(self) -> None:

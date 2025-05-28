@@ -72,6 +72,10 @@ class IsolatedStrategy(Strategy):
             
         self.logger.info(f"Isolated strategy initialized with {self._component_type}: "
                         f"{self._isolated_component.instance_name}")
+        
+        # Log the actual rules and indicators we have
+        self.logger.info(f"  Rules: {list(self._rules.keys())}")
+        self.logger.info(f"  Indicators: {list(self._indicators.keys())}")
     
     def _setup_rule_wrapper(self):
         """Create a rule wrapper for non-RuleBase components."""
@@ -123,9 +127,25 @@ class IsolatedStrategy(Strategy):
             
             for rule_name, rule in self._rules.items():
                 signal, strength = rule.evaluate(bar_data)
+                
+                # Debug logging for rule evaluation
+                if hasattr(self, '_signal_count'):
+                    self._signal_count += 1
+                else:
+                    self._signal_count = 1
+                    
+                # Log every 100th evaluation to avoid spam
+                if self._signal_count % 100 == 0:
+                    self.logger.debug(f"Rule {rule_name} evaluation #{self._signal_count}: signal={signal}, strength={strength}")
+                    if hasattr(rule, 'get_optimizable_parameters'):
+                        params = rule.get_optimizable_parameters()
+                        self.logger.debug(f"  Current parameters: {params}")
+                
                 if signal != 0:
                     signal_strength += signal * strength
                     signal_count += 1
+                    # Log all non-zero signals
+                    self.logger.debug(f"Non-zero signal from {rule_name}: signal={signal}, strength={strength}")
             
             # Generate signal event
             if signal_count > 0:
@@ -144,6 +164,7 @@ class IsolatedStrategy(Strategy):
                     }
                 )
                 self.publish_event(event)
+                self.logger.debug(f"Published {signal_type} signal with strength {abs(avg_strength)}")
                 
         # For indicator-based isolation, use threshold logic
         elif self._component_type == "indicator":
@@ -183,6 +204,320 @@ class IsolatedComponentEvaluator:
         self.execution_handler = execution_handler
         self.logger = logging.getLogger(self.__class__.__name__)
         
+    def _create_isolated_container(self, component: ComponentBase) -> 'Container':
+        """
+        Create a fresh container with isolated instances of all required components.
+        
+        This ensures complete isolation between evaluations with no state leakage.
+        """
+        from src.core.container import Container
+        from src.core.event_bus import EventBus
+        
+        # Create new container and event bus
+        isolated_container = Container()
+        isolated_event_bus = EventBus()
+        
+        # Create new context (it's just a dictionary)
+        isolated_context = {
+            'container': isolated_container,
+            'event_bus': isolated_event_bus,
+            'config_loader': component._context.get('config_loader') if hasattr(component, '_context') else None,
+            'logger': logging.getLogger('isolated_evaluation')
+        }
+        
+        # Register core services
+        isolated_container.register('event_bus', isolated_event_bus)
+        isolated_container.register('context', isolated_context)
+        
+        # Create fresh instances of all required components
+        # 1. Portfolio - MUST be fresh to avoid P&L contamination
+        fresh_portfolio = self.portfolio.__class__(
+            instance_name='isolated_portfolio',
+            config_key=self.portfolio.config_key
+        )
+        fresh_portfolio.initialize(isolated_context)
+        isolated_container.register('portfolio_manager', fresh_portfolio)
+        
+        # 2. Risk Manager - fresh instance
+        fresh_risk_manager = self.risk_manager.__class__(
+            instance_name='isolated_risk_manager',
+            config_key=self.risk_manager.config_key
+        )
+        fresh_risk_manager.initialize(isolated_context)
+        isolated_container.register('risk_manager', fresh_risk_manager)
+        
+        # 3. Execution Handler - fresh instance
+        fresh_execution_handler = self.execution_handler.__class__(
+            instance_name='isolated_execution_handler',
+            config_key=self.execution_handler.config_key
+        )
+        fresh_execution_handler.initialize(isolated_context)
+        isolated_container.register('execution_handler', fresh_execution_handler)
+        
+        # 4. Data Handler - fresh instance but same data source
+        fresh_data_handler = self.data_handler.__class__(
+            instance_name='isolated_data_handler',
+            config_key=self.data_handler.config_key
+        )
+        
+        # Copy essential configuration from original data handler before initialization
+        # First, copy the component_config which should have all necessary settings
+        if hasattr(self.data_handler, 'component_config') and self.data_handler.component_config:
+            fresh_data_handler.component_config = self.data_handler.component_config.copy()
+        else:
+            # Build component config from data handler attributes
+            fresh_data_handler.component_config = {}
+            if hasattr(self.data_handler, '_symbol'):
+                fresh_data_handler.component_config['symbol'] = self.data_handler._symbol
+            if hasattr(self.data_handler, '_csv_file_path'):
+                fresh_data_handler.component_config['csv_file_path'] = self.data_handler._csv_file_path
+                
+        # Also set as attributes to be sure
+        if hasattr(self.data_handler, '_symbol'):
+            fresh_data_handler._symbol = self.data_handler._symbol
+        if hasattr(self.data_handler, '_csv_file_path'):
+            fresh_data_handler._csv_file_path = self.data_handler._csv_file_path
+            
+        fresh_data_handler.initialize(isolated_context)
+        
+        # Copy data configuration but ensure fresh iterator
+        if hasattr(self.data_handler, '_data_for_run'):
+            fresh_data_handler._data_for_run = self.data_handler._data_for_run.copy()
+        if hasattr(self.data_handler, '_active_df'):
+            fresh_data_handler._active_df = self.data_handler._active_df.copy()
+        # Set the active dataset type
+        if hasattr(self.data_handler, '_active_dataset'):
+            fresh_data_handler.set_active_dataset(self.data_handler._active_dataset)
+        isolated_container.register('data_handler', fresh_data_handler)
+        
+        # 5. Backtest Runner - fresh instance
+        fresh_backtest_runner = self.backtest_runner.__class__(
+            instance_name='isolated_backtest_runner',
+            config_key=self.backtest_runner.config_key
+        )
+        fresh_backtest_runner.initialize(isolated_context)
+        fresh_backtest_runner.container = isolated_container
+        isolated_container.register('backtest_runner', fresh_backtest_runner)
+        
+        # 6. Config loader if needed
+        if hasattr(component, '_context') and isinstance(component._context, dict) and 'config_loader' in component._context:
+            isolated_container.register('config_loader', component._context['config_loader'])
+        
+        self.logger.info(f"Created isolated container with fresh instances for {component.instance_name}")
+        return isolated_container
+    
+    def _create_component_copy(self, component: ComponentBase, isolated_context: Dict[str, Any]) -> ComponentBase:
+        """
+        Create a fresh copy of a component with isolated context and dependencies.
+        """
+        # Get current parameters before creating copy
+        current_params = {}
+        if hasattr(component, 'get_optimizable_parameters'):
+            current_params = component.get_optimizable_parameters()
+        
+        # Create fresh instance of the component
+        fresh_component = component.__class__(
+            instance_name=f"{component.instance_name}_isolated",
+            config_key=component.config_key
+        )
+        
+        # Handle components with indicator dependencies
+        if hasattr(component, 'rsi_indicator') and component.rsi_indicator:
+            # Create fresh RSI indicator
+            fresh_indicator = component.rsi_indicator.__class__(
+                instance_name=f"{component.rsi_indicator.instance_name}_isolated",
+                config_key=component.rsi_indicator.config_key
+            )
+            fresh_indicator.initialize(isolated_context)
+            fresh_component.rsi_indicator = fresh_indicator
+            
+        elif hasattr(component, 'bb_indicator') and component.bb_indicator:
+            # Create fresh BB indicator
+            fresh_indicator = component.bb_indicator.__class__(
+                instance_name=f"{component.bb_indicator.instance_name}_isolated",
+                config_key=component.bb_indicator.config_key
+            )
+            fresh_indicator.initialize(isolated_context)
+            fresh_component.bb_indicator = fresh_indicator
+            
+        elif hasattr(component, 'macd_indicator') and component.macd_indicator:
+            # Create fresh MACD indicator
+            fresh_indicator = component.macd_indicator.__class__(
+                instance_name=f"{component.macd_indicator.instance_name}_isolated",
+                config_key=component.macd_indicator.config_key
+            )
+            fresh_indicator.initialize(isolated_context)
+            fresh_component.macd_indicator = fresh_indicator
+            
+        elif hasattr(component, 'fast_ma') and hasattr(component, 'slow_ma'):
+            # MA Crossover - create fresh MA indicators
+            fresh_fast_ma = component.fast_ma.__class__(
+                name=f"{component.fast_ma.instance_name}_isolated",
+                lookback_period=component.fast_ma._lookback_period,
+                config_key=component.fast_ma.config_key
+            )
+            fresh_slow_ma = component.slow_ma.__class__(
+                name=f"{component.slow_ma.instance_name}_isolated",
+                lookback_period=component.slow_ma._lookback_period,
+                config_key=component.slow_ma.config_key
+            )
+            fresh_fast_ma.initialize(isolated_context)
+            fresh_slow_ma.initialize(isolated_context)
+            fresh_component.fast_ma = fresh_fast_ma
+            fresh_component.slow_ma = fresh_slow_ma
+        
+        # Initialize the fresh component with isolated context
+        fresh_component.initialize(isolated_context)
+        
+        # Apply current parameters to the fresh component
+        if current_params:
+            fresh_component.apply_parameters(current_params)
+            self.logger.debug(f"Applied parameters to fresh component: {current_params}")
+        
+        return fresh_component
+        
+    def evaluate_component_simple(self, component: ComponentBase, 
+                         metric: str = "sharpe_ratio",
+                         component_type: Optional[str] = None) -> float:
+        """
+        Simpler evaluation approach that focuses on portfolio reset.
+        
+        This is a temporary solution until full containerization is working.
+        """
+        # Auto-detect component type if not specified
+        if component_type is None:
+            if hasattr(component, 'evaluate') and callable(getattr(component, 'evaluate')):
+                component_type = 'rule'
+            elif hasattr(component, 'update') and callable(getattr(component, 'update')):
+                component_type = 'indicator'
+            else:
+                raise ValueError(f"Cannot determine component type for {component.instance_name}")
+        
+        self.logger.info(f"Evaluating {component_type} component {component.instance_name} "
+                        f"in isolation using metric: {metric}")
+        
+        # Create isolated strategy
+        isolated_strategy = IsolatedStrategy(
+            instance_name=f"isolated_strategy_{component.instance_name}",
+            component=component,
+            component_type=component_type
+        )
+        
+        # Initialize the isolated strategy with the same context
+        isolated_strategy.initialize(component._context)
+        
+        # Ensure the component itself is initialized if it hasn't been
+        if hasattr(component, 'initialized') and not component.initialized:
+            component.initialize(component._context)
+        
+        try:
+            # CRITICAL: Reset portfolio and verify it's clean
+            self.portfolio.reset()
+            
+            # Verify portfolio is actually reset
+            if self.portfolio.realized_pnl != 0.0:
+                self.logger.error(f"Portfolio not properly reset! Realized P&L = {self.portfolio.realized_pnl}")
+                # Force a harder reset
+                self.portfolio.realized_pnl = 0.0
+                self.portfolio.current_cash = self.portfolio.initial_cash
+                self.portfolio.current_total_value = self.portfolio.initial_cash
+                self.portfolio.open_positions = {}
+                self.portfolio._trade_log = []
+            
+            self.logger.debug(f"Portfolio state before evaluation: Cash={self.portfolio.current_cash}, "
+                            f"Realized P&L={self.portfolio.realized_pnl}, "
+                            f"Total Value={self.portfolio.current_total_value}")
+            
+            # Ensure portfolio is started to resubscribe to events
+            if hasattr(self.portfolio, 'running') and not self.portfolio.running:
+                self.portfolio.start()
+            
+            # Reset the data handler to ensure it streams data fresh
+            if hasattr(self.data_handler, 'reset'):
+                self.data_handler.reset()
+                self.logger.debug(f"Reset data handler before isolated evaluation")
+            
+            # Get container from context
+            container = self.backtest_runner.container if hasattr(self.backtest_runner, 'container') else None
+            if not container and hasattr(component, '_context') and component._context.get('container'):
+                container = component._context['container']
+                self.backtest_runner.container = container
+                
+            # Store the original strategy if there is one
+            original_strategy = None
+            if container:
+                try:
+                    original_strategy = container.resolve('strategy')
+                except:
+                    pass
+                    
+            # Register our isolated strategy temporarily
+            if container:
+                container.register('strategy', isolated_strategy)
+                
+            # Ensure isolated strategy is started
+            if not isolated_strategy.running:
+                isolated_strategy.start()
+            
+            # Ensure backtest runner is started
+            if not self.backtest_runner.running:
+                self.backtest_runner.start()
+            
+            # Run the backtest using execute()
+            results = self.backtest_runner.execute()
+            
+            # Restore original strategy
+            if original_strategy and container:
+                container.register('strategy', original_strategy)
+            
+            # Extract the requested metric
+            performance_metrics = results.get('performance_metrics', {})
+            
+            # Log portfolio state after evaluation
+            self.logger.debug(f"Portfolio state after evaluation: Cash={self.portfolio.current_cash}, "
+                            f"Realized P&L={self.portfolio.realized_pnl}, "
+                            f"Total Value={self.portfolio.current_total_value}")
+            
+            # Debug logging
+            self.logger.info(f"Isolated evaluation complete for {component.instance_name}:")
+            self.logger.info(f"  Total trades: {performance_metrics.get('total_trades', 0)}")
+            self.logger.info(f"  Win rate: {performance_metrics.get('win_rate', 0):.2%}")
+            self.logger.info(f"  Sharpe ratio: {performance_metrics.get('sharpe_ratio', 'N/A')}")
+            self.logger.info(f"  Total return: {performance_metrics.get('total_return', 'N/A')}")
+            
+            # Extract score based on metric
+            score = 0.0
+            if metric == "sharpe_ratio":
+                sharpe = performance_metrics.get('sharpe_ratio', performance_metrics.get('portfolio_sharpe_ratio', 0.0))
+                score = sharpe if sharpe is not None else 0.0
+            elif metric == "total_return":
+                score = performance_metrics.get('total_return', 0.0)
+            elif metric == "win_rate":
+                score = performance_metrics.get('win_rate', 0.0)
+            elif metric == "max_drawdown":
+                score = -abs(performance_metrics.get('max_drawdown', 0.0))
+            else:
+                self.logger.warning(f"Unknown metric {metric}, using sharpe_ratio")
+                score = performance_metrics.get('sharpe_ratio', 0.0)
+            
+            # Return both score and full results for regime analysis
+            return score, results
+                
+        except Exception as e:
+            self.logger.error(f"Error evaluating component {component.instance_name}: {e}")
+            import traceback
+            self.logger.debug(f"Traceback: {traceback.format_exc()}")
+            return float('-inf'), {}
+        finally:
+            # Clean up the isolated strategy
+            try:
+                if isolated_strategy and isolated_strategy.running:
+                    isolated_strategy.stop()
+                if isolated_strategy:
+                    isolated_strategy.teardown()
+            except Exception as cleanup_error:
+                self.logger.error(f"Error during cleanup: {cleanup_error}")
+    
     def evaluate_component(self, component: ComponentBase, 
                          metric: str = "sharpe_ratio",
                          component_type: Optional[str] = None) -> float:
@@ -217,6 +552,17 @@ class IsolatedComponentEvaluator:
         self.logger.info(f"Evaluating {component_type} component {component.instance_name} "
                         f"in isolation using metric: {metric}")
         
+        # Create completely isolated container for this evaluation
+        isolated_container = self._create_isolated_container(component)
+        isolated_context = isolated_container.resolve('context')
+        
+        # Get fresh instances from isolated container
+        isolated_portfolio = isolated_container.resolve('portfolio_manager')
+        isolated_risk_manager = isolated_container.resolve('risk_manager')
+        isolated_execution = isolated_container.resolve('execution_handler')
+        isolated_data_handler = isolated_container.resolve('data_handler')
+        isolated_backtest_runner = isolated_container.resolve('backtest_runner')
+        
         # Create isolated strategy
         isolated_strategy = IsolatedStrategy(
             instance_name=f"isolated_strategy_{component.instance_name}",
@@ -224,63 +570,74 @@ class IsolatedComponentEvaluator:
             component_type=component_type
         )
         
-        # Initialize the isolated strategy with the same context
-        isolated_strategy.initialize(component._context)
+        # Initialize the isolated strategy with isolated context
+        isolated_strategy.initialize(isolated_context)
+        isolated_container.register('strategy', isolated_strategy)
         
-        # Ensure the component itself is initialized if it hasn't been
-        if hasattr(component, 'initialized') and not component.initialized:
-            component.initialize(component._context)
+        # Create a fresh copy of the component for isolated evaluation
+        # This ensures the component and its dependencies use the isolated container
+        fresh_component = self._create_component_copy(component, isolated_context)
+        
+        # Update the isolated strategy to use the fresh component
+        isolated_strategy._isolated_component = fresh_component
         
         try:
-            # Reset portfolio for clean evaluation
-            self.portfolio.reset()
+            # Start all components in proper order
+            components_to_start = [
+                isolated_portfolio,
+                isolated_risk_manager,
+                isolated_execution,
+                isolated_data_handler,
+                isolated_strategy
+            ]
             
-            # Ensure portfolio is started to resubscribe to events
-            if hasattr(self.portfolio, 'running') and not self.portfolio.running:
-                self.portfolio.start()
+            for comp in components_to_start:
+                if hasattr(comp, 'start') and not comp.running:
+                    comp.start()
+                    self.logger.debug(f"Started {comp.instance_name}")
             
-            # Run backtest with isolated strategy
-            # The backtest runner needs the strategy to be registered
-            # Get container from context if backtest runner doesn't have one
-            container = self.backtest_runner.container if hasattr(self.backtest_runner, 'container') else None
-            if not container and hasattr(component, '_context') and hasattr(component._context, 'container'):
-                container = component._context.container
-                # Set the container on the backtest runner
-                self.backtest_runner.container = container
-                
-            # Store the original strategy if there is one
-            original_strategy = None
-            if container:
-                try:
-                    original_strategy = container.resolve('strategy')
-                except:
-                    pass
-                    
-            # Register our isolated strategy temporarily
-            if container:
-                container.register('strategy', isolated_strategy)
-                
-            # Ensure isolated strategy is started
-            if not isolated_strategy.running:
-                isolated_strategy.start()
+            # Debug log to ensure we're evaluating the right component
+            self.logger.debug(f"Starting isolated evaluation of {component.instance_name}")
+            if hasattr(component, 'get_optimizable_parameters'):
+                current_params = component.get_optimizable_parameters()
+                self.logger.debug(f"Component current parameters: {current_params}")
             
-            # Ensure backtest runner is started
-            if not self.backtest_runner.running:
-                self.backtest_runner.start()
+            # Verify clean portfolio state
+            self.logger.debug(f"Isolated portfolio initial state: Cash={isolated_portfolio.current_cash}, "
+                            f"Realized P&L={isolated_portfolio.realized_pnl}, "
+                            f"Total Value={isolated_portfolio.current_total_value}")
+            
+            # Run backtest with completely isolated components
+            if not isolated_backtest_runner.running:
+                isolated_backtest_runner.start()
             
             # Run the backtest using execute()
-            results = self.backtest_runner.execute()
-            
-            # Restore original strategy
-            if original_strategy and self.backtest_runner.container:
-                self.backtest_runner.container.register('strategy', original_strategy)
+            results = isolated_backtest_runner.execute()
             
             # Extract the requested metric
             performance_metrics = results.get('performance_metrics', {})
             
+            # Count signals generated during the backtest
+            signal_count = 0
+            if hasattr(isolated_strategy, '_signal_count'):
+                signal_count = isolated_strategy._signal_count
+            
             # Debug logging
-            self.logger.debug(f"Backtest results for {component.instance_name}: {results}")
-            self.logger.debug(f"Performance metrics: {performance_metrics}")
+            self.logger.info(f"Isolated evaluation complete for {component.instance_name}:")
+            self.logger.info(f"  Total trades: {performance_metrics.get('total_trades', 0)}")
+            self.logger.info(f"  Win rate: {performance_metrics.get('win_rate', 0):.2%}")
+            self.logger.info(f"  Sharpe ratio: {performance_metrics.get('sharpe_ratio', 'N/A')}")
+            self.logger.info(f"  Total return: {performance_metrics.get('total_return', 'N/A')}")
+            self.logger.info(f"  Rule evaluations: {signal_count}")
+            
+            # Check if we had any signals
+            if 'signal_count' in results:
+                self.logger.info(f"  Signals generated: {results['signal_count']}")
+            
+            # Log current component parameters
+            if hasattr(component, 'get_optimizable_parameters'):
+                current_params = component.get_optimizable_parameters()
+                self.logger.debug(f"  Component parameters: {current_params}")
             
             # Extract score based on metric
             score = 0.0
@@ -306,50 +663,40 @@ class IsolatedComponentEvaluator:
             self.logger.error(f"Error evaluating component {component.instance_name}: {e}")
             return float('-inf'), {}  # Return worst possible score and empty results on error
         finally:
-            # CRITICAL: Clean up the isolated strategy to prevent leakage
+            # CRITICAL: Clean up the entire isolated container to prevent any leakage
             try:
-                # Ensure we have the isolated_strategy variable
-                if 'isolated_strategy' in locals():
-                    # Manually unsubscribe from events before stopping
-                    if hasattr(isolated_strategy, 'event_bus') and isolated_strategy.event_bus:
-                        try:
-                            # Unsubscribe from all event types this strategy might have subscribed to
-                            for event_type in [EventType.BAR, EventType.CLASSIFICATION, EventType.FILL, EventType.ORDER]:
-                                try:
-                                    isolated_strategy.event_bus.unsubscribe(event_type, isolated_strategy)
-                                except:
-                                    pass  # Ignore if not subscribed
-                            self.logger.debug(f"Unsubscribed isolated strategy from all events")
-                        except Exception as unsub_error:
-                            self.logger.warning(f"Error unsubscribing events: {unsub_error}")
-                    
-                    # Stop the isolated strategy
-                    if isolated_strategy.running:
-                        isolated_strategy.stop()
-                        self.logger.debug(f"Stopped isolated strategy for {component.instance_name}")
-                    
-                    # Teardown the isolated strategy to clean up
-                    isolated_strategy.teardown()
-                    self.logger.debug(f"Torn down isolated strategy for {component.instance_name}")
-                    
-                    # Clear the container registration if we registered it
-                    if container and hasattr(self, 'backtest_runner') and self.backtest_runner.container:
-                        try:
-                            # If we temporarily registered this strategy, remove it
-                            current_strategy = container.resolve('strategy')
-                            if current_strategy == isolated_strategy:
-                                # Re-register the original strategy if we have it
-                                if 'original_strategy' in locals() and original_strategy:
-                                    container.register('strategy', original_strategy)
-                                    self.logger.debug("Restored original strategy in container")
-                        except:
-                            pass
-                    
-                    # Remove any references
-                    isolated_strategy = None
+                # Stop all components in reverse order
+                components_to_stop = [
+                    isolated_strategy,
+                    isolated_data_handler,
+                    isolated_execution,
+                    isolated_risk_manager,
+                    isolated_portfolio,
+                    isolated_backtest_runner
+                ]
+                
+                for comp in components_to_stop:
+                    if comp and hasattr(comp, 'stop') and comp.running:
+                        comp.stop()
+                        self.logger.debug(f"Stopped {comp.instance_name}")
+                
+                # Teardown all components
+                for comp in components_to_stop:
+                    if comp and hasattr(comp, 'teardown'):
+                        comp.teardown()
+                        self.logger.debug(f"Torn down {comp.instance_name}")
+                
+                # Clear the isolated container
+                isolated_container.reset()
+                self.logger.debug(f"Reset isolated container for {component.instance_name}")
+                
+                # Verify portfolio was clean after evaluation
+                self.logger.debug(f"Isolated portfolio final state: Cash={isolated_portfolio.current_cash}, "
+                                f"Realized P&L={isolated_portfolio.realized_pnl}, "
+                                f"Total Value={isolated_portfolio.current_total_value}")
                 
             except Exception as cleanup_error:
-                self.logger.error(f"Error during isolated strategy cleanup: {cleanup_error}")
+                self.logger.error(f"Error during isolated container cleanup: {cleanup_error}")
     
     def create_evaluator_function(self, metric: str = "sharpe_ratio", 
                                 component_type: Optional[str] = None) -> Callable:

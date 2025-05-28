@@ -1,0 +1,346 @@
+{
+  "timestamp": "20250527_235807",
+  "workflow_hash": "f1163a96",
+  "workflow_steps": [
+    {
+      "name": "optimize_ma_isolated",
+      "type": "rulewise",
+      "targets": [
+        "ma_crossover"
+      ],
+      "isolate": true,
+      "method": "grid_search",
+      "metric": "sharpe_ratio"
+    },
+    {
+      "name": "optimize_rsi_isolated",
+      "type": "rulewise",
+      "targets": [
+        "rsi"
+      ],
+      "isolate": true,
+      "method": "grid_search",
+      "metric": "sharpe_ratio"
+    },
+    {
+      "name": "optimize_bb_isolated",
+      "type": "rulewise",
+      "targets": [
+        "bb"
+      ],
+      "isolate": true,
+      "method": "grid_search",
+      "metric": "sharpe_ratio"
+    },
+    {
+      "name": "optimize_macd_isolated",
+      "type": "rulewise",
+      "targets": [
+        "macd"
+      ],
+      "isolate": true,
+      "method": "grid_search",
+      "metric": "sharpe_ratio"
+    },
+    {
+      "name": "optimize_weights",
+      "type": "ensemble_weights",
+      "method": "grid_search",
+      "depends_on": [
+        "optimize_ma_isolated",
+        "optimize_rsi_isolated",
+        "optimize_bb_isolated",
+        "optimize_macd_isolated"
+      ],
+      "weight_combinations": [
+        [
+          0.2,
+          0.2,
+          0.2,
+          0.4
+        ],
+        [
+          0.2,
+          0.2,
+          0.4,
+          0.2
+        ],
+        [
+          0.2,
+          0.4,
+          0.2,
+          0.2
+        ],
+        [
+          0.4,
+          0.2,
+          0.2,
+          0.2
+        ],
+        [
+          0.6,
+          0.2,
+          0.2,
+          0.0
+        ],
+        [
+          0.2,
+          0.6,
+          0.2,
+          0.0
+        ],
+        [
+          0.2,
+          0.2,
+          0.6,
+          0.0
+        ],
+        [
+          0.0,
+          0.2,
+          0.2,
+          0.6
+        ],
+        [
+          0.8,
+          0.0,
+          0.0,
+          0.2
+        ],
+        [
+          0.0,
+          0.8,
+          0.2,
+          0.0
+        ],
+        [
+          0.0,
+          0.0,
+          0.8,
+          0.2
+        ],
+        [
+          0.2,
+          0.0,
+          0.0,
+          0.8
+        ],
+        [
+          0.4,
+          0.4,
+          0.2,
+          0.0
+        ],
+        [
+          0.4,
+          0.0,
+          0.4,
+          0.2
+        ],
+        [
+          0.0,
+          0.4,
+          0.4,
+          0.2
+        ],
+        [
+          0.2,
+          0.2,
+          0.0,
+          0.6
+        ],
+        [
+          1.0,
+          0.0,
+          0.0,
+          0.0
+        ],
+        [
+          0.0,
+          1.0,
+          0.0,
+          0.0
+        ],
+        [
+          0.0,
+          0.0,
+          1.0,
+          0.0
+        ],
+        [
+          0.0,
+          0.0,
+          0.0,
+          1.0
+        ]
+      ]
+    },
+    {
+      "name": "regime_optimization",
+      "type": "regime",
+      "config": {
+        "strategy_name": "strategy",
+        "regime_detector": "regime_detector",
+        "optimization_method": "grid_search",
+        "optimization_metric": "sharpe_ratio"
+      }
+    }
+  ],
+  "results": {
+    "optimize_ma_isolated": {
+      "error": "'NoneType' object has no attribute 'items'"
+    },
+    "optimize_rsi_isolated": {
+      "error": "'NoneType' object has no attribute 'items'"
+    },
+    "optimize_bb_isolated": {
+      "error": "'NoneType' object has no attribute 'items'"
+    },
+    "optimize_macd_isolated": {
+      "error": "'NoneType' object has no attribute 'items'"
+    },
+    "optimize_weights": {
+      "status": "no_regime_params",
+      "message": "Weight optimization requires regime-specific parameters from previous steps"
+    },
+    "regime_optimization": {
+      "error": "Container not available"
+    },
+    "final_test_evaluation": {
+      "dataset": "test",
+      "results": {
+        "mode": "backtest",
+        "timestamp": "2025-05-27T23:58:07.619383",
+        "final_portfolio_value": 100107.50000000009,
+        "initial_portfolio_value": 100000,
+        "total_return": 0.0010750000000008253,
+        "realized_pnl": 107.50000000005002,
+        "unrealized_pnl": 0.0,
+        "current_cash": 100107.50000000009,
+        "current_holdings_value": 0.0,
+        "performance_metrics": {
+          "initial_value": 100000,
+          "final_value": 100107.50000000009,
+          "total_return": 0.0010750000000008732,
+          "total_return_pct": 0.10750000000008732,
+          "realized_pnl": 107.50000000005002,
+          "unrealized_pnl": 0.0,
+          "num_trades": 14,
+          "portfolio_sharpe_ratio": 24.55606661830844,
+          "regime_performance": {
+            "default": {
+              "pnl": 122.50000000004775,
+              "commission": 0.0,
+              "count": 13,
+              "wins": 9,
+              "losses": 4,
+              "pnl_values": [
+                -10.999999999989996,
+                -11.999999999989086,
+                26.500000000010004,
+                32.50000000000455,
+                21.99000000000524,
+                -6.990000000007512,
+                9.999999999990905,
+                1.999999999998181,
+                32.000000000005,
+                12.999999999999545,
+                -1.999999999998181,
+                14.000000000010004,
+                2.500000000009095
+              ],
+              "boundary_trade_count": 0,
+              "boundary_trades_pnl": 0.0,
+              "pure_regime_count": 13,
+              "pure_regime_pnl": 122.50000000004775,
+              "sharpe_ratio": 9.614401993762115,
+              "win_rate": 0.6923076923076923,
+              "avg_pnl": 9.423076923080597,
+              "std_dev_pnl": 15.558607684395835,
+              "gross_pnl": 122.50000000004775,
+              "net_pnl": 122.50000000004775
+            },
+            "trending_up": {
+              "pnl": -14.999999999997726,
+              "commission": 0.0,
+              "count": 1,
+              "wins": 0,
+              "losses": 1,
+              "pnl_values": [
+                -14.999999999997726
+              ],
+              "boundary_trade_count": 0,
+              "boundary_trades_pnl": 0.0,
+              "pure_regime_count": 1,
+              "pure_regime_pnl": -14.999999999997726,
+              "sharpe_ratio": null,
+              "win_rate": 0.0,
+              "avg_pnl": -14.999999999997726,
+              "std_dev_pnl": 0.0,
+              "gross_pnl": -14.999999999997726,
+              "net_pnl": -14.999999999997726
+            },
+            "_boundary_trades_summary": {}
+          }
+        },
+        "regime_performance": {
+          "default": {
+            "pnl": 122.50000000004775,
+            "commission": 0.0,
+            "count": 13,
+            "wins": 9,
+            "losses": 4,
+            "pnl_values": [
+              -10.999999999989996,
+              -11.999999999989086,
+              26.500000000010004,
+              32.50000000000455,
+              21.99000000000524,
+              -6.990000000007512,
+              9.999999999990905,
+              1.999999999998181,
+              32.000000000005,
+              12.999999999999545,
+              -1.999999999998181,
+              14.000000000010004,
+              2.500000000009095
+            ],
+            "boundary_trade_count": 0,
+            "boundary_trades_pnl": 0.0,
+            "pure_regime_count": 13,
+            "pure_regime_pnl": 122.50000000004775,
+            "sharpe_ratio": 9.614401993762115,
+            "win_rate": 0.6923076923076923,
+            "avg_pnl": 9.423076923080597,
+            "std_dev_pnl": 15.558607684395835,
+            "gross_pnl": 122.50000000004775,
+            "net_pnl": 122.50000000004775
+          },
+          "trending_up": {
+            "pnl": -14.999999999997726,
+            "commission": 0.0,
+            "count": 1,
+            "wins": 0,
+            "losses": 1,
+            "pnl_values": [
+              -14.999999999997726
+            ],
+            "boundary_trade_count": 0,
+            "boundary_trades_pnl": 0.0,
+            "pure_regime_count": 1,
+            "pure_regime_pnl": -14.999999999997726,
+            "sharpe_ratio": null,
+            "win_rate": 0.0,
+            "avg_pnl": -14.999999999997726,
+            "std_dev_pnl": 0.0,
+            "gross_pnl": -14.999999999997726,
+            "net_pnl": -14.999999999997726
+          },
+          "_boundary_trades_summary": {}
+        },
+        "strategy": "RegimeAdaptiveEnsembleComposed"
+      },
+      "timestamp": "2025-05-27T23:58:07.619565"
+    }
+  }
+}

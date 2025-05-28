@@ -147,8 +147,8 @@ class ATRIndicator:
                 self.logger.warning(f"Attempted to set invalid period {new_period} for {self.instance_name}")
         return False
     
-    def reset(self):
-        """Reset the indicator to its initial state."""
+    def reset(self) -> None:
+        """Reset the indicator state."""
         self._high_prices.clear()
         self._low_prices.clear()
         self._close_prices.clear()

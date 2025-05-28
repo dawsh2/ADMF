@@ -74,6 +74,10 @@ class RegimeAdaptiveEnsembleComposed(Strategy):
             f"{self.instance_name} initialized with {len(self._indicators)} indicators, "
             f"{len(self._rules)} rules"
         )
+        self.logger.log(35, f"===== ENSEMBLE INITIALIZATION COMPLETE =====")
+        self.logger.log(35, f"Indicators: {list(self._indicators.keys())}")
+        self.logger.log(35, f"Rules: {list(self._rules.keys())}")
+        self.logger.log(35, f"Initial weights: {self._component_weights}")
         
     def _create_components(self, config: Dict[str, Any]):
         """Create and add strategy components."""
@@ -207,9 +211,12 @@ class RegimeAdaptiveEnsembleComposed(Strategy):
                     # Handle new format with 'regimes' key
                     if 'regimes' in data:
                         self.logger.info(f"Loading regime parameters from {file_path}")
+                        self.logger.log(35, f"===== LOADING REGIME ADAPTIVE ENSEMBLE PARAMETERS =====")
+                        self.logger.log(35, f"Parameter file: {file_path}")
                         for regime, params in data['regimes'].items():
                             self._regime_specific_params[regime] = params
                             self.logger.info(f"Loaded parameters for regime '{regime}': {len(params)} parameters")
+                            self.logger.log(35, f"Regime '{regime}' parameters: {params}")
                         loaded = True
                         
                     # Handle old format with 'regime_best_parameters'
@@ -263,6 +270,7 @@ class RegimeAdaptiveEnsembleComposed(Strategy):
         self.logger.info(f"{'='*60}")
         self.logger.info(f"REGIME CHANGE DETECTED: {old_regime} -> {new_regime}")
         self.logger.info(f"{'='*60}")
+        self.logger.log(35, f"===== REGIME CHANGE: {old_regime} -> {new_regime} =====")
         
         # Get parameters for new regime
         params = None
@@ -271,8 +279,10 @@ class RegimeAdaptiveEnsembleComposed(Strategy):
             self.logger.info(f"Found regime-specific parameters for '{new_regime}'")
             # Log the parameters being loaded
             self.logger.info("Loading parameters:")
+            self.logger.log(35, f"Loading regime-specific parameters:")
             for key, value in params.items():
                 self.logger.info(f"  {key}: {value}")
+                self.logger.log(35, f"  {key}: {value}")
         elif self._fallback_to_overall_best and self._overall_best_params:
             params = self._overall_best_params
             self.logger.info(f"No specific parameters for '{new_regime}', using overall best parameters")
@@ -327,10 +337,18 @@ class RegimeAdaptiveEnsembleComposed(Strategy):
             weights_str = ", ".join([f"{rule}={weight:.2f}" for rule, weight in self._component_weights.items()])
             self.logger.info(f"  weights: {weights_str}")
             
-            # Also verify if ThresholdRule parameters were set
-            if 'rsi' in self._rules and hasattr(self._rules['rsi'], '_parameters'):
-                rsi_params = self._rules['rsi']._parameters
-                self.logger.info(f"  RSI thresholds: buy={rsi_params.get('buy_threshold', 'N/A')}, sell={rsi_params.get('sell_threshold', 'N/A')}")
+            # Also verify rule parameters were set
+            self.logger.log(35, "Rule parameters after update:")
+            if 'ma_crossover' in self._rules and hasattr(self._rules['ma_crossover'], 'min_separation'):
+                self.logger.log(35, f"  MA Crossover - min_separation: {self._rules['ma_crossover'].min_separation}")
+            if 'rsi' in self._rules:
+                rsi_rule = self._rules['rsi']
+                if hasattr(rsi_rule, 'oversold_threshold') and hasattr(rsi_rule, 'overbought_threshold'):
+                    self.logger.log(35, f"  RSI - oversold: {rsi_rule.oversold_threshold}, overbought: {rsi_rule.overbought_threshold}")
+            if 'bb' in self._rules and hasattr(self._rules['bb'], 'band_width_filter'):
+                self.logger.log(35, f"  BB - band_width_filter: {self._rules['bb'].band_width_filter}")
+            if 'macd' in self._rules and hasattr(self._rules['macd'], 'min_histogram_threshold'):
+                self.logger.log(35, f"  MACD - min_histogram_threshold: {self._rules['macd'].min_histogram_threshold}")
         
         self.logger.info(f"{'='*60}")
             
@@ -360,6 +378,51 @@ class RegimeAdaptiveEnsembleComposed(Strategy):
                     self.logger.debug(f"Setting {rule_name} weight: {old_val} -> {new_val}")
                     self._component_weights[rule_name] = new_val
             
+            # Handle rule parameters
+            elif param_key.startswith('strategy_') and ('_rule.' in param_key or 'ma_crossover.' in param_key):
+                # Extract rule name and parameter name
+                # Format: "strategy_<rule_name>_rule.<param_name>"
+                prefix_parts = param_key.split('.')
+                strategy_part = prefix_parts[0]  # e.g., "strategy_rsi_rule"
+                param_name = '.'.join(prefix_parts[1:])  # e.g., "oversold_threshold"
+                
+                # Extract rule name from strategy_XXX_rule or strategy_ma_crossover pattern
+                rule_name = None
+                if strategy_part.startswith('strategy_'):
+                    if strategy_part == 'strategy_ma_crossover':
+                        rule_name = 'ma_crossover'
+                    elif strategy_part.endswith('_rule'):
+                        rule_base = strategy_part.replace('strategy_', '').replace('_rule', '')
+                        # Map to actual rule names in self._rules
+                        rule_mapping = {
+                            'ma_crossover': 'ma_crossover',
+                            'rsi': 'rsi',
+                            'bb': 'bb',
+                            'macd': 'macd'
+                        }
+                        rule_name = rule_mapping.get(rule_base, rule_base)
+                
+                # Apply to rule if found
+                if rule_name and rule_name in self._rules:
+                    rule = self._rules[rule_name]
+                    rule_params = {param_name: param_value}
+                    
+                    # Convert parameter value to appropriate type
+                    if param_name in ['oversold_threshold', 'overbought_threshold', 'band_width_filter', 
+                                     'min_histogram_threshold', 'min_separation']:
+                        rule_params[param_name] = float(param_value)
+                    
+                    self.logger.debug(f"Setting {rule_name}.{param_name}: {param_value}")
+                    
+                    # Apply parameters
+                    if hasattr(rule, 'set_parameters'):
+                        rule.set_parameters(rule_params)
+                        self.logger.log(35, f"Applied rule parameter: {rule_name}.{param_name} = {param_value}")
+                    else:
+                        self.logger.warning(f"Rule {rule_name} does not have set_parameters method")
+                else:
+                    self.logger.log(35, f"WARNING: Rule '{rule_name}' not found in self._rules")
+            
             # Handle indicator parameters dynamically
             else:
                 # Extract indicator name and parameter name from various formats
@@ -372,13 +435,27 @@ class RegimeAdaptiveEnsembleComposed(Strategy):
                     
                     # Handle "strategy_xxx.yyy" format
                     if prefix_parts[0].startswith('strategy_'):
-                        indicator_base = prefix_parts[0].replace('strategy_', '')
-                        # Check if it's a known indicator
-                        for ind_name in self._indicators:
-                            if indicator_base == ind_name or indicator_base.startswith(ind_name + '_'):
-                                indicator_name = ind_name
-                                param_name = '.'.join(prefix_parts[1:])
-                                break
+                        # Handle complex names like strategy_ma_crossover.fast_ma.lookback_period
+                        if len(prefix_parts) >= 3:
+                            # Extract potential indicator name from the middle part
+                            potential_indicator = prefix_parts[1]
+                            
+                            # Special handling for MA crossover parameters
+                            if 'ma_crossover' in prefix_parts[0] and potential_indicator in ['fast_ma', 'slow_ma']:
+                                indicator_name = potential_indicator.replace('_ma', '_ma')
+                                param_name = '.'.join(prefix_parts[2:])
+                            # Handle RSI parameters
+                            elif 'rsi' in prefix_parts[0] and 'rsi_indicator' in prefix_parts[1]:
+                                indicator_name = 'rsi'
+                                param_name = '.'.join(prefix_parts[2:])
+                            # Handle BB parameters  
+                            elif 'bb' in prefix_parts[0] and 'bb_indicator' in prefix_parts[1]:
+                                indicator_name = 'bb'
+                                param_name = '.'.join(prefix_parts[2:])
+                            # Handle MACD parameters
+                            elif 'macd' in prefix_parts[0] and 'macd_indicator' in prefix_parts[1]:
+                                indicator_name = 'macd'
+                                param_name = '.'.join(prefix_parts[2:])
                     else:
                         # Direct format like "rsi.lookback_period" or "bb.num_std_dev"
                         indicator_name = prefix_parts[0]
@@ -406,6 +483,10 @@ class RegimeAdaptiveEnsembleComposed(Strategy):
                         
                         # Apply parameters
                         indicator.set_parameters(indicator_params)
+                else:
+                    # Log unmatched parameters (only if not already handled)
+                    if not param_key.endswith('.weight') and not ('_rule.' in param_key):
+                        self.logger.log(35, f"WARNING: Parameter '{param_key}' could not be matched to any indicator")
             
         # Normalize weights after update
         self._normalize_weights()

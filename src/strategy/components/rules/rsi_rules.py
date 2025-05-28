@@ -26,10 +26,6 @@ class RSIRule(ComponentBase):
         self._last_rsi_value: Optional[float] = None
         self._current_signal_state: int = 0
         
-        # TEMP: Log instance creation (can't use logger here - not initialized yet)
-        import traceback
-        print(f"TEMP RSI RULE CREATED: instance={instance_name}, id={id(self)}, params={parameters}")
-        print(f"TEMP Stack: {''.join(traceback.format_stack()[-3:-1])}")
 
 
     def _initialize(self) -> None:
@@ -75,15 +71,6 @@ class RSIRule(ComponentBase):
         if rsi_value is None:
             return 0.0, 0.0
 
-        # DEBUG: Log RSI values to understand the range and threshold interaction
-        if hasattr(self, '_debug_count'):
-            self._debug_count += 1
-        else:
-            self._debug_count = 1
-            
-        # Log first 10 RSI values and whenever we hit thresholds
-        if self._debug_count <= 10 or rsi_value <= self.oversold_threshold or rsi_value >= self.overbought_threshold:
-            self.logger.info(f"TEMP RSI Debug #{self._debug_count}: RSI={rsi_value:.2f}, OS={self.oversold_threshold}, OB={self.overbought_threshold}")
 
         signal = 0.0
         strength = 1.0 
@@ -128,12 +115,13 @@ class RSIRule(ComponentBase):
         old_ob = self.overbought_threshold
         old_weight = self._weight
         
+        # Debug log incoming parameters
+        self.logger.debug(f"RSIRule.set_parameters received: {params}")
+        
         self.oversold_threshold = params.get('oversold_threshold', self.oversold_threshold)
         self.overbought_threshold = params.get('overbought_threshold', self.overbought_threshold)
         self._weight = params.get('weight', self._weight)
         
-        # TEMP: Log parameter changes
-        self.logger.warning(f"TEMP RSI PARAM UPDATE: OS {old_os}->{self.oversold_threshold}, OB {old_ob}->{self.overbought_threshold}, Weight {old_weight}->{self._weight}")
         
         # Validate threshold relationship
         if self.oversold_threshold >= self.overbought_threshold:
@@ -156,11 +144,12 @@ class RSIRule(ComponentBase):
                     param_name = key.replace('rsi_indicator.', '')
                     indicator_params[param_name] = value
             if indicator_params:
-                self.rsi_indicator.set_parameters(indicator_params)
-                self.logger.warning(f"TEMP Updated RSI indicator parameters: {indicator_params}")
-        
-        # TEMP: Verify actual thresholds after update
-        self.logger.warning(f"TEMP FINAL RSI thresholds: OS={self.oversold_threshold}, OB={self.overbought_threshold}")
+                # RSI indicator uses apply_parameters, not set_parameters
+                if hasattr(self.rsi_indicator, 'apply_parameters'):
+                    self.rsi_indicator.apply_parameters(indicator_params)
+                elif hasattr(self.rsi_indicator, 'set_parameters'):
+                    self.rsi_indicator.set_parameters(indicator_params)
+                self.logger.debug(f"Updated RSI indicator parameters: {indicator_params}")
         
         self.reset_state()
         self.logger.info(
@@ -228,6 +217,20 @@ class RSIRule(ComponentBase):
             space.add_subspace('rsi_indicator', rsi_space)
         
         return space
+        
+    def get_optimizable_parameters(self) -> Dict[str, Any]:
+        """Get current values of optimizable parameters (ComponentBase interface)."""
+        params = {
+            'oversold_threshold': self.oversold_threshold,
+            'overbought_threshold': self.overbought_threshold,
+            'weight': self._weight
+        }
+        # Include indicator parameters if available
+        if self.rsi_indicator and hasattr(self.rsi_indicator, 'get_optimizable_parameters'):
+            indicator_params = self.rsi_indicator.get_optimizable_parameters()
+            for key, value in indicator_params.items():
+                params[f'rsi_indicator.{key}'] = value
+        return params
         
     @property
     def parameter_space(self) -> Dict[str, List[Any]]:

@@ -73,6 +73,25 @@ class RSIIndicator(ComponentBase):
         self._reset_state()
         self.logger.debug(f"RSIIndicator '{self.instance_name}' reset to initial state")
         
+    def hard_reset(self) -> None:
+        """Perform a complete reset clearing all buffers and state."""
+        # Clear all data buffers completely
+        if self._prices:
+            self._prices.clear()
+        if self._gains:
+            self._gains.clear()  
+        if self._losses:
+            self._losses.clear()
+        
+        # Reset averages and values
+        self._avg_gain = None
+        self._avg_loss = None
+        self._current_value = None
+        self._initialized_smoothing = False
+        self._first_value_logged = False
+        
+        self.logger.debug(f"RSIIndicator '{self.instance_name}' hard reset - all buffers cleared")
+        
     def update(self, data_or_price: Union[Dict[str, Any], float]) -> Optional[float]:
         """Update RSI with new price data."""
         price_input: Optional[float] = None
@@ -152,9 +171,9 @@ class RSIIndicator(ComponentBase):
         """Get the parameter space for RSI optimization."""
         space = ParameterSpace(f"{self.instance_name}_space")
         space.add_parameter(Parameter(
-            name="period",
+            name="period",  # Use "period" to match apply_parameters
             param_type="discrete",
-            values=[7, 9, 14, 21, 30, 40],  # Expanded RSI periods
+            values=[9, 14, 21, 30],  # Match the values from the test output
             default=self._default_period,
             description="Number of periods for RSI calculation"
         ))
@@ -179,6 +198,9 @@ class RSIIndicator(ComponentBase):
         
     def apply_parameters(self, parameters: Dict[str, Any]) -> None:
         """Apply new parameters to RSI."""
+        # Debug log
+        self.logger.debug(f"RSI.apply_parameters received: {parameters}")
+        
         # Validate first
         valid, error = self.validate_parameters(parameters)
         if not valid:

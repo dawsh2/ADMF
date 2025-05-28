@@ -41,10 +41,116 @@ class ComponentOptimizer(ComponentBase):
         self.results_cache = {}
         self.output_dir = Path("optimization_results")
         self._regime_analyzer = RegimePerformanceAnalyzer()  # Track regime performance
+        self._component_factory = {}  # Store factory functions for component recreation
         
     def _initialize(self):
         """Initialize the component optimizer."""
         self.output_dir.mkdir(exist_ok=True)
+        
+    def _create_component_copy(self, original_component: ComponentBase) -> ComponentBase:
+        """
+        Create a fresh copy of a component with the same configuration.
+        
+        This ensures each optimization test has a clean component instance
+        without accumulated state from previous tests.
+        """
+        # Get the component class
+        component_class = original_component.__class__
+        
+        # Create new instance with same name and config
+        instance_name = f"{original_component.instance_name}_copy"
+        config_key = original_component.config_key
+        
+        # Handle different component types with dependencies
+        if hasattr(original_component, 'rsi_indicator'):
+            # RSI Rule - needs indicator dependency
+            from src.strategy.components.indicators.oscillators import RSIIndicator
+            # Create fresh indicator
+            fresh_indicator = RSIIndicator(
+                instance_name=f"{original_component.rsi_indicator.instance_name}_copy",
+                config_key=original_component.rsi_indicator.config_key
+            )
+            # Initialize with context
+            if hasattr(original_component.rsi_indicator, '_context'):
+                fresh_indicator.initialize(original_component.rsi_indicator._context)
+            
+            # Create fresh rule with fresh indicator
+            fresh_component = component_class(
+                instance_name=instance_name,
+                config_key=config_key,
+                rsi_indicator=fresh_indicator
+            )
+        elif hasattr(original_component, 'fast_ma') and hasattr(original_component, 'slow_ma'):
+            # MA Crossover Rule - needs two MA indicators
+            # Create fresh indicators - MovingAverageIndicator expects 'name' not 'instance_name'
+            fresh_fast_ma = original_component.fast_ma.__class__(
+                name=f"{original_component.fast_ma.instance_name}_copy",
+                lookback_period=original_component.fast_ma._lookback_period,
+                config_key=original_component.fast_ma.config_key
+            )
+            fresh_slow_ma = original_component.slow_ma.__class__(
+                name=f"{original_component.slow_ma.instance_name}_copy",
+                lookback_period=original_component.slow_ma._lookback_period,
+                config_key=original_component.slow_ma.config_key
+            )
+            
+            # Initialize indicators
+            if hasattr(original_component.fast_ma, '_context'):
+                fresh_fast_ma.initialize(original_component.fast_ma._context)
+                fresh_slow_ma.initialize(original_component.slow_ma._context)
+            
+            # Create fresh rule
+            fresh_component = component_class(
+                instance_name=instance_name,
+                config_key=config_key,
+                fast_ma=fresh_fast_ma,
+                slow_ma=fresh_slow_ma
+            )
+        elif hasattr(original_component, 'bb_indicator'):
+            # Bollinger Bands Rule
+            # Create fresh BB indicator
+            fresh_indicator = original_component.bb_indicator.__class__(
+                instance_name=f"{original_component.bb_indicator.instance_name}_copy", 
+                config_key=original_component.bb_indicator.config_key
+            )
+            if hasattr(original_component.bb_indicator, '_context'):
+                fresh_indicator.initialize(original_component.bb_indicator._context)
+                
+            fresh_component = component_class(
+                instance_name=instance_name,
+                config_key=config_key,
+                bb_indicator=fresh_indicator
+            )
+        elif hasattr(original_component, 'macd_indicator'):
+            # MACD Rule
+            # Create fresh MACD indicator
+            fresh_indicator = original_component.macd_indicator.__class__(
+                instance_name=f"{original_component.macd_indicator.instance_name}_copy",
+                config_key=original_component.macd_indicator.config_key
+            )
+            if hasattr(original_component.macd_indicator, '_context'):
+                fresh_indicator.initialize(original_component.macd_indicator._context)
+                
+            fresh_component = component_class(
+                instance_name=instance_name,
+                config_key=config_key,
+                macd_indicator=fresh_indicator
+            )
+        else:
+            # Simple component without dependencies or indicator
+            fresh_component = component_class(
+                instance_name=instance_name,
+                config_key=config_key
+            )
+        
+        # Initialize with same context
+        if hasattr(original_component, '_context'):
+            fresh_component.initialize(original_component._context)
+            
+        # DO NOT apply original parameters - let optimizer set them fresh
+        # This ensures we start from default state
+            
+        return fresh_component
         
     def optimize_component(
         self,
@@ -178,17 +284,58 @@ class ComponentOptimizer(ComponentBase):
                 param_str = ", ".join([f"{k}={v}" for k, v in sorted(params.items())])
                 # Don't log here - we'll log with result on same line
                 
+                # Create a fresh component copy for this test
+                test_component = self._create_component_copy(component)
+                
                 # Validate parameters
-                valid, error = component.validate_parameters(params)
+                valid, error = test_component.validate_parameters(params)
                 if not valid:
                     self.logger.warning(f"Invalid parameters {params}: {error}")
                     continue
                 
-                # Apply parameters to component
-                component.apply_parameters(params)
+                # Apply parameters to the fresh component
+                test_component.apply_parameters(params)
                 
-                # Evaluate performance
-                eval_result = evaluator(component)
+                # Debug logging for parameter application
+                self.logger.debug(f"Applied params to {test_component.instance_name}: {params}")
+                if hasattr(test_component, 'get_optimizable_parameters'):
+                    current_params = test_component.get_optimizable_parameters()
+                    self.logger.debug(f"Component reports params: {current_params}")
+                    
+                    # Verify parameters were actually applied
+                    for param, value in params.items():
+                        if param in current_params:
+                            if current_params[param] != value:
+                                self.logger.warning(f"Parameter {param} not properly applied: expected {value}, got {current_params[param]}")
+                
+                # For indicators, log their current state
+                if hasattr(test_component, 'rsi_indicator'):
+                    ind_params = test_component.rsi_indicator.get_optimizable_parameters()
+                    self.logger.debug(f"RSI indicator params: {ind_params}")
+                elif hasattr(test_component, 'bb_indicator'):
+                    ind_params = test_component.bb_indicator.get_optimizable_parameters()
+                    self.logger.debug(f"BB indicator params: {ind_params}")
+                elif hasattr(test_component, 'macd_indicator'):
+                    ind_params = test_component.macd_indicator.get_optimizable_parameters()
+                    self.logger.debug(f"MACD indicator params: {ind_params}")
+                
+                # Ensure data handler is reset if available
+                if hasattr(self._context, 'container'):
+                    try:
+                        data_handler = self._context.container.resolve('data_handler')
+                        if hasattr(data_handler, 'reset'):
+                            data_handler.reset()
+                    except:
+                        pass
+                
+                # Evaluate performance with the fresh component
+                try:
+                    eval_result = evaluator(test_component)
+                except Exception as eval_error:
+                    self.logger.error(f"Error during evaluation of {test_component.instance_name} with params {params}: {eval_error}")
+                    import traceback
+                    self.logger.debug(f"Traceback: {traceback.format_exc()}")
+                    continue
                 
                 # Handle different return types from evaluator
                 if isinstance(eval_result, tuple):

@@ -330,16 +330,22 @@ class MACDRule(ComponentBase):
             'prev_histogram': self._prev_histogram
         }
         
-    def get_optimizable_parameters(self) -> Dict[str, Tuple[float, float]]:
+    def get_optimizable_parameters(self) -> Dict[str, Any]:
         """
-        Return the parameters that can be optimized for this rule.
+        Get current values of optimizable parameters (ComponentBase interface).
         
         Returns:
-            Dict mapping parameter names to (min, max) tuples
+            Dict mapping parameter names to current values
         """
-        # MACD indicator parameters are optimized separately
-        return {
-            'min_histogram_threshold': (0.0, 0.001),  # 0 to 0.1% threshold
-            'use_histogram': (0, 1)  # Binary: 0 or 1
+        params = {
+            'min_histogram_threshold': self.min_histogram_threshold,
+            'use_histogram': self.use_histogram,
+            'weight': self._weight
         }
+        # Include indicator parameters if available
+        if self.macd_indicator and hasattr(self.macd_indicator, 'get_optimizable_parameters'):
+            indicator_params = self.macd_indicator.get_optimizable_parameters()
+            for key, value in indicator_params.items():
+                params[f'macd_indicator.{key}'] = value
+        return params
         

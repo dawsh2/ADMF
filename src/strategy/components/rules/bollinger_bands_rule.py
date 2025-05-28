@@ -329,16 +329,21 @@ class BollingerBandsRule(ComponentBase):
             'last_price': self._last_price
         }
         
-    def get_optimizable_parameters(self) -> Dict[str, Tuple[float, float]]:
+    def get_optimizable_parameters(self) -> Dict[str, Any]:
         """
-        Return the parameters that can be optimized for this rule.
+        Get current values of optimizable parameters (ComponentBase interface).
         
         Returns:
-            Dict mapping parameter names to (min, max) tuples
+            Dict mapping parameter names to current values
         """
-        # The BB indicator parameters (period, std_dev) are optimized separately
-        # Here we only optimize rule-specific parameters
-        return {
-            'band_width_filter': (0.0, 0.02),  # 0 to 2% of price
+        params = {
+            'band_width_filter': self.band_width_filter,
+            'weight': self._weight
         }
+        # Include indicator parameters if available
+        if self.bb_indicator and hasattr(self.bb_indicator, 'get_optimizable_parameters'):
+            indicator_params = self.bb_indicator.get_optimizable_parameters()
+            for key, value in indicator_params.items():
+                params[f'bb_indicator.{key}'] = value
+        return params
         

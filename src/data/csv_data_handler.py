@@ -274,6 +274,17 @@ class CSVDataHandler(ComponentBase):
         self._bars_processed_current_run = 0
         self._last_bar_timestamp = None
         self.logger.debug(f"Active dataset '{dataset_type}' ready with {len(self._active_df)} bars.")
+        
+    def reset(self):
+        """Reset the data handler to beginning of active dataset."""
+        if self._active_df is not None:
+            # Reset iterator to beginning of active dataset
+            self._data_iterator = self._active_df.iterrows()
+            self._bars_processed_current_run = 0
+            self._last_bar_timestamp = None
+            self.logger.debug(f"CSVDataHandler reset - ready to stream {len(self._active_df)} bars from beginning")
+        else:
+            self.logger.warning("CSVDataHandler reset called but no active dataset")
 
     # start(), stop(), get_last_timestamp() methods remain the same.
     # The bar payload construction in start() also remains the same.

@@ -47,6 +47,8 @@ class RegimeAdaptiveStrategy(MAStrategy):
             
         try:
             self.logger.info(f"Loading regime parameters from: {self._params_file_path}")
+            self.logger.log(35, f"===== LOADING REGIME ADAPTIVE PARAMETERS =====")
+            self.logger.log(35, f"Parameter file: {self._params_file_path}")
             with open(self._params_file_path, 'r') as f:
                 data = json.load(f)
                 
@@ -72,6 +74,7 @@ class RegimeAdaptiveStrategy(MAStrategy):
                         
                         self._regime_specific_params[regime] = base_params
                         self.logger.info(f"Loaded complete parameters for regime '{regime}': {self._regime_specific_params[regime]}")
+                        self.logger.log(35, f"Regime '{regime}' parameters loaded: {base_params}")
             
             # Extract overall best parameters as fallback
             if 'overall_best_parameters' in data:
@@ -184,10 +187,13 @@ class RegimeAdaptiveStrategy(MAStrategy):
         if regime in self._regime_specific_params:
             raw_params = self._regime_specific_params[regime]
             self.logger.info(f"Raw parameters for regime '{regime}': {raw_params}")
+            self.logger.log(35, f"REGIME CHANGE: Switching to '{regime}' regime")
+            self.logger.log(35, f"Loading regime-specific parameters: {raw_params}")
             
             # Map dotted parameters to the format expected by MAStrategy
             new_params = self._translate_parameters(raw_params)
             self.logger.info(f"Applying translated parameters for '{regime}': {new_params}")
+            self.logger.log(35, f"Translated parameters for '{regime}': {new_params}")
             
             self.set_parameters(new_params)
             self._last_applied_regime = regime
@@ -196,10 +202,13 @@ class RegimeAdaptiveStrategy(MAStrategy):
         elif self._fallback_to_overall_best and self._overall_best_params:
             raw_params = self._overall_best_params
             self.logger.info(f"Raw overall best parameters: {raw_params}")
+            self.logger.log(35, f"REGIME CHANGE: Switching to '{regime}' regime (using overall best parameters)")
+            self.logger.log(35, f"Loading overall best parameters: {raw_params}")
             
             # Map dotted parameters to the format expected by MAStrategy
             new_params = self._translate_parameters(raw_params)
             self.logger.info(f"Applying translated overall best parameters for '{regime}': {new_params}")
+            self.logger.log(35, f"Translated overall best parameters for '{regime}': {new_params}")
             
             self.set_parameters(new_params)
             self._last_applied_regime = regime

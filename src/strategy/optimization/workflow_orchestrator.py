@@ -241,8 +241,8 @@ class OptimizationWorkflowOrchestrator(ComponentBase):
                 workflow_results[step["name"]] = result
                 completed_steps.add(step["name"])
                 
-                # Update progress counter
-                self._current_backtest += step_backtests
+                # Progress counter is now updated within each optimization method
+                # No need to update here since it's already been incremented during execution
                 
                 # Save intermediate results
                 self._save_step_results(step["name"], result)
@@ -532,19 +532,23 @@ class OptimizationWorkflowOrchestrator(ComponentBase):
                 metric=step_config.get("metric", "sharpe_ratio")
             )
             
-            # Component optimizer will have updated its own progress counter internally
+            # Update global progress counter based on combinations tested
+            if 'combinations_tested' in comp_results and hasattr(self, '_current_backtest'):
+                self._current_backtest += comp_results['combinations_tested']
             
             # NO TEST EVALUATION HERE - only training optimization
             # Test evaluation happens once at the very end with the complete ensemble
             
             # Show brief results summary
-            if 'best_parameters' in comp_results:
+            if 'best_parameters' in comp_results and comp_results['best_parameters'] is not None:
                 best_params = comp_results['best_parameters']
                 best_score = comp_results.get('best_score', 0)
                 combinations = comp_results.get('combinations_tested', 0)
                 param_str = ", ".join([f"{k}={v}" for k, v in sorted(best_params.items())])
                 self.logger.warning(f"\n✓ {component.instance_name} optimization complete: Best score={best_score:.4f}")
                 self.logger.warning(f"  Best params: {param_str}\n")
+            else:
+                self.logger.error(f"No best parameters found for {component.instance_name}. Optimization may have failed.")
             
             # Check if we have regime-specific results
             if 'regime_best_parameters' in comp_results:
@@ -732,6 +736,10 @@ class OptimizationWorkflowOrchestrator(ComponentBase):
         if best_weights:
             weight_str = ", ".join([f"{k}={v:.2f}" for k, v in sorted(best_weights.items())])
             self.logger.progress(f"✓ Overall weight optimization complete: Best score={best_score:.4f}, Weights: {weight_str}")
+        
+        # Update global progress counter
+        if hasattr(self, '_current_backtest'):
+            self._current_backtest += len(weight_combinations)
         
         # Return results
         return {
@@ -967,6 +975,11 @@ class OptimizationWorkflowOrchestrator(ComponentBase):
             else:
                 self.logger.warning(f"No valid weights found for {regime} (insufficient trades)")
         
+        # Update global progress counter
+        if hasattr(self, '_current_backtest'):
+            total_combinations_tested = len(regimes_to_optimize) * len(weight_combinations)
+            self._current_backtest += total_combinations_tested
+        
         # Prepare final results
         results = {
             'optimization_type': 'ensemble_weights',
@@ -1194,6 +1207,13 @@ class OptimizationWorkflowOrchestrator(ComponentBase):
             json.dump(formatted_params, f, indent=2)
             
         self.logger.info(f"Saved regime-specific parameters to {filename}")
+        
+        # Log regime-specific parameters at TEMP level
+        self.logger.log(35, f"===== OPTIMIZED REGIME PARAMETERS =====")
+        for regime, params in regime_params.items():
+            self.logger.log(35, f"\n{regime.upper()} regime parameters:")
+            for param_name, param_value in params.items():
+                self.logger.log(35, f"  {param_name}: {param_value}")
     
     def _display_test_results(self, test_results: Dict[str, Any]) -> None:
         """Display comprehensive test set evaluation results."""
@@ -1270,6 +1290,11 @@ class OptimizationWorkflowOrchestrator(ComponentBase):
             return_pct = test_metrics.get('total_return_pct', 0)
             sharpe = test_metrics.get('portfolio_sharpe_ratio', 0)
             trades = test_metrics.get('num_trades', 0)
+            
+            # Log detailed test information at TEMP level
+            self.logger.log(35, f"===== FINAL TEST EVALUATION DETAILS =====")
+            self.logger.log(35, f"Test dataset used: {test_eval.get('metadata', {}).get('dataset', 'test')}")
+            self.logger.log(35, f"Test performance metrics: {test_metrics}")
             
             # One line summary
             self.logger.warning(f"\n✅ Optimization complete: {total_backtests} backtests | "
@@ -1395,37 +1420,105 @@ class OptimizationWorkflowOrchestrator(ComponentBase):
         
     def _calculate_step_backtests(self, step: Dict[str, Any], strategy) -> int:
         """Calculate number of backtests for a single step."""
+        self.logger.debug(f"Calculating backtests for step: {step['name']}, type: {step['type']}")
+        
         if step["type"] == "rulewise":
-            # Get the rule and its parameter space
-            rule_name = step["targets"][0] if step["targets"] else None
-            if not rule_name:
+            # Get the rule names
+            targets = step.get("targets", [])
+            self.logger.debug(f"Targets for {step['name']}: {targets}")
+            if not targets:
                 return 0
+            
+            total_combinations = 0
+            
+            for rule_name in targets:
+                # Try to get the rule from strategy._rules first
+                rule = None
+                if hasattr(strategy, '_rules') and rule_name in strategy._rules:
+                    rule = strategy._rules[rule_name]
+                    self.logger.debug(f"Found rule {rule_name} in strategy._rules")
+                else:
+                    # Try attribute access as fallback
+                    rule = getattr(strategy, f"_{rule_name}_rule", None)
+                    if rule:
+                        self.logger.debug(f"Found rule {rule_name} via attribute access")
                 
-            # Get rule from strategy
-            rule = getattr(strategy, f"_{rule_name}_rule", None)
-            if not rule or not hasattr(rule, 'parameter_space'):
-                return 0
+                if not rule:
+                    self.logger.debug(f"Could not find rule {rule_name}")
+                    # Also check if we can find the component in components_to_optimize
+                    # This happens when isolate=true creates components dynamically
+                    continue
                 
-            # Calculate combinations
-            param_space = rule.parameter_space
-            combinations = 1
-            for param, values in param_space.items():
-                combinations *= len(values)
-            return combinations
+                # Get the full parameter space including subspaces
+                if hasattr(rule, 'get_parameter_space'):
+                    try:
+                        param_space = rule.get_parameter_space()
+                        if param_space and hasattr(param_space, 'sample'):
+                            # This gets the actual combinations including subspaces
+                            combinations = len(param_space.sample(method='grid'))
+                            self.logger.debug(f"Rule {rule_name}: {combinations} combinations from parameter space")
+                            total_combinations += combinations
+                        else:
+                            self.logger.debug(f"Rule {rule_name} has no valid parameter space")
+                    except Exception as e:
+                        self.logger.debug(f"Error getting parameter space for {rule_name}: {e}")
+                elif hasattr(rule, 'parameter_space'):
+                    # Fallback to simple calculation
+                    param_space = rule.parameter_space
+                    combinations = 1
+                    for param, values in param_space.items():
+                        combinations *= len(values)
+                    total_combinations += combinations
+                else:
+                    self.logger.debug(f"Rule {rule_name} has no parameter space")
+            
+            # If we couldn't calculate from rules, estimate based on step config
+            if total_combinations == 0 and step.get("isolate", False):
+                # For isolated optimization, we can't pre-calculate accurately
+                # Use a reasonable estimate based on typical parameter spaces
+                self.logger.debug(f"Using estimate for isolated step {step['name']}")
+                for target in targets:
+                    if 'ma' in target.lower():
+                        total_combinations += 36  # MA typically has 36 combinations
+                    elif 'rsi' in target.lower():
+                        total_combinations += 80  # RSI has 80 combinations
+                    elif 'bb' in target.lower():
+                        total_combinations += 18  # BB has 18 combinations
+                    elif 'macd' in target.lower():
+                        total_combinations += 24  # MACD has 24 combinations
+                    else:
+                        total_combinations += 20  # Default estimate
+            
+            self.logger.debug(f"Total combinations for step {step['name']}: {total_combinations}")
+            return total_combinations
             
         elif step["type"] == "ensemble_weights":
+            # Check if this is per-regime optimization
+            per_regime = step.get('per_regime', True)
+            
             # Count weight combinations
             if "weight_combinations" in step:
-                return len(step["weight_combinations"])
+                weight_count = len(step["weight_combinations"])
             else:
                 # Use default generation logic
                 n_rules = len(getattr(strategy, '_rules', {}))
                 if n_rules <= 2:
-                    return 9  # 0.1 increments
+                    weight_count = 9  # 0.1 increments
                 elif n_rules == 3:
-                    return 6  # 0.2 increments
+                    weight_count = 6  # 0.2 increments
                 else:
-                    return 7  # Predefined set
+                    weight_count = 7  # Predefined set
+            
+            # If per-regime, multiply by number of regimes
+            if per_regime:
+                if hasattr(self._context, 'config_loader') and self._context.config_loader:
+                    config = self._context.config_loader.get_config()
+                    regimes = config.get('optimization', {}).get('regimes', ['default'])
+                else:
+                    regimes = ['default']
+                return weight_count * len(regimes)
+            else:
+                return weight_count
                     
         elif step["type"] == "regime":
             # Regime optimization runs all parameter combinations for each regime
