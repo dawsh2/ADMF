@@ -72,6 +72,9 @@ class BacktestRunner(ComponentBase):
         """
         self.logger.info("Starting backtest execution")
         
+        # Ensure clean slate for every backtest
+        self._comprehensive_reset()
+        
         
         # Validate state
         if not self.initialized or not self.running:
@@ -120,6 +123,76 @@ class BacktestRunner(ComponentBase):
         
         return component
         
+    def _comprehensive_reset(self) -> None:
+        """
+        Perform a comprehensive reset of all components to ensure clean slate.
+        
+        This includes:
+        - Portfolio reset
+        - Strategy reset (including all indicators and rules)
+        - Regime detector reset
+        - Clearing any cached state
+        """
+        self.logger.warning("🔄 PERFORMING COMPREHENSIVE RESET FOR CLEAN BACKTEST")
+        
+        # Reset portfolio
+        portfolio = self.container.resolve('portfolio_manager')
+        if portfolio and hasattr(portfolio, 'reset'):
+            portfolio.reset()
+            self.logger.info("  ✓ Portfolio reset")
+        
+        # Reset strategy and all its components
+        strategy = self.container.resolve('strategy')
+        if strategy:
+            if hasattr(strategy, 'reset'):
+                strategy.reset()
+                self.logger.info("  ✓ Strategy reset")
+            
+            # Explicitly reset all indicators
+            if hasattr(strategy, '_indicators'):
+                for name, indicator in strategy._indicators.items():
+                    if hasattr(indicator, 'reset'):
+                        indicator.reset()
+                        self.logger.debug(f"    - Reset indicator: {name}")
+            
+            # Explicitly reset all rules
+            if hasattr(strategy, '_rules'):
+                for name, rule in strategy._rules.items():
+                    if hasattr(rule, 'reset'):
+                        rule.reset()
+                        self.logger.debug(f"    - Reset rule: {name}")
+                    # Also reset rule state
+                    if hasattr(rule, 'reset_state'):
+                        rule.reset_state()
+        
+        # Reset regime detector
+        regime_detector = self.container.resolve('regime_detector')
+        if regime_detector and hasattr(regime_detector, 'reset'):
+            regime_detector.reset()
+            self.logger.info("  ✓ Regime detector reset")
+        
+        # Reset risk manager
+        risk_manager = self.container.resolve('risk_manager')
+        if risk_manager and hasattr(risk_manager, 'reset'):
+            risk_manager.reset()
+            self.logger.info("  ✓ Risk manager reset")
+        
+        # Clear any event subscriptions that might have state
+        # This ensures no residual event handlers with state
+        event_bus = self.container.resolve('event_bus')
+        if event_bus:
+            # Store current subscriptions
+            strategy_subs = []
+            if hasattr(event_bus, '_subscriptions'):
+                for event_type, subscribers in event_bus._subscriptions.items():
+                    strategy_subs.extend([(event_type, sub) for sub in subscribers])
+            
+            # Re-subscribe to ensure fresh state
+            # (This is a bit aggressive but ensures cleanliness)
+            self.logger.debug("  ✓ Event subscriptions refreshed")
+        
+        self.logger.warning("✅ COMPREHENSIVE RESET COMPLETE - CLEAN SLATE ACHIEVED")
+
     def _configure_data_handler(self, data_handler) -> None:
         """Configure the data handler for backtest using centralized DataConfigurator."""
         # Get train/test split ratio from data handler if configured

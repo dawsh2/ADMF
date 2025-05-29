@@ -1,0 +1,57 @@
+{
+  "timestamp": "20250528_202316",
+  "regimes": {
+    "default": {
+      "strategy_ma_crossover.min_separation": 0.002,
+      "strategy_ma_crossover.fast_ma.lookback_period": 5,
+      "strategy_ma_crossover.slow_ma.lookback_period": 20,
+      "strategy_bb_rule.band_width_filter": 0.0,
+      "strategy_bb_rule.bb_indicator.lookback_period": 15,
+      "strategy_bb_rule.bb_indicator.num_std_dev": 2.5,
+      "strategy_macd_rule.min_histogram_threshold": 0.0,
+      "strategy_macd_rule.macd_indicator.fast_period": 12,
+      "strategy_macd_rule.macd_indicator.slow_period": 26,
+      "strategy_macd_rule.macd_indicator.signal_period": 7,
+      "ma_crossover.weight": 0.0,
+      "rsi.weight": 0.8,
+      "bb.weight": 0.2,
+      "macd.weight": 0.0
+    },
+    "trending_up": {
+      "strategy_ma_crossover.min_separation": 0.0,
+      "strategy_ma_crossover.fast_ma.lookback_period": 5,
+      "strategy_ma_crossover.slow_ma.lookback_period": 40,
+      "strategy_bb_rule.band_width_filter": 0.0,
+      "strategy_bb_rule.bb_indicator.lookback_period": 25,
+      "strategy_bb_rule.bb_indicator.num_std_dev": 2.5,
+      "strategy_macd_rule.min_histogram_threshold": 0.0,
+      "strategy_macd_rule.macd_indicator.fast_period": 12,
+      "strategy_macd_rule.macd_indicator.slow_period": 20,
+      "strategy_macd_rule.macd_indicator.signal_period": 7,
+      "ma_crossover.weight": 0.4,
+      "rsi.weight": 0.0,
+      "bb.weight": 0.4,
+      "macd.weight": 0.2
+    },
+    "trending_down": {
+      "strategy_ma_crossover.min_separation": 0.0,
+      "strategy_ma_crossover.fast_ma.lookback_period": 10,
+      "strategy_ma_crossover.slow_ma.lookback_period": 20,
+      "strategy_bb_rule.band_width_filter": 0.0,
+      "strategy_bb_rule.bb_indicator.lookback_period": 25,
+      "strategy_bb_rule.bb_indicator.num_std_dev": 2.0,
+      "strategy_macd_rule.min_histogram_threshold": 0.0,
+      "strategy_macd_rule.macd_indicator.fast_period": 12,
+      "strategy_macd_rule.macd_indicator.slow_period": 20,
+      "strategy_macd_rule.macd_indicator.signal_period": 9,
+      "ma_crossover.weight": 0.4,
+      "rsi.weight": 0.4,
+      "bb.weight": 0.2,
+      "macd.weight": 0.0
+    }
+  },
+  "metadata": {
+    "source": "workflow_optimization",
+    "workflow": "workflow_orchestrator"
+  }
+}
