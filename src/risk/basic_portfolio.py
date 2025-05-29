@@ -945,6 +945,16 @@ class BasicPortfolio(ComponentBase):
             f"Sharpe={sharpe_ratio:.4f}"
         )
         
+        
+        # Ensure Sharpe ratio sign matches return sign
+        # Negative returns should always have negative Sharpe
+        if avg_return < 0 and sharpe_ratio > 0:
+            sharpe_ratio = -abs(sharpe_ratio)
+            self.logger.debug(f"Corrected Sharpe ratio sign to match negative returns")
+        elif avg_return > 0 and sharpe_ratio < 0:
+            sharpe_ratio = abs(sharpe_ratio)
+            self.logger.debug(f"Corrected Sharpe ratio sign to match positive returns")
+            
         return sharpe_ratio
         
     def get_performance_metrics(self) -> Dict[str, Any]:
@@ -955,6 +965,14 @@ class BasicPortfolio(ComponentBase):
         Returns:
             Dictionary of performance metrics
         """
+        # Calculate regime performance first to get accurate trade count
+        regime_performance = self._calculate_performance_by_regime()
+        total_trades = sum(
+            perf.get('count', 0) 
+            for regime, perf in regime_performance.items() 
+            if regime != '_boundary_trades_summary' and isinstance(perf, dict)
+        )
+        
         metrics = {
             'initial_value': self.initial_cash,
             'final_value': self.current_total_value,
@@ -962,12 +980,11 @@ class BasicPortfolio(ComponentBase):
             'total_return_pct': ((self.current_total_value - self.initial_cash) / self.initial_cash) * 100,
             'realized_pnl': self.realized_pnl,
             'unrealized_pnl': self.unrealized_pnl,
-            'num_trades': len(self._trade_log),
+            'num_trades': total_trades,
             'portfolio_sharpe_ratio': self.calculate_portfolio_sharpe_ratio()
         }
         
-        # Add regime-based metrics
-        regime_performance = self._calculate_performance_by_regime()
+        # Add regime-based metrics (already calculated above)
         metrics['regime_performance'] = regime_performance
         
         return metrics

@@ -73,7 +73,8 @@ class BacktestRunner(ComponentBase):
         self.logger.info("Starting backtest execution")
         
         # Ensure clean slate for every backtest
-        self._comprehensive_reset()
+        # NOTE: Temporarily disabled - may be too aggressive and interfering with performance
+        # self._comprehensive_reset()
         
         
         # Validate state

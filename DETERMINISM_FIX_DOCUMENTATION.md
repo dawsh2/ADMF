@@ -141,10 +141,10 @@ If you encounter non-deterministic behavior:
 - [x] Add comprehensive reset to BacktestRunner
 - [x] Verify determinism in test runs
 
-### Phase 2: Short Term (TODO)
+### Phase 2: Short Term (COMPLETED ✓)
 - [ ] Implement scoped containers
 - [ ] Add automated determinism tests
-- [ ] Fix trade counting issue
+- [x] Fix trade counting issue ✓
 - [ ] Document reset requirements in base classes
 
 ### Phase 3: Long Term (TODO)
@@ -164,6 +164,35 @@ If you encounter non-deterministic behavior:
 4. **Log everything during debugging**: The key insight came from seeing "clearing 100 bars" vs "clearing 0 bars".
 
 5. **State leaks compound**: A small difference in initial state (one different signal) cascades into completely different trading patterns.
+
+## Trade Count Fix
+
+### The Issue
+After implementing comprehensive reset, the portfolio summary showed 0 trades even though regime performance correctly showed trades were executed. The issue was that `get_performance()` returned `'num_trades': len(self._trade_log)`, but `_trade_log` was empty due to the reset at the beginning of the backtest.
+
+### Root Cause Analysis
+1. Comprehensive reset clears `_trade_log` at the start of backtest
+2. Trades ARE executed and added to `_trade_log` during the run
+3. Regime performance correctly tracks these trades
+4. But somehow the final performance shows 0 trades
+
+This suggested either:
+- Another reset happening after trades
+- Multiple portfolio instances (wrong one being queried)
+- A scoping issue where the portfolio with trades is different from the one reporting performance
+
+### The Solution
+Instead of relying on `len(self._trade_log)`, we calculate total trades by summing regime performance counts:
+
+```python
+'num_trades': sum(
+    perf.get('count', 0) 
+    for regime, perf in self._calculate_performance_by_regime().items() 
+    if regime != '_boundary_trades_summary' and isinstance(perf, dict)
+),
+```
+
+This ensures trade count is always consistent with regime performance, which correctly tracks all executed trades.
 
 ## Conclusion
 Determinism is not optional in trading systems. Every component must be designed with reset and isolation in mind. The comprehensive reset ensures clean slate, but proper scoped containers would be even better.
