@@ -82,15 +82,13 @@ class ComponentOptimizer(ComponentBase):
             )
         elif hasattr(original_component, 'fast_ma') and hasattr(original_component, 'slow_ma'):
             # MA Crossover Rule - needs two MA indicators
-            # Create fresh indicators - MovingAverageIndicator expects 'name' not 'instance_name'
+            # Create fresh indicators with default parameters - apply_parameters will set the correct values
             fresh_fast_ma = original_component.fast_ma.__class__(
                 name=f"{original_component.fast_ma.instance_name}_copy",
-                lookback_period=original_component.fast_ma._lookback_period,
                 config_key=original_component.fast_ma.config_key
             )
             fresh_slow_ma = original_component.slow_ma.__class__(
                 name=f"{original_component.slow_ma.instance_name}_copy",
-                lookback_period=original_component.slow_ma._lookback_period,
                 config_key=original_component.slow_ma.config_key
             )
             
@@ -176,15 +174,18 @@ class ComponentOptimizer(ComponentBase):
         isolation_mode = " in isolation" if isolate else ""
         self.logger.progress(f"Starting {method} optimization for component {component.instance_name}{isolation_mode}")
         
+        # Store isolate flag for use in the loop
+        use_isolation = isolate
+        
         # If isolate is requested, wrap the evaluator
-        if isolate:
+        if use_isolation:
             # Import here to avoid circular dependencies
             from .isolated_evaluator import IsolatedComponentEvaluator
             
             # Check if we have the required components for isolation
             if not hasattr(self, '_isolated_evaluator'):
                 self.logger.warning("Isolated evaluator not configured. Using standard evaluation.")
-                isolate = False
+                use_isolation = False
             else:
                 # Use the isolated evaluator
                 evaluator = self._isolated_evaluator.create_evaluator_function(
@@ -222,7 +223,8 @@ class ComponentOptimizer(ComponentBase):
                 maximize = kwargs.get('maximize', True)
                 # Remove parameters that _grid_search doesn't accept
                 grid_kwargs = {k: v for k, v in kwargs.items() if k in ['maximize']}
-                results = self._grid_search(component, param_space, evaluator, **grid_kwargs)
+                # Pass use_isolation flag
+                results = self._grid_search(component, param_space, evaluator, use_isolation=use_isolation, **grid_kwargs)
             else:
                 self.logger.warning(f"Optimization method {method} not yet implemented")
                 results = {"status": "method_not_implemented", "method": method}
@@ -243,6 +245,7 @@ class ComponentOptimizer(ComponentBase):
         component: ComponentBase,
         param_space: Any,  # ParameterSpace
         evaluator: Callable[[ComponentBase], float],
+        use_isolation: bool = False,
         maximize: bool = True
     ) -> Dict[str, Any]:
         """
@@ -280,12 +283,20 @@ class ComponentOptimizer(ComponentBase):
         # Test each combination
         for i, params in enumerate(combinations):
             try:
+                # Store original params for logging
+                original_params = params.copy()
+                
                 # Format parameters nicely
                 param_str = ", ".join([f"{k}={v}" for k, v in sorted(params.items())])
                 # Don't log here - we'll log with result on same line
                 
+                # Debug: Log exact params being tested
+                self.logger.debug(f"[PARAM DEBUG] Testing combination {i+1}/{len(combinations)}: {params}")
+                
                 # Create a fresh component copy for this test
                 test_component = self._create_component_copy(component)
+                
+                # Note: Fresh components start with no parameters, which is expected
                 
                 # Validate parameters
                 valid, error = test_component.validate_parameters(params)
@@ -293,31 +304,42 @@ class ComponentOptimizer(ComponentBase):
                     self.logger.warning(f"Invalid parameters {params}: {error}")
                     continue
                 
-                # Apply parameters to the fresh component
-                test_component.apply_parameters(params)
+                # Apply parameters to the test component
+                # NOTE: For isolated evaluation, parameters will be applied by the isolated evaluator
+                # to ensure they're applied in the isolated context
+                if not use_isolation:
+                    test_component.apply_parameters(params)
+                else:
+                    # For isolated evaluation, just pass the parameters along
+                    # The isolated evaluator will apply them
+                    test_component._pending_params = params
                 
                 # Debug logging for parameter application
-                self.logger.debug(f"Applied params to {test_component.instance_name}: {params}")
-                if hasattr(test_component, 'get_optimizable_parameters'):
-                    current_params = test_component.get_optimizable_parameters()
-                    self.logger.debug(f"Component reports params: {current_params}")
-                    
-                    # Verify parameters were actually applied
-                    for param, value in params.items():
-                        if param in current_params:
-                            if current_params[param] != value:
-                                self.logger.warning(f"Parameter {param} not properly applied: expected {value}, got {current_params[param]}")
+                if not use_isolation:
+                    self.logger.debug(f"Applied params to {test_component.instance_name}: {params}")
+                    if hasattr(test_component, 'get_optimizable_parameters'):
+                        current_params = test_component.get_optimizable_parameters()
+                        self.logger.debug(f"Component reports params: {current_params}")
+                        
+                        # Verify parameters were actually applied
+                        for param, value in params.items():
+                            if param in current_params:
+                                if current_params[param] != value:
+                                    self.logger.warning(f"Parameter {param} not properly applied: expected {value}, got {current_params[param]}")
+                else:
+                    self.logger.debug(f"Deferred params for isolated evaluation: {params}")
                 
-                # For indicators, log their current state
-                if hasattr(test_component, 'rsi_indicator'):
-                    ind_params = test_component.rsi_indicator.get_optimizable_parameters()
-                    self.logger.debug(f"RSI indicator params: {ind_params}")
-                elif hasattr(test_component, 'bb_indicator'):
-                    ind_params = test_component.bb_indicator.get_optimizable_parameters()
-                    self.logger.debug(f"BB indicator params: {ind_params}")
-                elif hasattr(test_component, 'macd_indicator'):
-                    ind_params = test_component.macd_indicator.get_optimizable_parameters()
-                    self.logger.debug(f"MACD indicator params: {ind_params}")
+                # For indicators, log their current state (only if not isolating)
+                if not use_isolation:
+                    if hasattr(test_component, 'rsi_indicator'):
+                        ind_params = test_component.rsi_indicator.get_optimizable_parameters()
+                        self.logger.debug(f"RSI indicator params: {ind_params}")
+                    elif hasattr(test_component, 'bb_indicator'):
+                        ind_params = test_component.bb_indicator.get_optimizable_parameters()
+                        self.logger.debug(f"BB indicator params: {ind_params}")
+                    elif hasattr(test_component, 'macd_indicator'):
+                        ind_params = test_component.macd_indicator.get_optimizable_parameters()
+                        self.logger.debug(f"MACD indicator params: {ind_params}")
                 
                 # Ensure data handler is reset if available
                 if hasattr(self._context, 'container'):
@@ -331,10 +353,12 @@ class ComponentOptimizer(ComponentBase):
                 # Evaluate performance with the fresh component
                 try:
                     eval_result = evaluator(test_component)
+                    self.logger.debug(f"[EVAL DEBUG] {test_component.instance_name} eval_result type: {type(eval_result)}, is_tuple: {isinstance(eval_result, tuple)}")
                 except Exception as eval_error:
                     self.logger.error(f"Error during evaluation of {test_component.instance_name} with params {params}: {eval_error}")
                     import traceback
-                    self.logger.debug(f"Traceback: {traceback.format_exc()}")
+                    # Always log traceback for debugging
+                    self.logger.error(f"Traceback:\n{traceback.format_exc()}")
                     continue
                 
                 # Handle different return types from evaluator
@@ -358,6 +382,10 @@ class ComponentOptimizer(ComponentBase):
                 }
                 
                 # If we have backtest results, analyze regime performance
+                self.logger.debug(f"[REGIME DEBUG] backtest_results is None: {backtest_results is None}")
+                self.logger.debug(f"[REGIME DEBUG] Has regime analyzer: {hasattr(self, '_regime_analyzer')}")
+                if backtest_results:
+                    self.logger.debug(f"[REGIME DEBUG] backtest_results keys: {list(backtest_results.keys()) if isinstance(backtest_results, dict) else 'Not a dict'}")
                 if backtest_results and hasattr(self, '_regime_analyzer'):
                     # Get regime history from the data handler or strategy
                     regime_history = []
@@ -367,8 +395,13 @@ class ComponentOptimizer(ComponentBase):
                             regime_detector = self._context.container.resolve('regime_detector')
                             if hasattr(regime_detector, 'regime_history'):
                                 regime_history = regime_detector.regime_history
-                        except:
-                            pass
+                                self.logger.debug(f"[REGIME DEBUG] Got regime history with {len(regime_history)} entries")
+                            else:
+                                self.logger.debug(f"[REGIME DEBUG] Regime detector has no regime_history attribute")
+                        except Exception as e:
+                            self.logger.debug(f"[REGIME DEBUG] Could not get regime detector: {e}")
+                    else:
+                        self.logger.debug(f"[REGIME DEBUG] No container in context")
                     
                     # Analyze regime performance
                     regime_performance = self._regime_analyzer.analyze_backtest_results(
@@ -377,6 +410,7 @@ class ComponentOptimizer(ComponentBase):
                     
                     # Add regime performance to result
                     result_entry['regime_performance'] = regime_performance
+                    self.logger.debug(f"[REGIME DEBUG] Regime performance: {regime_performance}")
                     
                     # Log regime-specific performance
                     if regime_performance:
@@ -425,6 +459,38 @@ class ComponentOptimizer(ComponentBase):
         regime_best_params = {}
         if hasattr(self, '_regime_analyzer'):
             regime_best_params = self._regime_analyzer.get_best_parameters_per_regime()
+            
+            # Display formatted summary
+            self.logger.warning("")
+            self.logger.warning("=" * 80)
+            self.logger.warning(f"OPTIMIZATION COMPLETE: {component.instance_name}")
+            self.logger.warning("=" * 80)
+            
+            if regime_best_params:
+                self.logger.warning("REGIME-SPECIFIC BEST PARAMETERS:")
+                for regime, data in regime_best_params.items():
+                    if isinstance(data, dict) and 'parameters' in data:
+                        params = data['parameters']
+                        sharpe = data.get('sharpe_ratio', 'N/A')
+                        total_return = data.get('total_return', 'N/A')
+                        win_rate = data.get('win_rate', 'N/A')
+                        num_trades = data.get('num_trades', 'N/A')
+                        
+                        # Format numbers for display
+                        sharpe_str = f"{sharpe:.4f}" if isinstance(sharpe, (int, float)) else str(sharpe)
+                        return_str = f"{total_return:.4f}" if isinstance(total_return, (int, float)) else str(total_return)
+                        win_rate_str = f"{win_rate:.4f}" if isinstance(win_rate, (int, float)) else str(win_rate)
+                        
+                        self.logger.warning(f"  {regime.upper()}: params={params}")
+                        self.logger.warning(f"    Performance: Sharpe={sharpe_str}, Return={return_str}, WinRate={win_rate_str}, Trades={num_trades}")
+                    else:
+                        self.logger.warning(f"  {regime.upper()}: {data}")
+            else:
+                self.logger.warning("No regime-specific parameters found")
+            
+            self.logger.warning("=" * 80)
+        else:
+            self.logger.warning(f"[REGIME FINAL] No regime analyzer for {component.instance_name}")
         
         # Prepare results
         optimization_results = {
@@ -443,32 +509,6 @@ class ComponentOptimizer(ComponentBase):
         
         self.logger.info(f"Grid search complete. Best score: {best_score}")
         
-        # Display regime-specific best parameters if available
-        if regime_best_params:
-            self.logger.warning("\n" + "="*80)
-            self.logger.warning(f"REGIME-SPECIFIC BEST PARAMETERS for {component.instance_name}:")
-            self.logger.warning("="*80)
-            
-            for regime, params in regime_best_params.items():
-                # Format parameters nicely
-                param_strs = []
-                for param_name, param_value in sorted(params.items()):
-                    if isinstance(param_value, float):
-                        param_strs.append(f"{param_name}={param_value:.4f}")
-                    else:
-                        param_strs.append(f"{param_name}={param_value}")
-                
-                # Get regime performance if available
-                perf_str = ""
-                if hasattr(self, '_regime_analyzer') and self._regime_analyzer:
-                    regime_stats = self._regime_analyzer.get_regime_statistics()
-                    if regime in regime_stats:
-                        stats = regime_stats[regime]
-                        perf_str = f" | Sharpe: {stats.get('avg_sharpe', 'N/A'):.4f}, Trades: {stats.get('total_trades', 'N/A')}"
-                
-                self.logger.warning(f"  {regime.upper()}: {', '.join(param_strs)}{perf_str}")
-            
-            self.logger.warning("="*80 + "\n")
         
         # Save results
         self._save_results(optimization_results)

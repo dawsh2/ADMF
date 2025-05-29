@@ -1,0 +1,60 @@
+{
+  "best_parameters": {
+    "default": {
+      "parameters": {
+        "min_separation": 0.0,
+        "fast_ma.lookback_period": 10,
+        "slow_ma.lookback_period": 20
+      },
+      "sharpe_ratio": -1.8606572419805525,
+      "win_rate": 0.23270440251572327,
+      "total_return": -379.9099999999612
+    },
+    "trending_up": {
+      "parameters": {
+        "min_separation": 0.0,
+        "fast_ma.lookback_period": 5,
+        "slow_ma.lookback_period": 30
+      },
+      "sharpe_ratio": 5.01276223510659,
+      "win_rate": 0.36,
+      "total_return": 27.84999999998945
+    },
+    "trending_down": {
+      "parameters": {
+        "min_separation": 0.001,
+        "fast_ma.lookback_period": 5,
+        "slow_ma.lookback_period": 20
+      },
+      "sharpe_ratio": 5.788918081728005,
+      "win_rate": 0.3333333333333333,
+      "total_return": 167.71999999999707
+    }
+  },
+  "regime_statistics": {
+    "default": {
+      "avg_return": -320.29194444440816,
+      "std_return": 105.4224599151066,
+      "avg_sharpe": -2.555812175262652,
+      "avg_win_rate": 0.21776537925345674,
+      "total_trades": 7893,
+      "parameter_sets_tested": 36
+    },
+    "trending_up": {
+      "avg_return": -134.92611111112814,
+      "std_return": 117.9052145269886,
+      "avg_sharpe": -1.679419915490359,
+      "avg_win_rate": 0.31010120970647287,
+      "total_trades": 882,
+      "parameter_sets_tested": 36
+    },
+    "trending_down": {
+      "avg_return": 196.78416666665854,
+      "std_return": 15.478311416479782,
+      "avg_sharpe": 4.5113343955713265,
+      "avg_win_rate": 0.35953890781416536,
+      "total_trades": 776,
+      "parameter_sets_tested": 36
+    }
+  }
+}

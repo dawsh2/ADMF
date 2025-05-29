@@ -72,6 +72,7 @@ class BacktestRunner(ComponentBase):
         """
         self.logger.info("Starting backtest execution")
         
+        
         # Validate state
         if not self.initialized or not self.running:
             raise ComponentError("BacktestRunner not properly initialized")
@@ -80,6 +81,13 @@ class BacktestRunner(ComponentBase):
         data_handler = self._get_required_component('data_handler')
         portfolio = self._get_required_component('portfolio_manager')
         strategy = self._get_required_component('strategy')
+        
+        # Load optimized parameters if using test dataset
+        if self.dataset_override == 'test':
+            self.logger.warning("\n" + "="*80)
+            self.logger.warning("🧪 RUNNING TEST DATASET WITH OPTIMIZED PARAMETERS 🧪")
+            self.logger.warning("="*80)
+            self._ensure_optimized_parameters_loaded(strategy)
         
         # Configure data handler for backtest
         self._configure_data_handler(data_handler)
@@ -107,6 +115,9 @@ class BacktestRunner(ComponentBase):
         component = self.container.resolve(name)
         if not component:
             raise DependencyNotFoundError(f"Required component '{name}' not found")
+        
+        self.logger.debug(f"BacktestRunner resolved '{name}' -> {component.instance_name}")
+        
         return component
         
     def _configure_data_handler(self, data_handler) -> None:
@@ -138,6 +149,18 @@ class BacktestRunner(ComponentBase):
             self.logger.info(f"===== STARTING BACKTEST ON {dataset_type.upper()} DATASET =====")
             self.logger.info(f"Dataset size: {dataset_size} bars")
             self.logger.info(f"Dataset type: {dataset_type}")
+            
+            # Enhanced debug logging for data sizes
+            self.logger.debug(f"[BACKTEST DATA DEBUG] Detailed data handler state:")
+            if hasattr(data_handler, '_cli_max_bars'):
+                self.logger.debug(f"[BACKTEST DATA DEBUG]   CLI --bars limit: {data_handler._cli_max_bars}")
+            if hasattr(data_handler, '_data_for_run') and data_handler._data_for_run is not None:
+                self.logger.debug(f"[BACKTEST DATA DEBUG]   _data_for_run size: {len(data_handler._data_for_run)} bars")
+            if hasattr(data_handler, '_train_df') and data_handler._train_df is not None:
+                self.logger.debug(f"[BACKTEST DATA DEBUG]   _train_df size: {len(data_handler._train_df)} bars")
+            if hasattr(data_handler, '_test_df') and data_handler._test_df is not None:
+                self.logger.debug(f"[BACKTEST DATA DEBUG]   _test_df size: {len(data_handler._test_df)} bars")
+            
             if hasattr(data_handler, '_train_test_split_index'):
                 self.logger.info(f"Train/test split index: {data_handler._train_test_split_index}")
                 self.logger.info(f"Total data size: {len(data_handler._df) if hasattr(data_handler, '_df') else 'unknown'}")
@@ -231,9 +254,9 @@ class BacktestRunner(ComponentBase):
                 data_handler._bars_processed_current_run += 1
                 data_handler._last_bar_timestamp = bar_timestamp
                 
-                # Log progress occasionally
-                if bar_count <= 3 or bar_count % 100 == 0:
-                    self.logger.debug(f"Streamed bar {bar_count}/{len(data_handler._active_df)}: {bar_timestamp}")
+                # Log progress occasionally  
+                if bar_count <= 5 or bar_count % 100 == 0:
+                    self.logger.info(f"[BAR STREAM DEBUG] Streamed bar {bar_count}/{len(data_handler._active_df)}: timestamp={bar_timestamp}, close={bar_payload.get('close', 'N/A')}")
                     
         except Exception as e:
             self.logger.error(f"Error during manual bar streaming: {e}", exc_info=True)
@@ -311,8 +334,243 @@ class BacktestRunner(ComponentBase):
         if hasattr(portfolio, 'log_final_performance_summary'):
             portfolio.log_final_performance_summary()
             
+        # Display final results prominently
+        self._display_final_results(results)
+            
         return results
         
+    def _ensure_optimized_parameters_loaded(self, strategy) -> None:
+        """
+        Ensure the strategy has loaded the correct optimized parameters.
+        
+        When running with --dataset test, we need to make sure we're using
+        the parameters from the optimization results, not just the default
+        config file parameters.
+        """
+        import json
+        from pathlib import Path
+        
+        # Check if we need to load different parameters
+        if not hasattr(strategy, '_regime_specific_params'):
+            self.logger.warning("Strategy does not support regime-specific parameters")
+            return
+            
+        # Look for the most recent optimization results
+        opt_config = self._context.get('config', {}).get("optimization", {})
+        results_dir = opt_config.get("results_directory", "optimization_results")
+        
+        # Look for the most recent regime parameters file
+        import glob
+        regime_files = glob.glob(f"{results_dir}/regime_optimized_parameters*.json")
+        if regime_files:
+            # Sort by modification time, most recent first
+            regime_files.sort(key=lambda x: Path(x).stat().st_mtime, reverse=True)
+            param_files = [Path(regime_files[0])]  # Use most recent
+            self.logger.info(f"Found {len(regime_files)} regime parameter files, using most recent")
+        else:
+            # Fallback to default locations
+            param_files = [
+                Path(results_dir) / "regime_optimized_parameters.json",
+                Path("test_regime_parameters.json"),  # Fallback to test file
+            ]
+        
+        loaded = False
+        for param_file in param_files:
+            if param_file.exists():
+                try:
+                    with open(param_file, 'r') as f:
+                        data = json.load(f)
+                    
+                    # Extract regime parameters
+                    if 'regimes' in data:
+                        regime_params = data['regimes']
+                    else:
+                        regime_params = data
+                        
+                    # Check if this looks like optimization results
+                    if regime_params and any('.weight' in str(params) for params in regime_params.values() if isinstance(params, dict)):
+                        self.logger.info(f"✓ Loading optimized parameters from: {param_file}")
+                        self.logger.info(f"  Found parameters for {len(regime_params)} regimes")
+                        
+                        # Clear existing parameters and load new ones
+                        strategy._regime_specific_params.clear()
+                        for regime, params in regime_params.items():
+                            if isinstance(params, dict) and regime != 'metadata':
+                                strategy._regime_specific_params[regime] = params
+                                
+                        # Set default as fallback
+                        if 'default' in regime_params:
+                            strategy._overall_best_params = regime_params['default']
+                            
+                        # Enable regime switching
+                        if hasattr(strategy, '_enable_regime_switching'):
+                            strategy._enable_regime_switching = True
+                            
+                        loaded = True
+                        break
+                    else:
+                        self.logger.info(f"  Skipping {param_file} - no weight parameters found")
+                        
+                except Exception as e:
+                    self.logger.error(f"Failed to load parameters from {param_file}: {e}")
+                    
+        if not loaded:
+            self.logger.warning("⚠️  No optimized parameters with weights found!")
+            self.logger.warning("   The strategy may be using default config parameters")
+            self.logger.warning("   This will NOT reproduce optimization test results!")
+        else:
+            # Log a sample of what was loaded
+            for regime in list(strategy._regime_specific_params.keys())[:2]:
+                params = strategy._regime_specific_params[regime]
+                weight_params = [(k, v) for k, v in params.items() if '.weight' in k]
+                if weight_params:
+                    self.logger.info(f"  {regime} weights: {dict(weight_params)}")
+    
+    def _load_optimized_parameters_for_test(self, strategy) -> None:
+        """
+        Load optimized parameters when running with --dataset test.
+        
+        This enables running test verification using the same config without --optimize flag,
+        getting the same results as the test phase during optimization.
+        """
+        import json
+        from pathlib import Path
+        
+        self.logger.info("Loading optimized parameters for test dataset run")
+        
+        # Get optimization config
+        opt_config = self._context.get('config', {}).get("optimization", {})
+        results_dir = opt_config.get("results_directory", "optimization_results")
+        
+        # Look for the most recent regime optimized parameters file
+        regime_params_file = Path(results_dir) / "regime_optimized_parameters.json"
+        
+        # Fallback to test_regime_parameters.json if configured
+        if not regime_params_file.exists():
+            # Check if strategy has a specific regime params file configured
+            if hasattr(strategy, 'component_config') and strategy.component_config:
+                alt_params_file = strategy.component_config.get('regime_params_file_path')
+                if alt_params_file:
+                    regime_params_file = Path(alt_params_file)
+                    self.logger.info(f"Using strategy-configured params file: {regime_params_file}")
+        
+        if not regime_params_file.exists():
+            self.logger.warning(f"No optimized parameters found at {regime_params_file}")
+            return
+            
+        try:
+            with open(regime_params_file, 'r') as f:
+                data = json.load(f)
+                
+            self.logger.info(f"Loaded regime parameters from {regime_params_file}")
+            
+            # Extract regime parameters from the nested structure
+            if 'regimes' in data:
+                regime_params = data['regimes']
+            else:
+                regime_params = data
+            
+            # Apply the parameters to the strategy
+            if hasattr(strategy, '_regime_specific_params') and hasattr(strategy, '_overall_best_params'):
+                # For RegimeAdaptiveEnsembleComposed strategy
+                # Load regime-specific parameters
+                for regime, params in regime_params.items():
+                    if isinstance(params, dict) and regime != 'metadata':
+                        strategy._regime_specific_params[regime] = params
+                        
+                # Also set overall best if available
+                if 'overall_best' in regime_params:
+                    strategy._overall_best_params = regime_params['overall_best']
+                elif 'default' in regime_params:
+                    # Use default as fallback
+                    strategy._overall_best_params = regime_params['default']
+                    
+                self.logger.info("Loaded regime-specific parameters into strategy")
+                
+                # Log what was loaded for verification
+                self.logger.info("Regime-specific parameters loaded:")
+                for regime, params in regime_params.items():
+                    if isinstance(params, dict) and regime != 'metadata':
+                        # Show a summary of the parameters
+                        param_count = len(params)
+                        weight_params = [k for k in params.keys() if k.endswith('.weight')]
+                        if weight_params:
+                            weights_str = ", ".join([f"{k.split('.')[0]}={params[k]:.2f}" for k in weight_params])
+                            self.logger.info(f"  {regime}: {param_count} parameters, weights: {weights_str}")
+                        else:
+                            self.logger.info(f"  {regime}: {param_count} parameters")
+                            
+                # Enable regime switching for test mode
+                if hasattr(strategy, '_enable_regime_switching'):
+                    strategy._enable_regime_switching = True
+                    self.logger.info("Enabled regime switching for test phase")
+            else:
+                self.logger.warning("Strategy does not support regime-specific parameter loading")
+                
+        except Exception as e:
+            self.logger.error(f"Failed to load optimized parameters: {e}")
+            import traceback
+            self.logger.error(traceback.format_exc())
+    
+    def _display_final_results(self, results: Dict[str, Any]) -> None:
+        """Display final backtest results prominently."""
+        import sys
+        
+        # Extract key metrics
+        final_value = results.get('final_value', results.get('final_portfolio_value', 'N/A'))
+        initial_value = results.get('initial_value', 100000)
+        total_return = results.get('total_return_pct', results.get('total_return', 0))
+        if isinstance(total_return, (int, float)) and total_return < 1:
+            total_return *= 100  # Convert to percentage if needed
+        
+        num_trades = results.get('num_trades', results.get('total_trades', 0))
+        
+        # Get performance metrics
+        perf_metrics = results.get('performance_metrics', {})
+        sharpe = perf_metrics.get('portfolio_sharpe_ratio', results.get('portfolio_sharpe_ratio', 'N/A'))
+        win_rate = perf_metrics.get('win_rate', results.get('win_rate', 'N/A'))
+        
+        # Display to both logger and stderr for visibility
+        self.logger.warning("\n" + "="*60)
+        self.logger.warning("BACKTEST COMPLETE - FINAL PERFORMANCE")
+        self.logger.warning("="*60)
+        self.logger.warning(f"Initial Portfolio Value: ${initial_value:,.2f}")
+        self.logger.warning(f"Final Portfolio Value: ${final_value:,.2f}")
+        self.logger.warning(f"Total Return: {total_return:.2f}%")
+        self.logger.warning(f"Number of Trades: {num_trades}")
+        self.logger.warning(f"Sharpe Ratio: {sharpe}")
+        self.logger.warning(f"Win Rate: {win_rate}")
+        
+        # Display regime performance if available
+        regime_perf = perf_metrics.get('regime_performance', results.get('regime_performance', {}))
+        if regime_perf and any(k != '_boundary_trades_summary' for k in regime_perf.keys()):
+            self.logger.warning("\nREGIME PERFORMANCE:")
+            for regime, perf in regime_perf.items():
+                if regime != '_boundary_trades_summary' and isinstance(perf, dict):
+                    pnl = perf.get('pnl', 0)
+                    trades = perf.get('count', 0)
+                    sharpe = perf.get('sharpe_ratio', 0)
+                    if sharpe is None:
+                        sharpe = 0
+                    self.logger.warning(f"  {regime.upper()}: PnL=${pnl:,.2f}, "
+                                      f"Trades={trades}, "
+                                      f"Sharpe={sharpe:.2f}")
+        
+        self.logger.warning("="*60 + "\n")
+        
+        # Also print to stderr for test runs
+        if self.dataset_override == 'test':
+            print("\n" + "="*80, file=sys.stderr)
+            print("📊 TEST DATASET RUN COMPLETE - SUMMARY 📊", file=sys.stderr)
+            print("="*80, file=sys.stderr)
+            print(f"Final Portfolio Value: ${final_value:,.2f}", file=sys.stderr)
+            print(f"Total Return: {total_return:.2f}%", file=sys.stderr)
+            print(f"Sharpe Ratio: {sharpe}", file=sys.stderr)
+            print(f"Number of Trades: {num_trades}", file=sys.stderr)
+            print(f"Win Rate: {win_rate}", file=sys.stderr)
+            print("="*80 + "\n", file=sys.stderr)
+            sys.stderr.flush()
+    
     def initialize_event_subscriptions(self) -> None:
         """
         BacktestRunner doesn't need direct event subscriptions.

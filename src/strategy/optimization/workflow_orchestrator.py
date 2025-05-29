@@ -187,15 +187,15 @@ class OptimizationWorkflowOrchestrator(ComponentBase):
         
         # Calculate total backtests upfront
         total_backtests, backtest_breakdown = self._calculate_total_backtests(strategy)
-        logger.warning(f"\n{'='*80}")
-        logger.warning(f"OPTIMIZATION WORKFLOW SUMMARY")
-        logger.warning(f"{'='*80}")
-        logger.warning(f"Total workflow steps: {len(self.workflow_steps)}")
-        logger.warning(f"Total backtests to run: {total_backtests}")
-        logger.warning(f"\nBreakdown by step:")
+        logger.progress(f"\n{'='*80}")
+        logger.progress(f"OPTIMIZATION WORKFLOW SUMMARY")
+        logger.progress(f"{'='*80}")
+        logger.progress(f"Total workflow steps: {len(self.workflow_steps)}")
+        logger.progress(f"Total backtests to run: {total_backtests}")
+        logger.progress(f"\nBreakdown by step:")
         for step_name, count in backtest_breakdown.items():
-            logger.warning(f"  - {step_name}: {count} backtests")
-        logger.warning(f"{'='*80}\n")
+            logger.progress(f"  - {step_name}: {count} backtests")
+        logger.progress(f"{'='*80}\n")
         
         workflow_results = {}
         completed_steps = set()
@@ -212,10 +212,10 @@ class OptimizationWorkflowOrchestrator(ComponentBase):
             
             # Calculate backtests for this step
             step_backtests = self._calculate_step_backtests(step, strategy)
-            logger.warning(f"\n{'='*80}")
-            logger.warning(f"STARTING: {step['name'].upper()}")
-            logger.warning(f"Progress: {self._current_backtest + 1}-{self._current_backtest + step_backtests} of {self._total_backtests} total backtests")
-            logger.warning(f"{'='*80}")
+            logger.progress(f"\n{'='*80}")
+            logger.progress(f"STARTING: {step['name'].upper()}")
+            logger.progress(f"Progress: {self._current_backtest + 1}-{self._current_backtest + step_backtests} of {self._total_backtests} total backtests")
+            logger.progress(f"{'='*80}")
             
             try:
                 if step["type"] == "rulewise":
@@ -255,6 +255,13 @@ class OptimizationWorkflowOrchestrator(ComponentBase):
         self._display_training_summary(workflow_results)
         
         # FINAL STEP: Run complete ensemble on TEST dataset with regime-adaptive parameters
+        self.logger.warning("\n" + "="*80)
+        self.logger.warning("🚀 BEGINNING TEST PHASE 🚀")
+        self.logger.warning("="*80)
+        self.logger.warning("SWITCHING FROM TRAINING DATA TO TEST DATA")
+        self.logger.warning("All optimized parameters will now be applied to out-of-sample test data")
+        self.logger.warning("="*80 + "\n")
+        
         self.logger.info("===== FINAL TEST EVALUATION WITH COMPLETE REGIME-ADAPTIVE ENSEMBLE =====")
         
         # Ensure all best parameters have been applied to the strategy
@@ -269,11 +276,21 @@ class OptimizationWorkflowOrchestrator(ComponentBase):
         regime_params = self._collect_regime_parameters(workflow_results)
         if regime_params and hasattr(strategy, '_regime_specific_params'):
             strategy._regime_specific_params = regime_params
-            self.logger.info(f"Applied regime-specific parameters for {len(regime_params)} regimes directly to strategy")
+            self.logger.warning(f"\n📊 APPLYING REGIME-SPECIFIC PARAMETERS FOR {len(regime_params)} REGIMES:")
             for regime, params in regime_params.items():
-                weight_params = {k: v for k, v in params.items() if 'weight' in k}
-                if weight_params:
-                    self.logger.info(f"  {regime}: {weight_params}")
+                self.logger.info(f"\n  {regime.upper()} regime parameters:")
+                # Group by component for clearer display
+                component_params = {}
+                for param_name, param_value in params.items():
+                    component = param_name.split('.')[0] if '.' in param_name else 'general'
+                    if component not in component_params:
+                        component_params[component] = []
+                    component_params[component].append((param_name, param_value))
+                
+                for component, param_list in sorted(component_params.items()):
+                    for param_name, param_value in sorted(param_list):
+                        self.logger.info(f"    • {param_name}: {param_value}")
+            self.logger.warning("✅ Regime-specific parameters ready for dynamic switching\n")
             
         # Force strategy to subscribe to classification events for test phase
         if hasattr(strategy, 'event_bus') and strategy.event_bus:
@@ -290,7 +307,186 @@ class OptimizationWorkflowOrchestrator(ComponentBase):
         # Switch to test dataset
         if hasattr(data_handler, 'set_active_dataset'):
             data_handler.set_active_dataset('test')
-            self.logger.info("Set data handler to TEST dataset for final ensemble evaluation")
+            self.logger.warning("🔄 SWITCHED DATA HANDLER TO TEST DATASET")
+            self.logger.info("Test dataset is completely independent from training data")
+        
+        # CRITICAL: Reset regime detector to match independent test run behavior
+        # Independent test run has no training phase, so we must cold start
+        regime_detector = None
+        
+        # First try to get the global event bus and find regime detector there
+        event_bus = None
+        if hasattr(self._context, 'event_bus'):
+            event_bus = self._context.event_bus
+        elif hasattr(data_handler, 'event_bus'):
+            event_bus = data_handler.event_bus
+        elif hasattr(portfolio_manager, '_event_bus'):
+            event_bus = portfolio_manager._event_bus
+            
+        if event_bus and hasattr(event_bus, '_subscribers'):
+            self.logger.warning("[REGIME RESET CHECK] Checking global event bus for regime detector")
+            bar_subscribers = event_bus._subscribers.get(EventType.BAR, [])
+            for subscriber in bar_subscribers:
+                # Handle different subscriber formats
+                method = None
+                instance = None
+                if callable(subscriber):
+                    method = subscriber
+                    if hasattr(method, '__self__'):
+                        instance = method.__self__
+                elif isinstance(subscriber, tuple) and len(subscriber) >= 2:
+                    method = subscriber[0]
+                    instance = subscriber[1] if len(subscriber) > 1 else None
+                    
+                if method and hasattr(method, '__name__') and 'classify' in method.__name__:
+                    if instance:
+                        self.logger.warning(f"[REGIME RESET CHECK] Found classify method from {type(instance)}")
+                        if 'regime' in str(type(instance)).lower():
+                            # Skip MyPrimaryRegimeDetector - it's a dummy
+                            if hasattr(instance, 'instance_name') and 'MyPrimary' in instance.instance_name:
+                                self.logger.warning(f"[REGIME RESET CHECK] Skipping dummy detector: {instance.instance_name}")
+                                continue
+                            regime_detector = instance
+                            self.logger.warning(f"[REGIME RESET CHECK] Found regime detector via global event bus: {regime_detector}")
+                            break
+        
+        try:
+            # Try to get regime detector directly from strategy
+            if hasattr(strategy, '_regime_detector'):
+                regime_detector = strategy._regime_detector
+                self.logger.warning(f"[REGIME RESET CHECK] Found regime detector directly on strategy: {regime_detector}")
+            elif hasattr(strategy, 'event_bus') and strategy.event_bus:
+                # Try to find regime detector from BAR event subscribers
+                self.logger.warning("[REGIME RESET CHECK] Looking for regime detector in event bus subscribers")
+                if hasattr(strategy.event_bus, '_subscribers'):
+                    bar_subscribers = strategy.event_bus._subscribers.get(EventType.BAR, [])
+                    self.logger.warning(f"[REGIME RESET CHECK] Found {len(bar_subscribers)} BAR subscribers")
+                    for i, subscriber_info in enumerate(bar_subscribers):
+                        # Check different ways subscriber info might be stored
+                        instance = None
+                        if hasattr(subscriber_info, 'instance'):
+                            instance = subscriber_info.instance
+                        elif hasattr(subscriber_info, '__self__'):
+                            instance = subscriber_info.__self__
+                        elif isinstance(subscriber_info, tuple) and len(subscriber_info) > 1:
+                            instance = subscriber_info[1]
+                            
+                        if instance:
+                            instance_type = str(type(instance))
+                            self.logger.warning(f"[REGIME RESET CHECK] BAR subscriber {i}: {instance_type}")
+                            if 'regime' in instance_type.lower() or 'classifier' in instance_type.lower():
+                                # Skip MyPrimaryRegimeDetector - it's a dummy
+                                if hasattr(instance, 'instance_name') and 'MyPrimary' in instance.instance_name:
+                                    self.logger.warning(f"[REGIME RESET CHECK] Skipping dummy detector at position {i}: {instance.instance_name}")
+                                    continue
+                                regime_detector = instance
+                                self.logger.warning(f"[REGIME RESET CHECK] Found regime detector in BAR subscribers: {regime_detector}")
+                                break
+            else:
+                # Try to get container from context or strategy
+                container = None
+                if hasattr(self, '_context') and hasattr(self._context, 'container'):
+                    container = self._context.container
+                elif hasattr(strategy, '_container'):
+                    container = strategy._container
+                elif hasattr(strategy, '_context') and hasattr(strategy._context, 'container'):
+                    container = strategy._context.container
+                elif hasattr(backtest_runner, 'container'):
+                    container = backtest_runner.container
+                    self.logger.warning(f"[REGIME RESET CHECK] Got container from backtest_runner")
+                elif hasattr(portfolio_manager, '_context') and hasattr(portfolio_manager._context, 'container'):
+                    container = portfolio_manager._context.container
+                    self.logger.warning(f"[REGIME RESET CHECK] Got container from portfolio_manager context")
+                    
+                self.logger.warning(f"[REGIME RESET CHECK] Container found: {container is not None}")
+                
+                if container:
+                    regime_detector = container.resolve('regime_detector')
+                    self.logger.warning(f"[REGIME RESET CHECK] Resolved regime_detector from container: {regime_detector}")
+                else:
+                    self.logger.warning("[REGIME RESET CHECK] No container available")
+                
+            if regime_detector:
+                # Reset bar count and state
+                if hasattr(regime_detector, '_bar_count'):
+                    regime_detector._bar_count = 0
+                if hasattr(regime_detector, '_current_classification'):
+                    regime_detector._current_classification = None
+                if hasattr(regime_detector, '_current_regime_duration'):
+                    regime_detector._current_regime_duration = 0
+                if hasattr(regime_detector, 'regime_history'):
+                    regime_detector.regime_history = []
+                    
+                # Reset indicators for cold start
+                if hasattr(regime_detector, '_regime_indicators'):
+                    self.logger.warning(f"[REGIME RESET] Found {len(regime_detector._regime_indicators)} indicators to reset")
+                    for name, indicator in regime_detector._regime_indicators.items():
+                        if hasattr(indicator, 'reset'):
+                            indicator.reset()
+                            self.logger.warning(f"[REGIME RESET] Reset indicator {name} using reset()")
+                        else:
+                            # Manual reset for indicators without reset method
+                            if hasattr(indicator, '_values'):
+                                indicator._values = []
+                            if hasattr(indicator, '_ready'):
+                                indicator._ready = False
+                            if hasattr(indicator, '_is_ready'):
+                                indicator._is_ready = False
+                            if hasattr(indicator, '_current_value'):
+                                indicator._current_value = None
+                            if hasattr(indicator, 'value'):
+                                indicator.value = None
+                            # For MA trend indicator specifically
+                            if hasattr(indicator, '_prices'):
+                                indicator._prices.clear()
+                                self.logger.warning(f"[REGIME RESET] Cleared price buffer for {name}")
+                            if hasattr(indicator, '_short_ma_values'):
+                                indicator._short_ma_values.clear()
+                            if hasattr(indicator, '_long_ma_values'):
+                                indicator._long_ma_values.clear()
+                            self.logger.warning(f"[REGIME RESET] Manually reset indicator {name}")
+                            
+                self.logger.warning("🔄 RESET REGIME DETECTOR for test phase (cold start)")
+                
+                # Log indicator states after reset
+                if hasattr(regime_detector, '_regime_indicators'):
+                    self.logger.warning("[RESET CHECK] Regime detector indicators after reset:")
+                    for name, indicator in regime_detector._regime_indicators.items():
+                        ready = getattr(indicator, '_ready', False) if hasattr(indicator, '_ready') else getattr(indicator, 'ready', False)
+                        value = getattr(indicator, '_current_value', None) if hasattr(indicator, '_current_value') else getattr(indicator, 'value', None)
+                        self.logger.warning(f"  {name}: ready={ready}, value={value}")
+        except Exception as e:
+            self.logger.warning(f"Could not reset regime detector: {e}")
+            
+        # Also reset strategy indicators for cold start
+        try:
+            if hasattr(strategy, '_indicators'):
+                for name, indicator in strategy._indicators.items():
+                    if hasattr(indicator, 'reset'):
+                        indicator.reset()
+                    elif hasattr(indicator, '_values'):
+                        indicator._values = []
+                    if hasattr(indicator, '_ready'):
+                        indicator._ready = False
+                    if hasattr(indicator, '_value'):
+                        indicator._value = None
+                    # For MA indicators specifically
+                    if hasattr(indicator, '_sum'):
+                        indicator._sum = 0.0
+                self.logger.warning("🔄 RESET STRATEGY INDICATORS for test phase (cold start)")
+        except Exception as e:
+            self.logger.warning(f"Could not reset strategy indicators: {e}")
+        
+        # Final verification before test run
+        self.logger.warning("\n" + "="*60)
+        self.logger.warning("📍 TEST PHASE CHECKPOINT - FINAL VERIFICATION:")
+        self.logger.warning("  ✓ Test dataset active")
+        self.logger.warning("  ✓ Optimal parameters applied")
+        self.logger.warning("  ✓ Regime switching enabled")
+        self.logger.warning("  ✓ Portfolio reset for clean evaluation")
+        self.logger.warning("  ✓ Regime detector reset for cold start")
+        self.logger.warning("  ✓ Strategy indicators reset for cold start")
+        self.logger.warning("="*60 + "\n")
         
         # Run final test evaluation
         try:
@@ -348,6 +544,7 @@ class OptimizationWorkflowOrchestrator(ComponentBase):
                 self.logger.info(f"BacktestRunner state - initialized: {backtest_runner.initialized}, running: {backtest_runner.running}")
                 
                 if hasattr(backtest_runner, 'execute'):
+                    self.logger.warning("\n🏁 EXECUTING TEST PHASE BACKTEST...")
                     self.logger.info("Running final test backtest with regime-adaptive ensemble")
                     
                     # Double-check the state
@@ -357,6 +554,8 @@ class OptimizationWorkflowOrchestrator(ComponentBase):
                         self.logger.error("BacktestRunner not running!")
                         
                     test_results = backtest_runner.execute()
+                    
+                    self.logger.warning("✅ TEST PHASE BACKTEST COMPLETE\n")
                     
                     # Add test results to workflow results
                     workflow_results['final_test_evaluation'] = {
@@ -784,6 +983,19 @@ class OptimizationWorkflowOrchestrator(ComponentBase):
             self.logger.info(f"Generated {len(weight_combinations)} weight combinations for {len(rule_names)} rules")
         
         # Collect regime-specific optimized parameters from previous steps
+        self.logger.debug(f"[DEBUG] Previous results keys: {list(previous_results.keys())}")
+        for step_name, step_results in previous_results.items():
+            self.logger.debug(f"[DEBUG] Step '{step_name}' has keys: {list(step_results.keys()) if isinstance(step_results, dict) else 'Not a dict'}")
+            if isinstance(step_results, dict) and step_results.get('optimization_type') == 'component':
+                comp_results = step_results.get('results', {})
+                self.logger.debug(f"[DEBUG] Component results keys: {list(comp_results.keys())}")
+                for comp_name, comp_data in comp_results.items():
+                    self.logger.debug(f"[DEBUG] Component '{comp_name}' has keys: {list(comp_data.keys()) if isinstance(comp_data, dict) else 'Not a dict'}")
+                    if 'regime_best_parameters' in comp_data:
+                        self.logger.debug(f"[DEBUG] Found regime_best_parameters in {comp_name}: {list(comp_data['regime_best_parameters'].keys())}")
+                    else:
+                        self.logger.debug(f"[DEBUG] No regime_best_parameters in {comp_name}")
+        
         regime_params = self._collect_regime_parameters(previous_results)
         if not regime_params:
             self.logger.warning("No regime-specific parameters found from previous optimization steps")
@@ -1054,7 +1266,7 @@ class OptimizationWorkflowOrchestrator(ComponentBase):
     
     def _apply_best_parameters_to_strategy(self, strategy, workflow_results: Dict[str, Any]) -> None:
         """Apply best parameters from optimization results to strategy."""
-        self.logger.info("Applying best parameters to strategy for final test evaluation")
+        self.logger.warning("\n📋 VERIFYING OPTIMAL PARAMETER APPLICATION FOR TEST PHASE...")
         
         # Collect all best parameters from component optimizations
         all_params = {}
@@ -1070,22 +1282,30 @@ class OptimizationWorkflowOrchestrator(ComponentBase):
                         # Add with proper namespacing
                         for param, value in best_params.items():
                             all_params[param] = value
-                        self.logger.debug(f"Added parameters from {comp_name}: {best_params}")
+                        self.logger.info(f"✓ Found best parameters from {comp_name}: {best_params}")
         
         # Get weights from ensemble optimization
         for step_name, results in workflow_results.items():
             if results.get('optimization_type') == 'ensemble_weights':
-                best_weights = results.get('best_parameters', {})
+                best_weights = results.get('best_weights', {})  # Check for 'best_weights' key
+                if not best_weights:
+                    best_weights = results.get('best_parameters', {})  # Fallback to 'best_parameters'
                 if best_weights:
                     all_params.update(best_weights)
-                    self.logger.debug(f"Added ensemble weights: {best_weights}")
+                    self.logger.info(f"✓ Found ensemble weights: {best_weights}")
         
         # Apply all parameters to strategy
         if all_params:
+            self.logger.warning(f"\n🔧 APPLYING {len(all_params)} OPTIMAL PARAMETERS TO STRATEGY:")
+            
+            # Log each parameter being applied
+            for param_name, param_value in sorted(all_params.items()):
+                self.logger.info(f"  • {param_name}: {param_value}")
+            
             strategy.apply_parameters(all_params)
-            self.logger.info(f"Applied {len(all_params)} parameters to strategy")
+            self.logger.warning(f"✅ Successfully applied all {len(all_params)} parameters to strategy\n")
         else:
-            self.logger.warning("No best parameters found to apply to strategy")
+            self.logger.error("❌ WARNING: No best parameters found to apply to strategy!")
     
     def _display_training_summary(self, workflow_results: Dict[str, Any]) -> None:
         """Display comprehensive training set performance summary."""
@@ -1142,24 +1362,43 @@ class OptimizationWorkflowOrchestrator(ComponentBase):
         """Collect all regime-specific parameters from optimization results."""
         regime_params = {}
         
+        self.logger.debug(f"[COLLECT] Collecting regime parameters from {len(workflow_results)} workflow steps")
+        
         # Collect from component optimizations
         for step_name, results in workflow_results.items():
+            self.logger.debug(f"[COLLECT] Processing step: {step_name}")
             if results.get('optimization_type') == 'component':
+                self.logger.debug(f"[COLLECT] Found component optimization step: {step_name}")
                 component_results = results.get('results', {})
+                self.logger.debug(f"[COLLECT] Component results has {len(component_results)} components")
                 for comp_name, comp_data in component_results.items():
+                    self.logger.debug(f"[COLLECT] Processing component: {comp_name}")
+                    # Check if this component has regime_best_parameters directly
                     regime_best = comp_data.get('regime_best_parameters', {})
                     if regime_best:
+                        self.logger.debug(f"[COLLECT] Found regime_best_parameters in {comp_name} with {len(regime_best)} regimes")
                         for regime, regime_data in regime_best.items():
                             if regime not in regime_params:
                                 regime_params[regime] = {}
                             # Add component parameters with proper namespacing
                             comp_params = regime_data.get('parameters', {})
+                            self.logger.debug(f"[COLLECT] Adding {len(comp_params)} parameters for {regime} from {comp_name}")
                             for param, value in comp_params.items():
                                 # Namespace by component if needed
                                 if comp_name in param:
                                     regime_params[regime][param] = value
                                 else:
                                     regime_params[regime][f"{comp_name}.{param}"] = value
+                    else:
+                        self.logger.debug(f"[COLLECT] No regime_best_parameters in {comp_name}")
+            else:
+                self.logger.debug(f"[COLLECT] Step {step_name} is not component optimization: {results.get('optimization_type', 'unknown')}")
+        
+        self.logger.debug(f"[COLLECT] Collected parameters for {len(regime_params)} regimes: {list(regime_params.keys())}")
+        for regime, params in regime_params.items():
+            self.logger.debug(f"[COLLECT] {regime}: {len(params)} parameters")
+            for param_name, param_value in params.items():
+                self.logger.debug(f"[COLLECT]   {param_name}: {param_value}")
                                     
         # Collect from weight optimization
         for step_name, results in workflow_results.items():

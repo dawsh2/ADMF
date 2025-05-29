@@ -1259,10 +1259,17 @@ class EnhancedOptimizer(BasicOptimizer):
                 self.logger.debug("Regime detector reset complete")
             
             # Set dataset to test
+            self.logger.warning("\n" + "="*80)
+            self.logger.warning("🚀 BEGINNING TEST PHASE 🚀")
+            self.logger.warning("="*80)
+            self.logger.warning("SWITCHING FROM TRAINING DATA TO TEST DATA")
+            self.logger.warning("All optimized parameters will now be applied to out-of-sample test data")
+            self.logger.warning("="*80 + "\n")
+            
             self.logger.debug("Setting data handler to use test dataset")
             if hasattr(data_handler, "set_active_dataset") and callable(getattr(data_handler, "set_active_dataset")):
                 data_handler.set_active_dataset("test")
-                self.logger.debug("Set active dataset to 'test'")
+                self.logger.warning("🔄 SWITCHED DATA HANDLER TO TEST DATASET")
                 
                 # DEBUG: Verify the test dataset was actually set
                 if hasattr(data_handler, '_active_df'):
@@ -1482,10 +1489,11 @@ class EnhancedOptimizer(BasicOptimizer):
                 self.logger.debug("Regime detector reset complete")
                 
             # Set dataset to test again
+            self.logger.warning("\n📊 RUNNING ADAPTIVE TEST EVALUATION WITH REGIME SWITCHING...")
             self.logger.debug("Setting data handler to use test dataset again")
             if hasattr(data_handler, "set_active_dataset") and callable(getattr(data_handler, "set_active_dataset")):
                 data_handler.set_active_dataset("test")
-                self.logger.debug("Set active dataset to 'test'")
+                self.logger.info("✓ Confirmed test dataset is active for adaptive evaluation")
             else:
                 if hasattr(data_handler, "use_test_data") and callable(getattr(data_handler, "use_test_data")):
                     data_handler.use_test_data()

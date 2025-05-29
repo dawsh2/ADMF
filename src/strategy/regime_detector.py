@@ -63,6 +63,10 @@ class RegimeDetector(ComponentBase):
         # Log instance ID for debugging isolation
         self.logger.debug(f"RegimeDetector '{self.instance_name}' created with ID {id(self)}")
         
+        # Log full config for debugging
+        if hasattr(self, '_config'):
+            self.logger.warning(f"[REGIME FULL CONFIG DEBUG] {self.instance_name} initialized with config: {self._config}")
+        
         # Load configuration parameters
         self._regime_thresholds = self.get_specific_config("regime_thresholds", {})
         self._min_regime_duration = self.get_specific_config("min_regime_duration", 1)
@@ -74,6 +78,25 @@ class RegimeDetector(ComponentBase):
         self._setup_regime_indicators()
         
         self.logger.info(f"RegimeDetector '{self.instance_name}' initialized. Min duration: {self._min_regime_duration}, Thresholds: {self._regime_thresholds}")
+        
+        # Debug for isolated evaluation - warn if no thresholds
+        if not self._regime_thresholds:
+            self.logger.debug(f"[REGIME CONFIG DEBUG] {self.instance_name} has NO regime thresholds configured!")
+        else:
+            self.logger.debug(f"[REGIME CONFIG DEBUG] {self.instance_name} configured with {len(self._regime_thresholds)} regime thresholds: {list(self._regime_thresholds.keys())}")
+            # Log detailed thresholds for debugging
+            for regime_name, thresholds in self._regime_thresholds.items():
+                self.logger.warning(f"[REGIME THRESHOLD DEBUG] {regime_name}: {thresholds}")
+            
+            # Also log the indicators being used
+            self.logger.warning(f"[REGIME INDICATORS DEBUG] {self.instance_name} indicators config: {self.get_specific_config('indicators', {})}")
+            
+        # Log initial state
+        self.logger.info(f"[INITIAL STATE] RegimeDetector '{self.instance_name}' starting with:")
+        self.logger.info(f"  - bar_count: {self._bar_count}")
+        self.logger.info(f"  - current_classification: {self._current_classification}")
+        self.logger.info(f"  - current_regime_duration: {self._current_regime_duration}")
+        self.logger.info(f"  - indicators: {list(self._regime_indicators.keys()) if self._regime_indicators else 'None'}")
 
     def initialize_event_subscriptions(self):
         """Set up event subscriptions."""
@@ -93,6 +116,11 @@ class RegimeDetector(ComponentBase):
         if not isinstance(bar_data, dict):
             self.logger.warning(f"Received BAR event with non-dict payload")
             return
+        
+        # Debug logging for isolated evaluation
+        # NOTE: _bar_count is incremented in classify(), not here to avoid double counting
+        if self._bar_count <= 10 or self._bar_count % 100 == 0:
+            self.logger.debug(f"[REGIME EVENT DEBUG] {self.instance_name} received BAR #{self._bar_count + 1}, current regime: {self._current_classification}")
             
         # Classify the bar data
         regime = self.classify(bar_data)
@@ -113,8 +141,10 @@ class RegimeDetector(ComponentBase):
     def _setup_regime_indicators(self):
         indicator_configs: Dict[str, Any] = self.get_specific_config("indicators", {})
         if not indicator_configs:
-            self.logger.info(f"No indicators configured for RegimeDetector '{self.instance_name}'. It will likely always classify as 'default'.")
+            self.logger.debug(f"[REGIME INDICATORS DEBUG] {self.instance_name}: No indicators configured - will always classify as 'default'.")
             return
+        
+        self.logger.debug(f"[REGIME INDICATORS DEBUG] {self.instance_name}: Setting up {len(indicator_configs)} indicators: {list(indicator_configs.keys())}")
 
         for indicator_instance_name, config_dict in indicator_configs.items():
             indicator_type_str = config_dict.get("type")
@@ -159,8 +189,9 @@ class RegimeDetector(ComponentBase):
                             parameters=params_from_config
                         )
                     
-                    self.logger.info(f"Initialized indicator '{indicator_instance_name}' of type '{indicator_type_str}' for {self.instance_name}.")
+                    self.logger.debug(f"[REGIME INDICATORS DEBUG] {self.instance_name}: Successfully initialized indicator '{indicator_instance_name}' of type '{indicator_type_str}'.")
                 except Exception as e:
+                    self.logger.warning(f"[REGIME INDICATORS DEBUG] {self.instance_name}: FAILED to initialize indicator '{indicator_instance_name}': {e}")
                     self.logger.error(f"Failed to initialize indicator '{indicator_instance_name}' for {self.instance_name}: {e}", exc_info=True)
         
         if not self._regime_indicators:
@@ -177,6 +208,14 @@ class RegimeDetector(ComponentBase):
         
         # Track bar count for warm-up period detection
         self._bar_count += 1
+        
+        # Log first 5 bars with price info to verify data source
+        if self._bar_count <= 5:
+            close_price = data.get('close', 'N/A')
+            open_price = data.get('open', 'N/A')
+            high_price = data.get('high', 'N/A')
+            low_price = data.get('low', 'N/A')
+            self.logger.info(f"[REGIME DETECTOR FIRST BARS] Bar #{self._bar_count}: timestamp={current_bar_timestamp}, open=${open_price}, high=${high_price}, low=${low_price}, close=${close_price}")
         
         # Enhanced debugging for first 100 bars
         if self._debug_mode and self._bar_count <= 100:
@@ -205,6 +244,13 @@ class RegimeDetector(ComponentBase):
                         indicator_values[name] = indicator_obj.value
                         if self._debug_mode and self._bar_count <= 100:
                             self.logger.info(f"[REGIME_DEBUG] Bar #{self._bar_count}: {name} = {indicator_obj.value:.4f if indicator_obj.value else 'None'}")
+                        # Special logging for first bar and when indicators first become ready
+                        if self._bar_count == 1:
+                            self.logger.warning(f"[FIRST BAR INDICATOR] {name} = {indicator_obj.value}")
+                        # Log when indicator first becomes ready
+                        if not hasattr(indicator_obj, '_logged_first_ready'):
+                            self.logger.warning(f"[INDICATOR FIRST READY] {name} ready at bar {self._bar_count} with value {indicator_obj.value}")
+                            indicator_obj._logged_first_ready = True
                     else:
                         indicator_values[name] = None # Mark as None if not ready
                         if self._debug_mode and self._bar_count <= 100:
@@ -239,11 +285,26 @@ class RegimeDetector(ComponentBase):
                 raw_detected_regime = self._determine_regime_from_indicators(indicator_values, current_bar_timestamp)
             
             self.logger.debug(f"RegimeDetector '{self.instance_name}' at {current_bar_timestamp}: Raw detection: '{raw_detected_regime}'.")
+            
+            # Special logging for first bar and first non-default regime
+            if self._bar_count == 1:
+                self.logger.warning(f"[FIRST BAR REGIME] Raw regime detected: {raw_detected_regime}")
+                self.logger.warning(f"[FIRST BAR REGIME] Indicator values: {indicator_values}")
+            
+            # Log first non-default regime detection
+            if raw_detected_regime != "default" and not hasattr(self, '_logged_first_non_default'):
+                self.logger.warning(f"[FIRST NON-DEFAULT REGIME] Detected {raw_detected_regime} at bar {self._bar_count}")
+                self.logger.warning(f"[FIRST NON-DEFAULT REGIME] Indicator values: {indicator_values}")
+                self._logged_first_non_default = True
 
         final_regime = self._apply_stabilization(raw_detected_regime, current_bar_timestamp)
         
         if self._debug_mode and self._bar_count <= 100:
             self.logger.info(f"[REGIME_DEBUG] Bar #{self._bar_count}: raw={raw_detected_regime}, final={final_regime}, duration={self._current_regime_duration}")
+        
+        # Debug for isolated evaluation - log regime changes
+        if final_regime != self._current_classification:
+            self.logger.warning(f"[REGIME CHANGE DEBUG] {self.instance_name} regime change: {self._current_classification} -> {final_regime} at bar #{self._bar_count}")
         
         return final_regime
     
@@ -256,6 +317,10 @@ class RegimeDetector(ComponentBase):
         if self._verbose_logging:
             self.logger.debug(f"RegimeDet '{self.instance_name}' at {current_bar_timestamp}: Current indicator values: {indicator_values}")
             self.logger.debug(f"Checking against thresholds: {self._regime_thresholds}")
+        
+        # Debug for isolated evaluation - log indicator values every 100 bars
+        if self._bar_count % 100 == 0:
+            self.logger.debug(f"[REGIME INDICATORS DEBUG] {self.instance_name} bar #{self._bar_count}: indicators={indicator_values}, thresholds={bool(self._regime_thresholds)}")
         
         regime_check_results = {}
         for regime_name, conditions in self._regime_thresholds.items():

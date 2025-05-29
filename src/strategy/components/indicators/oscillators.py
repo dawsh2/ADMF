@@ -69,9 +69,13 @@ class RSIIndicator(ComponentBase):
         
     def reset(self) -> None:
         """Reset component state."""
-        super().reset()
-        self._reset_state()
-        self.logger.debug(f"RSIIndicator '{self.instance_name}' reset to initial state")
+        self.logger.info(f"Indicator {self.instance_name} RESET - clearing {len(self._buffer)} bars of history")
+        
+        # Reinitialize buffer to ensure true cold start
+        self._buffer = deque(maxlen=self._lookback_period)
+        self._value = None
+        self._ready = False
+        
         
     def hard_reset(self) -> None:
         """Perform a complete reset clearing all buffers and state."""
@@ -214,14 +218,14 @@ class RSIIndicator(ComponentBase):
             # Only reset if we don't have enough historical data
             if old_period != self.period:
                 if len(self._prices) < self.period:
-                    self.logger.warning(f"RSI '{self.instance_name}' period changed from {old_period} to {self.period}. Resetting due to insufficient data.")
+                    self.logger.debug(f"RSI '{self.instance_name}' period changed from {old_period} to {self.period}. Resetting due to insufficient data ({len(self._prices)} bars < {self.period} needed).")
                     self._reset_state()
                 else:
-                    self.logger.info(f"RSI '{self.instance_name}' period changed from {old_period} to {self.period}. Preserving {len(self._prices)} bars of history.")
+                    self.logger.debug(f"RSI '{self.instance_name}' period changed from {old_period} to {self.period}. Preserving {len(self._prices)} bars of history (enough for new period).")
                     # Just update the period, don't reset
                     self.period = self.period
             else:
-                self.logger.debug(f"RSI '{self.instance_name}' period unchanged at {self.period}")
+                self.logger.debug(f"RSI '{self.instance_name}' period unchanged at {self.period} (Object ID: {id(self)})")
                 
     # ===== Legacy compatibility methods =====
     

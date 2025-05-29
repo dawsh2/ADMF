@@ -156,9 +156,13 @@ class Strategy(ComponentBase):
         self._indicators[name] = indicator
         self._update_parameter_namespace(f"indicators.{name}", indicator)
         
-        # Initialize the indicator if it's a ComponentBase
+        # Initialize the indicator if it's a ComponentBase and not already initialized
         if hasattr(indicator, 'initialize') and hasattr(self, '_context') and self._context:
-            indicator.initialize(self._context)
+            # Don't reinitialize if already initialized (preserves applied parameters)
+            if not (hasattr(indicator, 'initialized') and indicator.initialized):
+                indicator.initialize(self._context)
+            else:
+                self.logger.debug(f"Indicator {indicator.instance_name} already initialized, preserving existing parameters")
         
     def add_rule(self, name: str, rule: StrategyComponent, weight: float = 1.0) -> None:
         """Add a rule component with optional weight."""
@@ -166,9 +170,13 @@ class Strategy(ComponentBase):
         self._component_weights[name] = weight
         self._update_parameter_namespace(f"rules.{name}", rule)
         
-        # Initialize the rule if it's a ComponentBase
+        # Initialize the rule if it's a ComponentBase and not already initialized
         if hasattr(rule, 'initialize') and hasattr(self, '_context') and self._context:
-            rule.initialize(self._context)
+            # Don't reinitialize if already initialized (preserves applied parameters)
+            if not (hasattr(rule, 'initialized') and rule.initialized):
+                rule.initialize(self._context)
+            else:
+                self.logger.debug(f"Rule {rule.instance_name} already initialized, preserving existing parameters")
         
     def add_feature(self, name: str, feature: StrategyComponent) -> None:
         """Add a feature component."""
@@ -184,6 +192,7 @@ class Strategy(ComponentBase):
             
         bar_data = event.payload
         self._bars_processed += 1
+        
         
         # Update all indicators with new data
         self._update_indicators(bar_data)
@@ -203,6 +212,15 @@ class Strategy(ComponentBase):
             return
             
         classification = event.payload
+        
+        # Filter by detector name if configured
+        detector_name = classification.get('detector_name')
+        if hasattr(self, '_regime_detector_name') and self._regime_detector_name:
+            if detector_name != self._regime_detector_name:
+                self.logger.debug(f"Strategy '{self.instance_name}' ignoring classification from "
+                                f"'{detector_name}' (expecting '{self._regime_detector_name}')")
+                return
+        
         new_regime = classification.get('classification', classification.get('regime', 'default'))
         
         if new_regime != self._current_regime:

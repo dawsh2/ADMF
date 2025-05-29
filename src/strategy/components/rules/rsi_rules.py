@@ -118,9 +118,16 @@ class RSIRule(ComponentBase):
         # Debug log incoming parameters
         self.logger.debug(f"RSIRule.set_parameters received: {params}")
         
-        self.oversold_threshold = params.get('oversold_threshold', self.oversold_threshold)
-        self.overbought_threshold = params.get('overbought_threshold', self.overbought_threshold)
-        self._weight = params.get('weight', self._weight)
+        # Apply rule parameters with debugging
+        if 'oversold_threshold' in params:
+            self.logger.debug(f"Setting oversold_threshold from {self.oversold_threshold} to {params['oversold_threshold']}")
+            self.oversold_threshold = params['oversold_threshold']
+        if 'overbought_threshold' in params:
+            self.logger.debug(f"Setting overbought_threshold from {self.overbought_threshold} to {params['overbought_threshold']}")
+            self.overbought_threshold = params['overbought_threshold']
+        if 'weight' in params:
+            self.logger.debug(f"Setting weight from {self._weight} to {params['weight']}")
+            self._weight = params['weight']
         
         
         # Validate threshold relationship
@@ -139,17 +146,26 @@ class RSIRule(ComponentBase):
         # Apply indicator parameters if provided
         if self.rsi_indicator:
             indicator_params = {}
+            self.logger.debug(f"Processing indicator parameters from: {params}")
             for key, value in params.items():
                 if key.startswith('rsi_indicator.'):
                     param_name = key.replace('rsi_indicator.', '')
+                    # Handle legacy naming: lookback_period -> period
+                    if param_name == 'lookback_period':
+                        param_name = 'period'
+                        self.logger.debug(f"Translated parameter name: {key} -> rsi_indicator.{param_name} = {value}")
                     indicator_params[param_name] = value
+                    self.logger.debug(f"Found indicator parameter: {key} -> {param_name} = {value}")
             if indicator_params:
+                self.logger.debug(f"Applying RSI indicator parameters: {indicator_params}")
                 # RSI indicator uses apply_parameters, not set_parameters
                 if hasattr(self.rsi_indicator, 'apply_parameters'):
                     self.rsi_indicator.apply_parameters(indicator_params)
                 elif hasattr(self.rsi_indicator, 'set_parameters'):
                     self.rsi_indicator.set_parameters(indicator_params)
                 self.logger.debug(f"Updated RSI indicator parameters: {indicator_params}")
+            else:
+                self.logger.debug(f"No indicator parameters found in: {params}")
         
         self.reset_state()
         self.logger.info(
@@ -158,6 +174,8 @@ class RSIRule(ComponentBase):
         
     def apply_parameters(self, parameters: Dict[str, Any]) -> None:
         """Apply parameters to this component (ComponentBase interface)."""
+        # DEBUG: Log exactly what parameters are being applied
+        self.logger.debug(f"RSI Rule apply_parameters called with: {parameters}")
         self.set_parameters(parameters)
         
     def reset_state(self):

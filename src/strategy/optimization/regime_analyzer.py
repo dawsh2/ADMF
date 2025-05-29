@@ -224,7 +224,8 @@ class RegimePerformanceAnalyzer:
                 'parameters': metrics['parameters'][best_idx],
                 'sharpe_ratio': metrics['sharpe_ratios'][best_idx],
                 'win_rate': metrics['win_rates'][best_idx],
-                'total_return': metrics['returns'][best_idx]
+                'total_return': metrics['returns'][best_idx],
+                'num_trades': metrics['trade_counts'][best_idx]
             }
             
         return best_params

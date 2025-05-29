@@ -1,3 +1,22 @@
+Immediate Goal [/]
+
+- [ ] grid search optimize parameters, tracking regime classification
+- [ ] determine best parameters per regime retroactively by analyzing trades (RegimeAnalayzer or something does this)
+- [ ] optimize weights in ensemble on a per regime basis using regime-optimal parameters previously derived and running over full data set, but only tracking performance per regime again
+- [ ] optimization search step is now complete, print results and prepare for test
+- [ ] run optimized adaptive strategy over test set and confirm the correct parameters were dynamically applied at regime changes
+- [ ] reproduce and validate the optimization results using --dataset test command
+
+
+FIX ALL BUGS -  manually verify all steps executed correctly throughout all stages (data splits, signal generation, trade execution, selecting and saving best parameters, proper accounting, accurate regime performance evaluation, proper weight evaluation, proper regime identication, proper dynamic loading of params depednign on regime, manually validate entire trade log for a given run or two) -- a good way to test all of this is on a synthetic data set and with contrived rules.
+ 
+----------------
+
+- [ ] clean up logging, connect to Alpaca API
+- [ ] create fork for refactoring and new repo for Protocol + Component rewrite 
+  - [ ] focus on refactoring existing codebase, adding rules and new strategies should be trivial not a day and a half of debugging
+  - [ ] continue adding ideas and refining target archetecture for Protocol + Component arch
+  
 ** TODO BEFORE GOING LIVE
 I would like to get a VALIDATED and CONFIRMED 60%+ annualized strategy. 
 *** Confirm parameters and weights are being applied properly

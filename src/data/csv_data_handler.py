@@ -36,21 +36,10 @@ class CSVDataHandler(ComponentBase):
     
     def _initialize(self):
         """Component-specific initialization logic."""
-        # Debug the configuration
-        if hasattr(self, 'logger') and self.logger:
-            self.logger.debug(f"CSVDataHandler._initialize called for {self.instance_name}")
-            self.logger.debug(f"config_key: {self.config_key}")
-            self.logger.debug(f"component_config: {self.component_config}")
-            self.logger.debug(f"config type: {type(self.config)}")
-            
         # Load configuration
         self._symbol = self.get_specific_config("symbol")
         self._csv_file_path = self.get_specific_config("csv_file_path")
         self._timestamp_column = self.get_specific_config("timestamp_column", "timestamp")
-        
-        # Debug logging
-        if hasattr(self, 'logger') and self.logger:
-            self.logger.debug(f"CSVDataHandler._initialize: symbol={self._symbol}, csv_file_path={self._csv_file_path}")
         
         if not self._symbol or not self._csv_file_path:
             raise ConfigurationError(f"Missing 'symbol' or 'csv_file_path' for {self.instance_name}")
@@ -58,17 +47,35 @@ class CSVDataHandler(ComponentBase):
         # Get CLI parameter if provided
         # ComponentBase stores context as _context
         if hasattr(self, '_context') and self._context:
+            self.logger.debug(f"[BARS DEBUG] _context type: {type(self._context)}")
+            self.logger.debug(f"[BARS DEBUG] _context is dict: {isinstance(self._context, dict)}")
+            
             # Check if it's a SystemContext object with metadata
             if hasattr(self._context, 'metadata') and self._context.metadata:
+                self.logger.debug(f"[BARS DEBUG] Found metadata on SystemContext")
                 cli_args = self._context.metadata.get('cli_args', {})
+                self.logger.debug(f"[BARS DEBUG] cli_args: {cli_args}")
                 self._cli_max_bars = cli_args.get('bars', None)
-                self.logger.debug(f"Got max_bars from context metadata: {self._cli_max_bars}")
+                self.logger.debug(f"[BARS DEBUG] Got max_bars from context metadata: {self._cli_max_bars}")
             else:
-                # Try direct access
-                self._cli_max_bars = self._context.get("max_bars", None)
-                self.logger.debug(f"Got max_bars from _context: {self._cli_max_bars}")
+                # Try direct access if context is a dict
+                if isinstance(self._context, dict):
+                    self.logger.debug(f"[BARS DEBUG] _context is dict, trying direct access")
+                    # First try to get metadata from dict
+                    if 'metadata' in self._context and self._context['metadata']:
+                        self.logger.debug(f"[BARS DEBUG] Found metadata in _context dict")
+                        cli_args = self._context['metadata'].get('cli_args', {})
+                        self.logger.debug(f"[BARS DEBUG] cli_args from dict metadata: {cli_args}")
+                        self._cli_max_bars = cli_args.get('bars', None)
+                        self.logger.debug(f"[BARS DEBUG] Got max_bars from dict metadata: {self._cli_max_bars}")
+                    else:
+                        # Fallback to direct max_bars key
+                        self._cli_max_bars = self._context.get("max_bars", None)
+                        self.logger.debug(f"[BARS DEBUG] Got max_bars from _context dict: {self._cli_max_bars}")
+                else:
+                    self.logger.debug(f"[BARS DEBUG] No metadata found on context")
         else:
-            self.logger.debug("No context available for max_bars")
+            self.logger.debug("[BARS DEBUG] No context available for max_bars")
         
         self._train_test_split_ratio = self.get_specific_config("train_test_split_ratio", None)
         if self._train_test_split_ratio is not None and not (0 < self._train_test_split_ratio < 1):
@@ -136,6 +143,9 @@ class CSVDataHandler(ComponentBase):
 
             # Step 1: Apply --bars limit to the initially loaded data
             self._data_for_run = df_loaded # Start with the full loaded data
+            self.logger.debug(f"[DATA LOAD DEBUG] Initial data loading:")
+            self.logger.debug(f"[DATA LOAD DEBUG]   Full CSV size: {len(df_loaded)} bars")
+            self.logger.debug(f"[DATA LOAD DEBUG]   CLI --bars limit: {self._cli_max_bars}")
             self.logger.debug(f"BARS_DEBUG: _cli_max_bars = {self._cli_max_bars}, len(df_loaded) = {len(df_loaded)}")
             if self._cli_max_bars is not None and self._cli_max_bars != 0:
                 if self._cli_max_bars > 0:
@@ -240,7 +250,7 @@ class CSVDataHandler(ComponentBase):
         """
         Sets the active dataset for iteration from the pre-processed and pre-split DataFrames.
         """
-        self.logger.info(f"=== SWITCHING TO {dataset_type.upper()} DATASET ===")
+        self.logger.warning(f"[DATASET SWITCH] === SWITCHING TO {dataset_type.upper()} DATASET ===")
         
         # DEBUG: Log all available dataset sizes
         self.logger.debug(f"Available datasets - train: {len(self._train_df) if self._train_df is not None else 'None'}, test: {len(self._test_df) if self._test_df is not None else 'None'}")
@@ -267,6 +277,24 @@ class CSVDataHandler(ComponentBase):
             self._active_df = selected_df.copy() # Use a copy so iterator changes don't affect _train_df etc.
             self._data_iterator = self._active_df.iterrows()
             self.logger.debug(f"Set active_df with {len(self._active_df)} rows")
+            
+            # Log first and last bars for verification
+            if not self._active_df.empty:
+                first_row = self._active_df.iloc[0]
+                last_row = self._active_df.iloc[-1]
+                first_ts = first_row[self._timestamp_column]
+                last_ts = last_row[self._timestamp_column]
+                
+                # Convert to datetime if needed
+                if not isinstance(first_ts, datetime.datetime) and hasattr(first_ts, 'to_pydatetime'):
+                    first_ts = first_ts.to_pydatetime()
+                if not isinstance(last_ts, datetime.datetime) and hasattr(last_ts, 'to_pydatetime'):
+                    last_ts = last_ts.to_pydatetime()
+                    
+                self.logger.warning(f"[DATA WINDOW] {dataset_type.upper()} dataset:")
+                self.logger.warning(f"  First bar: {first_ts} (index: {self._active_df.index[0]})")
+                self.logger.warning(f"  Last bar:  {last_ts} (index: {self._active_df.index[-1]})")
+                self.logger.warning(f"  Total bars: {len(self._active_df)}")
 
         # Store the active dataset type
         self._active_dataset = dataset_type
@@ -318,6 +346,12 @@ class CSVDataHandler(ComponentBase):
         self.logger.debug(f"Starting to publish {len(self._active_df)} BAR events...")
         # Component is now running
         
+        # Print visible debug info
+        print(f"\n{'='*80}")
+        print(f"DATA HANDLER STREAMING {self._active_dataset.upper()} DATASET")
+        print(f"Total bars to stream: {len(self._active_df)}")
+        print(f"{'='*80}\n")
+        
         try:
             self.logger.debug(f"About to iterate through {len(self._active_df)} rows")
             row_count = 0
@@ -362,6 +396,12 @@ class CSVDataHandler(ComponentBase):
                 bar_event = Event(EventType.BAR, bar_payload)
                 if (self._bars_processed_current_run + 1) % 50 == 0:  # Log every 50 bars
                     self.logger.debug(f"Published BAR event {self._bars_processed_current_run + 1}/{len(self._active_df)}")
+                
+                # Debug first few bars - LOG AT INFO LEVEL
+                if self._bars_processed_current_run < 5:
+                    self.logger.info(f"[FIRST BARS DEBUG] Bar #{self._bars_processed_current_run + 1}: index={row_idx}, timestamp={bar_timestamp}, close={bar_payload.get('close')}")
+                    print(f"[FIRST BARS DEBUG] Bar #{self._bars_processed_current_run + 1}: index={row_idx}, timestamp={bar_timestamp}, close={bar_payload.get('close')}")
+                    
                 self._event_bus.publish(bar_event)
                 self._bars_processed_current_run += 1
                 self._last_bar_timestamp = bar_timestamp
@@ -431,6 +471,13 @@ class CSVDataHandler(ComponentBase):
                 f"Train/test split applied: {train_ratio:.0%} split on {len(self._data_for_run)} bars -> "
                 f"Train: {len(self._train_df)} bars, Test: {len(self._test_df)} bars"
             )
+            
+            # Debug logging for data sizes
+            self.logger.info(f"[DATA SPLIT DEBUG] Train/test split details:")
+            self.logger.info(f"[DATA SPLIT DEBUG]   CLI --bars limit: {self._cli_max_bars}")
+            self.logger.info(f"[DATA SPLIT DEBUG]   _data_for_run size: {len(self._data_for_run)} bars") 
+            self.logger.info(f"[DATA SPLIT DEBUG]   Train size: {len(self._train_df)} bars (indices 0 to {split_point-1})")
+            self.logger.info(f"[DATA SPLIT DEBUG]   Test size: {len(self._test_df)} bars (indices {split_point} to {len(self._data_for_run)-1})")
             
             # Log if this looks wrong
             if self._cli_max_bars and len(self._data_for_run) > self._cli_max_bars:

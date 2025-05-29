@@ -47,6 +47,9 @@ class RegimeAdaptiveEnsembleComposed(Strategy):
         self._regime_specific_params = {}
         self._overall_best_params = None
         
+        # Set the regime detector name to filter classification events
+        self._regime_detector_name = config.get('regime_detector_name', 'regime_detector')
+        
         # Disable regime switching during optimization
         self._enable_regime_switching = config.get('enable_regime_switching', True)
         
@@ -55,12 +58,17 @@ class RegimeAdaptiveEnsembleComposed(Strategy):
             metadata = self._context['metadata']
             if metadata:
                 cli_args = metadata.get('cli_args', {})
-                if cli_args.get('optimize', False):
+                
+                # Special case: running test dataset without optimization
+                if cli_args.get('dataset') == 'test' and not cli_args.get('optimize', False):
+                    self._enable_regime_switching = True
+                    self.logger.warning("ENABLED regime switching for test dataset evaluation")
+                elif cli_args.get('optimize', False):
                     self._enable_regime_switching = False
                     self.logger.info("Regime switching DISABLED - optimization mode detected via CLI")
                 
                 # Also check for explicit optimization_mode flag
-                if metadata.get('optimization_mode', False):
+                if metadata.get('optimization_mode', False) and cli_args.get('dataset') != 'test':
                     self._enable_regime_switching = False
                     self.logger.info("Regime switching DISABLED - optimization mode detected")
         
@@ -349,6 +357,32 @@ class RegimeAdaptiveEnsembleComposed(Strategy):
                 self.logger.log(35, f"  BB - band_width_filter: {self._rules['bb'].band_width_filter}")
             if 'macd' in self._rules and hasattr(self._rules['macd'], 'min_histogram_threshold'):
                 self.logger.log(35, f"  MACD - min_histogram_threshold: {self._rules['macd'].min_histogram_threshold}")
+        
+        # Log indicator values after parameter change for debugging
+        self.logger.info("Indicator values after regime change:")
+        
+        # Log MA values
+        if 'fast_ma' in self._indicators and 'slow_ma' in self._indicators:
+            fast_ma = self._indicators['fast_ma']
+            slow_ma = self._indicators['slow_ma']
+            fast_val = fast_ma._value if hasattr(fast_ma, '_value') and fast_ma._value is not None else 'N/A'
+            slow_val = slow_ma._value if hasattr(slow_ma, '_value') and slow_ma._value is not None else 'N/A'
+            fast_ready = fast_ma._ready if hasattr(fast_ma, '_ready') else False
+            slow_ready = slow_ma._ready if hasattr(slow_ma, '_ready') else False
+            if isinstance(fast_val, (int, float)) and isinstance(slow_val, (int, float)):
+                self.logger.info(f"  MA: fast={fast_val:.4f} (ready={fast_ready}), slow={slow_val:.4f} (ready={slow_ready})")
+            else:
+                self.logger.info(f"  MA: fast={fast_val} (ready={fast_ready}), slow={slow_val} (ready={slow_ready})")
+            
+        # Log RSI value
+        if 'rsi' in self._indicators:
+            rsi_ind = self._indicators['rsi']
+            rsi_val = rsi_ind._value if hasattr(rsi_ind, '_value') and rsi_ind._value is not None else 'N/A'
+            rsi_ready = rsi_ind._ready if hasattr(rsi_ind, '_ready') else False
+            if isinstance(rsi_val, (int, float)):
+                self.logger.info(f"  RSI: {rsi_val:.2f} (ready={rsi_ready})")
+            else:
+                self.logger.info(f"  RSI: {rsi_val} (ready={rsi_ready})")
         
         self.logger.info(f"{'='*60}")
             

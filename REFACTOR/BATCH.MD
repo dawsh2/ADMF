@@ -1347,6 +1347,1312 @@ class ContainerTestFramework:
 
 ---
 
+## 8. Optimization Pattern: Shared Indicator Containers
+
+### 8.1 The Redundant Calculation Problem
+
+When optimizing strategies with overlapping indicators, the naive approach recalculates the same indicators multiple times:
+
+```
+Traditional Approach:
+- Strategy MA(5,10):  Container calculates MA(5), MA(10), RSI(14)
+- Strategy MA(10,20): Container calculates MA(10), MA(20), RSI(14)
+- Strategy MA(5,20):  Container calculates MA(5), MA(20), RSI(14)
+
+Problem: MA(5), MA(10), MA(20), and RSI(14) are each calculated multiple times!
+```
+
+### 8.2 Shared Indicator Architecture
+
+The solution is to use the scoped container architecture intelligently by separating stateless calculations (indicators) from stateful components (portfolios):
+
+```python
+class SharedIndicatorArchitecture:
+    """Optimized architecture for strategies with overlapping indicators"""
+    
+    def __init__(self, parameter_space: List[Dict[str, Any]]):
+        self.parameter_space = parameter_space
+        self.indicator_container = None
+        self.strategy_containers = []
+        
+    def setup_containers(self):
+        """Set up shared indicator container and strategy containers"""
+        
+        # Step 1: Identify all unique indicators needed
+        unique_indicators = self._extract_unique_indicators(self.parameter_space)
+        
+        # Step 2: Create shared indicator container
+        self.indicator_container = UniversalScopedContainer("shared_indicators")
+        self.indicator_container.create_component({
+            'name': 'indicator_hub',
+            'class': 'IndicatorHub',
+            'params': {'indicators': unique_indicators},
+            'capabilities': ['lifecycle', 'events']
+        })
+        
+        # Step 3: Create strategy containers with isolated state
+        for i, params in enumerate(self.parameter_space):
+            container = UniversalScopedContainer(f"strategy_{i}")
+            
+            # Isolated stateful components
+            container.create_component({
+                'name': 'portfolio',
+                'class': 'Portfolio',
+                'params': {'initial_cash': 100000},
+                'capabilities': ['lifecycle', 'events', 'reset']
+            })
+            
+            container.create_component({
+                'name': 'risk_manager',
+                'class': 'RiskManager',
+                'params': {'max_position_size': 1000},
+                'capabilities': ['lifecycle', 'events']
+            })
+            
+            container.create_component({
+                'name': 'strategy',
+                'class': params['strategy_class'],
+                'params': params,
+                'capabilities': ['lifecycle', 'events', 'optimization']
+            })
+            
+            # Link to shared indicators (read-only)
+            container.register_shared_service(
+                'indicator_hub', 
+                self.indicator_container.resolve('indicator_hub')
+            )
+            
+            self.strategy_containers.append(container)
+    
+    def _extract_unique_indicators(self, param_space):
+        """Extract unique indicators from parameter space"""
+        indicators = set()
+        
+        for params in param_space:
+            if 'ma_fast' in params:
+                indicators.add(('SMA', params['ma_fast']))
+            if 'ma_slow' in params:
+                indicators.add(('SMA', params['ma_slow']))
+            if 'rsi_period' in params:
+                indicators.add(('RSI', params['rsi_period']))
+            # ... extract other indicators
+            
+        return list(indicators)
+```
+
+### 8.3 Indicator Hub Implementation
+
+```python
+class IndicatorHub:
+    """Centralized indicator calculation hub"""
+    
+    def __init__(self, indicators: List[Tuple[str, int]]):
+        self.indicators = {}
+        self.latest_values = {}
+        
+        # Initialize all required indicators
+        for ind_type, period in indicators:
+            key = f"{ind_type.lower()}_{period}"
+            if ind_type == 'SMA':
+                self.indicators[key] = SimpleMovingAverage(period)
+            elif ind_type == 'RSI':
+                self.indicators[key] = RSI(period)
+            elif ind_type == 'EMA':
+                self.indicators[key] = ExponentialMovingAverage(period)
+            # ... other indicator types
+    
+    def initialize(self, context: SystemContext):
+        """Initialize with event subscriptions"""
+        self.event_bus = context.event_bus
+        self.event_bus.subscribe(EventType.BAR, self.on_bar)
+    
+    def on_bar(self, event: Event):
+        """Calculate all indicators on new bar"""
+        bar_data = event.payload
+        
+        # Calculate all indicators once
+        for key, indicator in self.indicators.items():
+            value = indicator.calculate(bar_data['close'], bar_data['timestamp'])
+            self.latest_values[key] = value
+        
+        # Publish indicator snapshot
+        self.event_bus.publish(Event(
+            EventType.INDICATOR_UPDATE,
+            {
+                'timestamp': bar_data['timestamp'],
+                'values': self.latest_values.copy()
+            }
+        ))
+    
+    def get_value(self, indicator_key: str) -> Optional[float]:
+        """Get latest value for an indicator"""
+        return self.latest_values.get(indicator_key)
+    
+    def get_indicator(self, indicator_key: str) -> Optional[Any]:
+        """Get indicator instance for direct access"""
+        return self.indicators.get(indicator_key)
+```
+
+### 8.4 Strategy Using Shared Indicators
+
+```python
+class OptimizedTrendStrategy:
+    """Strategy that uses shared indicators"""
+    
+    def __init__(self, fast_period: int = 10, slow_period: int = 30):
+        self.fast_period = fast_period
+        self.slow_period = slow_period
+        self.last_signal = None
+        
+    def initialize(self, context: SystemContext):
+        """Initialize with shared indicator access"""
+        self.indicator_hub = context.resolve('indicator_hub')
+        self.portfolio = context.resolve('portfolio')
+        self.event_bus = context.event_bus
+        
+        # Subscribe to indicator updates
+        self.event_bus.subscribe(EventType.INDICATOR_UPDATE, self.on_indicators)
+    
+    def on_indicators(self, event: Event):
+        """Process indicator updates"""
+        indicator_values = event.payload['values']
+        
+        # Get our specific indicators
+        fast_key = f"sma_{self.fast_period}"
+        slow_key = f"sma_{self.slow_period}"
+        
+        if fast_key in indicator_values and slow_key in indicator_values:
+            fast_ma = indicator_values[fast_key]
+            slow_ma = indicator_values[slow_key]
+            
+            # Generate signal based on shared indicator values
+            signal = self._evaluate_signal(fast_ma, slow_ma)
+            if signal:
+                self.event_bus.publish(Event(EventType.SIGNAL, signal))
+```
+
+### 8.5 Orchestration Pattern
+
+```python
+class SharedIndicatorOrchestrator:
+    """Orchestrates optimization with shared indicators"""
+    
+    def run_optimization(self, data_stream, parameter_space):
+        # Set up containers
+        architecture = SharedIndicatorArchitecture(parameter_space)
+        architecture.setup_containers()
+        
+        # Initialize all containers
+        architecture.indicator_container.initialize_scope()
+        for container in architecture.strategy_containers:
+            container.initialize_scope()
+        
+        # Process event stream ONCE
+        for event in data_stream:
+            # Indicators process event once
+            architecture.indicator_container.resolve('indicator_hub').on_bar(event)
+            
+            # All strategies receive indicator updates automatically
+            # and process with their isolated state
+        
+        # Collect results
+        results = []
+        for i, container in enumerate(architecture.strategy_containers):
+            results.append({
+                'params': parameter_space[i],
+                'performance': container.resolve('portfolio').get_performance_metrics(),
+                'trades': container.resolve('portfolio').get_trades()
+            })
+        
+        return results
+```
+
+### 8.6 Benefits of This Pattern
+
+1. **Efficiency**: Each indicator calculated only once per market event
+2. **Isolation**: Portfolios, risk, and state remain properly isolated
+3. **Scalability**: Easily handles hundreds of parameter combinations
+4. **Simplicity**: Still uses the same container architecture
+5. **Flexibility**: Can mix shared and strategy-specific indicators
+
+### 8.7 When to Use This Pattern
+
+Use shared indicator containers when:
+- Optimizing multiple variations of similar strategies
+- Indicators are computationally expensive
+- There's significant overlap in indicator usage
+- Memory efficiency is important
+
+Continue using fully isolated containers when:
+- Strategies are fundamentally different
+- Indicators have strategy-specific configurations
+- Complete fault isolation is critical
+- Debugging simplicity is prioritized
+
+### 8.8 Advanced: Dynamic Indicator Management
+
+```python
+class DynamicIndicatorHub:
+    """Dynamically manages indicators based on active strategies"""
+    
+    def __init__(self):
+        self.indicator_registry = {}
+        self.usage_count = defaultdict(int)
+        self.active_indicators = {}
+    
+    def request_indicator(self, indicator_type: str, params: Dict) -> str:
+        """Request an indicator, create if needed"""
+        indicator_key = f"{indicator_type}_{params.get('period', '')}"
+        
+        self.usage_count[indicator_key] += 1
+        
+        if indicator_key not in self.active_indicators:
+            # Create indicator on first request
+            self.active_indicators[indicator_key] = self._create_indicator(
+                indicator_type, params
+            )
+        
+        return indicator_key
+    
+    def release_indicator(self, indicator_key: str):
+        """Release indicator reference, destroy if unused"""
+        self.usage_count[indicator_key] -= 1
+        
+        if self.usage_count[indicator_key] == 0:
+            # No strategies using this indicator
+            del self.active_indicators[indicator_key]
+            del self.usage_count[indicator_key]
+```
+
+This pattern represents a powerful optimization within the scoped container architecture, demonstrating how the same architectural principles can be applied intelligently to eliminate redundant computation while maintaining proper isolation where it matters.
+
+---
+
+## 9. Advanced Indicator Patterns
+
+Building on the Shared Indicator Container pattern, these advanced patterns provide even more sophisticated optimization techniques for large-scale strategy optimization.
+
+### 9.1 Hierarchical Indicator Containers
+
+For complex strategies using composed indicators, a hierarchical organization prevents redundant calculations and makes dependencies explicit:
+
+```python
+class HierarchicalIndicatorHub:
+    """Manages indicators in a hierarchical dependency structure"""
+    
+    def __init__(self):
+        self.levels = {
+            'base': UniversalScopedContainer("base_indicators"),
+            'derived': UniversalScopedContainer("derived_indicators"), 
+            'complex': UniversalScopedContainer("complex_indicators")
+        }
+        self.dependency_graph = {}
+        self.calculation_order = []
+    
+    def setup_hierarchy(self, indicator_specs: List[Dict]):
+        """Set up indicator hierarchy based on dependencies"""
+        # Create base indicators (no dependencies)
+        for spec in indicator_specs:
+            if spec['level'] == 'base':
+                self.levels['base'].create_component({
+                    'name': spec['name'],
+                    'class': spec['class'],
+                    'params': spec['params'],
+                    'capabilities': ['calculate']
+                })
+        
+        # Create derived indicators (depend on base)
+        for spec in indicator_specs:
+            if spec['level'] == 'derived':
+                self.levels['derived'].create_component({
+                    'name': spec['name'],
+                    'class': spec['class'],
+                    'params': spec['params'],
+                    'dependencies': spec['dependencies'],
+                    'capabilities': ['calculate']
+                })
+                # Register access to base level
+                self.levels['derived'].register_shared_service(
+                    'base_indicators',
+                    self.levels['base']
+                )
+        
+        # Create complex indicators (depend on derived)
+        for spec in indicator_specs:
+            if spec['level'] == 'complex':
+                self.levels['complex'].create_component({
+                    'name': spec['name'],
+                    'class': spec['class'],
+                    'params': spec['params'],
+                    'dependencies': spec['dependencies'],
+                    'capabilities': ['calculate']
+                })
+                # Register access to lower levels
+                self.levels['complex'].register_shared_service(
+                    'derived_indicators',
+                    self.levels['derived']
+                )
+    
+    def on_bar(self, bar_data: Dict):
+        """Process bar through hierarchy"""
+        # Level 1: Base indicators (price, volume transformations)
+        self.levels['base'].publish('price', bar_data['close'])
+        self.levels['base'].publish('volume', bar_data['volume'])
+        self.levels['base'].publish('high', bar_data['high'])
+        self.levels['base'].publish('low', bar_data['low'])
+        
+        # Calculate all base indicators
+        for name, component in self.levels['base'].local_components.items():
+            if hasattr(component, 'calculate'):
+                value = component.calculate(bar_data)
+                self.levels['base'].publish(f"{name}_value", value)
+        
+        # Level 2: Derived indicators (MA, momentum from price)
+        base_data = self._collect_level_data('base')
+        for name, component in self.levels['derived'].local_components.items():
+            if hasattr(component, 'calculate'):
+                # Component can access base indicators through shared service
+                value = component.calculate(base_data)
+                self.levels['derived'].publish(f"{name}_value", value)
+        
+        # Level 3: Complex indicators (MACD from MAs, composite signals)
+        derived_data = self._collect_level_data('derived')
+        for name, component in self.levels['complex'].local_components.items():
+            if hasattr(component, 'calculate'):
+                value = component.calculate(derived_data)
+                self.levels['complex'].publish(f"{name}_value", value)
+        
+        # Publish complete indicator snapshot
+        self._publish_indicator_snapshot(bar_data['timestamp'])
+    
+    def _collect_level_data(self, level: str) -> Dict:
+        """Collect all calculated values from a level"""
+        container = self.levels[level]
+        data = {}
+        for key in container.local_components:
+            value_key = f"{key}_value"
+            if container.event_bus.has_data(value_key):
+                data[key] = container.event_bus.get_data(value_key)
+        return data
+```
+
+**Benefits**:
+- Clear dependency management
+- Natural calculation order (no circular dependencies)
+- Easy to debug and visualize data flow
+- Efficient caching at each level
+- Reusable intermediate calculations
+
+### 9.2 Copy-on-Write for Historical Windows
+
+When strategies need different historical window sizes, COW prevents memory duplication:
+
+```python
+class COWIndicatorWindow:
+    """Copy-on-Write window for efficient memory usage"""
+    
+    def __init__(self, shared_data: np.ndarray, window_size: int):
+        self.shared_data = shared_data  # Immutable reference
+        self.window_size = window_size
+        self.local_modifications = {}
+        self.is_modified = False
+        self._view_cache = {}
+    
+    def get_window(self, end_idx: int) -> np.ndarray:
+        """Get window ending at end_idx"""
+        start_idx = max(0, end_idx - self.window_size)
+        
+        # Check cache first
+        cache_key = (start_idx, end_idx)
+        if cache_key in self._view_cache and not self.is_modified:
+            return self._view_cache[cache_key]
+        
+        if not self.is_modified:
+            # Return view of shared data (zero-copy)
+            view = self.shared_data[start_idx:end_idx]
+            self._view_cache[cache_key] = view
+            return view
+        else:
+            # Build merged view with modifications
+            result = np.empty(end_idx - start_idx)
+            for i, idx in enumerate(range(start_idx, end_idx)):
+                if idx in self.local_modifications:
+                    result[i] = self.local_modifications[idx]
+                else:
+                    result[i] = self.shared_data[idx]
+            return result
+    
+    def modify(self, index: int, value: float):
+        """Modify a value (triggers COW)"""
+        if not self.is_modified:
+            self.is_modified = True
+            self._view_cache.clear()  # Invalidate cache
+        self.local_modifications[index] = value
+    
+    def append(self, value: float):
+        """Append new value (shared operation)"""
+        # This would be handled by the shared data manager
+        # to update all windows atomically
+        pass
+
+class COWDataManager:
+    """Manages shared data with COW windows"""
+    
+    def __init__(self, max_history: int = 10000):
+        self.shared_buffer = np.zeros(max_history)
+        self.current_index = 0
+        self.windows: Dict[str, COWIndicatorWindow] = {}
+        self._lock = threading.RLock()
+    
+    def create_window(self, window_id: str, size: int) -> COWIndicatorWindow:
+        """Create a COW window for a strategy"""
+        with self._lock:
+            window = COWIndicatorWindow(self.shared_buffer, size)
+            self.windows[window_id] = window
+            return window
+    
+    def append_bar(self, bar_data: Dict):
+        """Append new bar to shared buffer"""
+        with self._lock:
+            if self.current_index >= len(self.shared_buffer):
+                # Ring buffer behavior or resize
+                self._resize_buffer()
+            
+            self.shared_buffer[self.current_index] = bar_data['close']
+            self.current_index += 1
+            
+            # Notify all windows of new data
+            for window in self.windows.values():
+                window.append(bar_data['close'])
+```
+
+**Benefits**:
+- Massive memory savings for read-only access
+- Strategies can have different window sizes without duplication
+- Modifications are isolated per strategy
+- Zero-copy views for unmodified data
+- Efficient cache management
+
+### 9.3 Lazy Indicator Evaluation
+
+Only calculate indicators that have active subscribers:
+
+```python
+class LazyIndicatorHub:
+    """Calculates indicators only when requested"""
+    
+    def __init__(self):
+        self.indicator_factories = {}
+        self.active_indicators = {}
+        self.subscriptions: Dict[str, Set[str]] = defaultdict(set)
+        self.calculated_this_bar = set()
+        self.current_bar = None
+        self.calculation_count = defaultdict(int)
+    
+    def register_indicator_type(self, indicator_type: str, factory: Callable):
+        """Register factory for creating indicators"""
+        self.indicator_factories[indicator_type] = factory
+    
+    def subscribe(self, strategy_id: str, indicator_key: str):
+        """Strategy subscribes to an indicator"""
+        self.subscriptions[indicator_key].add(strategy_id)
+        
+        # Lazy creation - indicator created on first subscription
+        if indicator_key not in self.active_indicators:
+            self._create_indicator(indicator_key)
+    
+    def unsubscribe(self, strategy_id: str, indicator_key: str):
+        """Strategy unsubscribes from an indicator"""
+        self.subscriptions[indicator_key].discard(strategy_id)
+        
+        # Destroy indicator if no subscribers
+        if not self.subscriptions[indicator_key]:
+            self._destroy_indicator(indicator_key)
+    
+    def on_bar(self, bar: Dict):
+        """Process new bar - but don't calculate anything yet!"""
+        self.current_bar = bar
+        self.calculated_this_bar.clear()
+        
+        # No calculations here - completely lazy
+    
+    def get_value(self, strategy_id: str, indicator_key: str) -> Optional[float]:
+        """Get indicator value - calculates if needed"""
+        if strategy_id not in self.subscriptions[indicator_key]:
+            return None  # Not subscribed
+        
+        if indicator_key not in self.calculated_this_bar:
+            # First request this bar - calculate now
+            self._calculate_indicator(indicator_key)
+            self.calculated_this_bar.add(indicator_key)
+            self.calculation_count[indicator_key] += 1
+        
+        return self.active_indicators[indicator_key].value
+    
+    def _calculate_indicator(self, indicator_key: str):
+        """Calculate indicator on current bar"""
+        if indicator_key not in self.active_indicators:
+            return
+        
+        indicator = self.active_indicators[indicator_key]
+        indicator.update(self.current_bar)
+    
+    def _create_indicator(self, indicator_key: str):
+        """Create indicator instance"""
+        # Parse indicator key (e.g., "sma_20" -> type="sma", period=20)
+        parts = indicator_key.split('_')
+        ind_type = parts[0]
+        params = {'period': int(parts[1])} if len(parts) > 1 else {}
+        
+        if ind_type in self.indicator_factories:
+            indicator = self.indicator_factories[ind_type](**params)
+            self.active_indicators[indicator_key] = indicator
+    
+    def _destroy_indicator(self, indicator_key: str):
+        """Destroy unused indicator"""
+        if indicator_key in self.active_indicators:
+            del self.active_indicators[indicator_key]
+            del self.subscriptions[indicator_key]
+    
+    def get_statistics(self) -> Dict:
+        """Get lazy evaluation statistics"""
+        total_possible = len(self.indicator_factories) * len(self.calculated_this_bar)
+        total_calculated = sum(self.calculation_count.values())
+        
+        return {
+            'total_subscriptions': sum(len(subs) for subs in self.subscriptions.values()),
+            'active_indicators': len(self.active_indicators),
+            'calculations_saved': total_possible - total_calculated,
+            'efficiency_ratio': 1 - (total_calculated / max(total_possible, 1)),
+            'calculation_counts': dict(self.calculation_count)
+        }
+```
+
+**Benefits**:
+- Only compute what's actually used
+- Dynamic subscription management  
+- Automatic cleanup of unused indicators
+- Huge savings in optimization where many strategies are pruned early
+- Perfect for phased execution where analysis phase might not need all indicators
+
+### 9.4 Combining All Patterns
+
+These patterns work synergistically to create an extremely efficient optimization system:
+
+```python
+class AdvancedIndicatorArchitecture:
+    """Combines all advanced indicator patterns"""
+    
+    def __init__(self):
+        # Hierarchical organization for complex indicators
+        self.hierarchy = HierarchicalIndicatorHub()
+        
+        # COW for efficient historical data management
+        self.data_manager = COWDataManager()
+        
+        # Lazy evaluation for on-demand calculation
+        self.lazy_hub = LazyIndicatorHub()
+        
+        # Adaptive caching for frequently accessed values
+        self.cache = AdaptiveCache(max_memory_mb=512)
+    
+    def setup_for_optimization(self, strategy_configs: List[Dict]):
+        """Set up optimized indicator system"""
+        
+        # 1. Analyze indicator dependencies and build hierarchy
+        indicator_specs = self._analyze_indicator_requirements(strategy_configs)
+        self.hierarchy.setup_hierarchy(indicator_specs)
+        
+        # 2. Create COW windows for each strategy
+        for i, config in enumerate(strategy_configs):
+            window_size = config.get('lookback_period', 100)
+            window = self.data_manager.create_window(f"strategy_{i}", window_size)
+            config['data_window'] = window
+        
+        # 3. Set up lazy evaluation subscriptions
+        for i, config in enumerate(strategy_configs):
+            strategy_id = f"strategy_{i}"
+            for indicator in config.get('indicators', []):
+                self.lazy_hub.subscribe(strategy_id, indicator)
+    
+    def on_market_data(self, bar: Dict):
+        """Process new market data through all systems"""
+        
+        # 1. Update shared data (COW)
+        self.data_manager.append_bar(bar)
+        
+        # 2. Process through hierarchy (only if needed)
+        if self._has_active_hierarchical_subscribers():
+            self.hierarchy.on_bar(bar)
+        
+        # 3. Update lazy hub (doesn't calculate yet)
+        self.lazy_hub.on_bar(bar)
+        
+        # 4. Clear cache for outdated values
+        self.cache.invalidate_by_timestamp(bar['timestamp'])
+    
+    def get_indicator_value(self, strategy_id: str, indicator_key: str) -> Optional[float]:
+        """Get indicator value with full optimization stack"""
+        
+        # 1. Check cache first
+        cache_key = f"{strategy_id}:{indicator_key}"
+        if cached := self.cache.get(cache_key):
+            return cached
+        
+        # 2. Try lazy evaluation
+        if value := self.lazy_hub.get_value(strategy_id, indicator_key):
+            self.cache.put(cache_key, value)
+            return value
+        
+        # 3. Check hierarchical indicators
+        if value := self.hierarchy.get_value(indicator_key):
+            self.cache.put(cache_key, value)
+            return value
+        
+        return None
+    
+    def cleanup_strategy(self, strategy_id: str):
+        """Clean up resources when strategy is eliminated"""
+        # Unsubscribe from all indicators
+        for indicator_key in list(self.lazy_hub.subscriptions.keys()):
+            self.lazy_hub.unsubscribe(strategy_id, indicator_key)
+        
+        # Remove COW window
+        self.data_manager.remove_window(strategy_id)
+        
+        # Clear cache entries
+        self.cache.invalidate_by_prefix(f"{strategy_id}:")
+```
+
+### 9.5 Performance Impact
+
+With these advanced patterns, optimization performance improves dramatically:
+
+```python
+# Traditional approach (1000 strategies, 20 indicators each)
+# Calculations per bar: 1000 * 20 = 20,000
+
+# With shared indicators (Section 8)
+# Calculations per bar: ~50 unique indicators
+
+# With lazy evaluation (many strategies eliminated early)
+# Calculations per bar: ~10-20 active indicators
+
+# With hierarchical organization (reusing intermediate values)
+# Calculations per bar: ~5-10 base + derived calculations
+
+# With COW (memory usage)
+# Traditional: 1000 strategies * 1000 bars * 8 bytes = 8MB per indicator
+# With COW: 1000 bars * 8 bytes = 8KB shared + minimal overhead
+```
+
+### 9.6 When to Use Each Pattern
+
+**Hierarchical Indicators**:
+- Complex indicators with clear dependencies
+- Strategies using indicator combinations
+- Need to debug/visualize calculation flow
+
+**Copy-on-Write Windows**:
+- Many strategies with different lookback periods
+- Memory-constrained environments
+- Most strategies only read historical data
+
+**Lazy Evaluation**:
+- Large parameter spaces with early pruning
+- Phased optimization with analysis steps
+- Strategies use different indicator subsets
+
+**Combined Approach**:
+- Large-scale optimization (1000+ parameter combinations)
+- Complex strategies with many indicators
+- Production systems requiring maximum efficiency
+
+These advanced patterns demonstrate how the scoped container architecture can be pushed to achieve extreme optimization while maintaining clean separation of concerns and architectural integrity.
+
+### 9.7 Optimal Container Organization: Split by Calculation Pattern
+
+While the previous examples showed splitting indicators by type (RSI, MA, etc.), a more sophisticated approach splits by computational characteristics:
+
+```python
+class CalculationPatternIndicatorArchitecture:
+    """Split indicators by how they compute, not what they compute"""
+    
+    def __init__(self):
+        self.containers = {
+            'stateless': UniversalScopedContainer("stateless_indicators"),
+            'rolling': UniversalScopedContainer("rolling_indicators"),
+            'cumulative': UniversalScopedContainer("cumulative_indicators"),
+            'recursive': UniversalScopedContainer("recursive_indicators")
+        }
+        self._setup_specialized_infrastructure()
+    
+    def _setup_specialized_infrastructure(self):
+        """Set up optimized infrastructure for each pattern"""
+        
+        # Stateless: Pure functions, no history needed
+        self.containers['stateless'].create_component({
+            'name': 'calculator',
+            'class': 'StatelessCalculator',
+            'params': {
+                'cache_results': False,  # No point caching
+                'parallel_safe': True    # Can parallelize freely
+            }
+        })
+        
+        # Rolling: Fixed-size windows
+        self.containers['rolling'].create_component({
+            'name': 'window_manager',
+            'class': 'RingBufferManager',
+            'params': {
+                'default_size': 200,
+                'overflow_strategy': 'rotate'
+            }
+        })
+        
+        # Cumulative: Incremental updates
+        self.containers['cumulative'].create_component({
+            'name': 'accumulator',
+            'class': 'IncrementalAccumulator',
+            'params': {
+                'checkpoint_interval': 1000,
+                'compression': True
+            }
+        })
+        
+        # Recursive: Depends on previous values
+        self.containers['recursive'].create_component({
+            'name': 'state_manager',
+            'class': 'RecursiveStateManager',
+            'params': {
+                'state_history': 2,  # How many previous states to keep
+                'warm_up_periods': 50
+            }
+        })
+```
+
+#### Indicator Classification
+
+```python
+# Stateless Indicators (current bar only)
+STATELESS_INDICATORS = {
+    'price_transform': lambda bar: (bar.high + bar.low + bar.close) / 3,
+    'true_range': lambda bar, prev_close: max(
+        bar.high - bar.low,
+        abs(bar.high - prev_close),
+        abs(bar.low - prev_close)
+    ),
+    'pivot_points': lambda bar: {
+        'pivot': (bar.high + bar.low + bar.close) / 3,
+        'r1': (2 * pivot) - bar.low,
+        's1': (2 * pivot) - bar.high
+    }
+}
+
+# Rolling Window Indicators (fixed lookback)
+ROLLING_INDICATORS = {
+    'sma': {'window': 'fixed', 'computation': 'mean'},
+    'std_dev': {'window': 'fixed', 'computation': 'std'},
+    'rsi': {'window': 'fixed', 'computation': 'momentum'},
+    'bollinger': {'window': 'fixed', 'computation': 'statistical'},
+    'min_max': {'window': 'fixed', 'computation': 'extremes'}
+}
+
+# Cumulative Indicators (all history)
+CUMULATIVE_INDICATORS = {
+    'vwap': {'update': 'incremental', 'reset': 'daily'},
+    'cumulative_volume': {'update': 'additive', 'reset': 'never'},
+    'realized_variance': {'update': 'incremental', 'reset': 'periodic'},
+    'trade_count': {'update': 'counter', 'reset': 'session'}
+}
+
+# Recursive Indicators (depend on own previous values)
+RECURSIVE_INDICATORS = {
+    'ema': {'dependency': 'previous_value', 'decay': 'exponential'},
+    'kama': {'dependency': 'adaptive', 'efficiency_ratio': True},
+    'vidya': {'dependency': 'volatility_adjusted'},
+    'mesa': {'dependency': 'phase_adjusted'}
+}
+```
+
+#### Optimized Processing for Each Pattern
+
+```python
+class StatelessProcessor:
+    """Optimized for stateless calculations"""
+    
+    def process_batch(self, bars: List[Bar]) -> Dict[str, List[float]]:
+        """Process multiple bars in parallel"""
+        with ThreadPoolExecutor() as executor:
+            # Can parallelize since no dependencies
+            futures = []
+            for indicator_name, func in self.indicators.items():
+                future = executor.submit(self._calculate_all, func, bars)
+                futures.append((indicator_name, future))
+            
+            results = {}
+            for name, future in futures:
+                results[name] = future.result()
+            return results
+
+class RollingWindowProcessor:
+    """Optimized for rolling window calculations"""
+    
+    def __init__(self, max_window: int = 200):
+        # Pre-allocate ring buffers
+        self.buffers = {}
+        self.max_window = max_window
+    
+    def add_bar(self, bar: Bar):
+        """Efficiently update all rolling windows"""
+        # Single pass to update all buffers
+        for buffer in self.buffers.values():
+            buffer.append(bar.close)  # O(1) with ring buffer
+        
+        # Calculate all indicators with their specific windows
+        results = {}
+        for name, indicator in self.indicators.items():
+            window_size = indicator.period
+            data = buffer.get_window(window_size)  # O(1) view
+            results[name] = indicator.calculate(data)
+        
+        return results
+
+class CumulativeProcessor:
+    """Optimized for cumulative calculations"""
+    
+    def __init__(self):
+        self.accumulators = {}
+        self.checkpoint_counter = 0
+    
+    def add_bar(self, bar: Bar):
+        """Incrementally update cumulative values"""
+        results = {}
+        
+        for name, accumulator in self.accumulators.items():
+            # O(1) incremental update instead of O(n) recalculation
+            accumulator.update(bar)
+            results[name] = accumulator.value
+        
+        # Periodic checkpointing for recovery
+        self.checkpoint_counter += 1
+        if self.checkpoint_counter % 1000 == 0:
+            self._save_checkpoint()
+        
+        return results
+
+class RecursiveProcessor:
+    """Optimized for recursive calculations"""
+    
+    def __init__(self):
+        self.state_history = {}  # Track previous states
+        self.warm_up_counter = {}
+    
+    def add_bar(self, bar: Bar):
+        """Update recursive indicators with state management"""
+        results = {}
+        
+        for name, indicator in self.indicators.items():
+            # Get previous state
+            prev_state = self.state_history.get(name, indicator.initial_state())
+            
+            # Calculate new value based on previous
+            new_value, new_state = indicator.update(bar, prev_state)
+            
+            # Store state for next iteration
+            self.state_history[name] = new_state
+            
+            # Only return value after warm-up
+            if self.warm_up_counter[name] >= indicator.warm_up_periods:
+                results[name] = new_value
+            else:
+                self.warm_up_counter[name] += 1
+                
+        return results
+```
+
+#### When to Use This Pattern
+
+**Use calculation-based splitting when:**
+- You have many indicators with different computational patterns
+- Performance is critical and you need specialized optimizations
+- You want to scale different calculation types independently
+- You need different failure recovery strategies per type
+
+**Benefits over type-based splitting:**
+- Better CPU cache utilization (similar calculations together)
+- Can optimize data structures per calculation pattern
+- Easier to parallelize (stateless can use all cores)
+- More efficient memory usage (rolling windows can share buffers)
+
+**Example optimization gains:**
+```python
+# Traditional: Every indicator maintains its own data
+# 100 SMAs with different periods = 100 separate arrays
+memory_traditional = 100 * 200 * 8  # 160KB per bar
+
+# Calculation-pattern based: Shared ring buffer
+# 1 ring buffer + 100 pointers to different windows
+memory_optimized = 1 * 200 * 8 + 100 * 16  # 3.2KB per bar
+
+# 50x memory reduction!
+```
+
+This pattern represents the evolution from naive splitting (by type) to intelligent splitting (by computational characteristics), maximizing the benefits of the container architecture while minimizing resource usage.
+
+### 9.8 Advanced Memory Optimization Patterns
+
+Building on the COW pattern, here are additional memory-efficient implementations:
+
+```python
+class MemoryEfficientIndicator:
+    """Base class for memory-efficient indicators using circular buffers"""
+    
+    def __init__(self, period: int, dtype: np.dtype = np.float32):
+        self.period = period
+        self.dtype = dtype
+        self.circular_buffer = np.zeros(period, dtype=dtype)
+        self.buffer_idx = 0
+        self.is_ready = False
+        self.count = 0
+        
+    def update(self, value: float) -> Optional[float]:
+        """Update indicator with new value"""
+        self.circular_buffer[self.buffer_idx] = value
+        self.buffer_idx = (self.buffer_idx + 1) % self.period
+        self.count += 1
+        
+        if self.count >= self.period:
+            self.is_ready = True
+            
+        return self.calculate() if self.is_ready else None
+    
+    def get_memory_usage(self) -> int:
+        """Get memory usage in bytes"""
+        return self.circular_buffer.nbytes
+
+class MemoryEfficientSMA(MemoryEfficientIndicator):
+    """SMA with O(1) updates using running sum"""
+    
+    def __init__(self, period: int):
+        super().__init__(period)
+        self.sum = 0.0
+        
+    def update(self, value: float) -> Optional[float]:
+        """Update with running sum optimization"""
+        if self.is_ready:
+            # Remove oldest value from sum
+            oldest_idx = self.buffer_idx
+            self.sum -= self.circular_buffer[oldest_idx]
+            
+        self.circular_buffer[self.buffer_idx] = value
+        self.sum += value
+        
+        self.buffer_idx = (self.buffer_idx + 1) % self.period
+        self.count += 1
+        
+        if self.count >= self.period:
+            self.is_ready = True
+            
+        return self.calculate() if self.is_ready else None
+    
+    def calculate(self) -> float:
+        """O(1) calculation using running sum"""
+        return self.sum / self.period
+```
+
+### 9.9 Event Synchronization Patterns
+
+For ensuring all strategies process events in lockstep:
+
+```python
+class BarrierSynchronizedOrchestrator:
+    """Ensures all strategies complete processing before next event"""
+    
+    def __init__(self, indicator_hub: Any, 
+                 strategy_containers: List[UniversalScopedContainer]):
+        self.indicator_hub = indicator_hub
+        self.strategy_containers = strategy_containers
+        self.processing_barrier = threading.Barrier(len(strategy_containers) + 1)
+        self._setup_strategy_callbacks()
+        
+    def _setup_strategy_callbacks(self):
+        """Inject barrier synchronization into strategies"""
+        for container in self.strategy_containers:
+            strategy = container.resolve('strategy')
+            original_on_indicators = strategy.on_indicators
+            
+            def wrapped_on_indicators(event):
+                result = original_on_indicators(event)
+                self.processing_barrier.wait()  # Signal completion
+                return result
+                
+            strategy.on_indicators = wrapped_on_indicators
+    
+    def process_market_event_stream(self, event_stream):
+        """Process events with guaranteed synchronization"""
+        for market_event in event_stream:
+            # Indicator hub processes and distributes
+            self.indicator_hub.on_bar(market_event)
+            
+            # Wait for all strategies to complete
+            self.processing_barrier.wait()
+            
+            # All strategies have processed - safe to continue
+```
+
+### 9.10 Performance Measurement Utilities
+
+Utilities to quantify the benefits of shared indicator architecture:
+
+```python
+def calculate_memory_savings(n_strategies: int, n_indicators: int, 
+                           lookback_period: int) -> Dict[str, Any]:
+    """Calculate memory savings from shared indicator approach"""
+    
+    # Traditional: each strategy stores all indicators
+    traditional_memory = (
+        n_strategies * n_indicators * lookback_period * 8  # 8 bytes per float64
+    )
+    
+    # Shared: single storage + strategy-specific state
+    shared_indicator_memory = n_indicators * lookback_period * 8
+    strategy_state_memory = n_strategies * 1024  # ~1KB per strategy state
+    shared_memory = shared_indicator_memory + strategy_state_memory
+    
+    savings = traditional_memory - shared_memory
+    savings_percent = (savings / traditional_memory) * 100
+    
+    return {
+        'traditional_memory_mb': traditional_memory / (1024 * 1024),
+        'shared_memory_mb': shared_memory / (1024 * 1024),
+        'savings_mb': savings / (1024 * 1024),
+        'savings_percent': savings_percent,
+        'break_even_strategies': shared_indicator_memory / (
+            n_indicators * lookback_period * 8 - 1024
+        )
+    }
+
+def measure_computation_savings(n_strategies: int, n_indicators: int,
+                              indicator_compute_time_ms: float = 0.1) -> Dict[str, Any]:
+    """Calculate computation time savings"""
+    
+    # Traditional: each strategy computes all indicators
+    traditional_time = n_strategies * n_indicators * indicator_compute_time_ms
+    
+    # Shared: compute once
+    shared_time = n_indicators * indicator_compute_time_ms
+    
+    savings = traditional_time - shared_time
+    speedup = traditional_time / shared_time if shared_time > 0 else float('inf')
+    
+    return {
+        'traditional_time_ms': traditional_time,
+        'shared_time_ms': shared_time,
+        'savings_ms': savings,
+        'speedup_factor': speedup,
+        'strategies_for_2x_speedup': 2  # Always ≥2x with 2+ strategies
+    }
+
+# Example: 100 strategies, 10 indicators, 1000 lookback
+# Memory: ~75MB saved (98.7% reduction)
+# Computation: 100x speedup
+```
+
+### 9.11 Practical Implementation Checklist
+
+When implementing shared indicator containers:
+
+**Memory Optimization**:
+- [ ] Use appropriate data types (float32 vs float64)
+- [ ] Implement circular buffers for rolling windows
+- [ ] Use COW for strategy-specific modifications
+- [ ] Force garbage collection between optimization batches
+
+**Synchronization**:
+- [ ] Use sequence numbers for event ordering
+- [ ] Implement timeout handling for barriers
+- [ ] Handle missing indicator values gracefully
+- [ ] Monitor synchronization overhead
+
+**Performance**:
+- [ ] Profile memory usage before/after optimization
+- [ ] Measure computation time improvements
+- [ ] Track cache hit rates for lazy evaluation
+- [ ] Monitor container creation/destruction overhead
+
+**Testing**:
+- [ ] Verify indicator calculations match traditional approach
+- [ ] Test with various parameter space sizes
+- [ ] Validate memory savings at scale
+- [ ] Ensure proper cleanup prevents memory leaks
+
+---
+
+## 10. Advanced Memory Optimization Patterns
+
+### 10.1 Memory-Efficient Indicator Storage
+
+Building on the shared indicator patterns, we can optimize memory usage even further with specialized storage patterns:
+
+```python
+class MemoryEfficientIndicator:
+    """Base class for memory-efficient indicators"""
+    
+    def __init__(self, period: int, dtype: np.dtype = np.float32):
+        self.period = period
+        self.dtype = dtype
+        self.circular_buffer = np.zeros(period, dtype=dtype)
+        self.buffer_idx = 0
+        self.is_ready = False
+        self.count = 0
+        
+    def update(self, value: float) -> Optional[float]:
+        """Update indicator with new value"""
+        self.circular_buffer[self.buffer_idx] = value
+        self.buffer_idx = (self.buffer_idx + 1) % self.period
+        self.count += 1
+        
+        if self.count >= self.period:
+            self.is_ready = True
+            
+        return self.calculate() if self.is_ready else None
+    
+    def calculate(self) -> float:
+        """Calculate current indicator value"""
+        raise NotImplementedError
+    
+    def get_memory_usage(self) -> int:
+        """Get memory usage in bytes"""
+        return self.circular_buffer.nbytes
+
+class MemoryEfficientSMA(MemoryEfficientIndicator):
+    """Memory-efficient Simple Moving Average"""
+    
+    def __init__(self, period: int):
+        super().__init__(period)
+        self.sum = 0.0
+        
+    def update(self, value: float) -> Optional[float]:
+        """Update with running sum optimization"""
+        if self.is_ready:
+            # Remove oldest value from sum
+            oldest_idx = self.buffer_idx
+            self.sum -= self.circular_buffer[oldest_idx]
+            
+        self.circular_buffer[self.buffer_idx] = value
+        self.sum += value
+        
+        self.buffer_idx = (self.buffer_idx + 1) % self.period
+        self.count += 1
+        
+        if self.count >= self.period:
+            self.is_ready = True
+            
+        return self.calculate() if self.is_ready else None
+    
+    def calculate(self) -> float:
+        """O(1) calculation using running sum"""
+        return self.sum / self.period
+```
+
+### 10.2 Event Synchronization Patterns
+
+Ensuring proper synchronization across containers is critical for accurate results:
+
+```python
+class BarrierSynchronizedOrchestrator:
+    """Ensures all strategies complete processing before next event"""
+    
+    def __init__(self, indicator_hub: SynchronizedIndicatorHub, 
+                 strategy_containers: List[UniversalScopedContainer]):
+        self.indicator_hub = indicator_hub
+        self.strategy_containers = strategy_containers
+        self.processing_barrier = threading.Barrier(len(strategy_containers) + 1)
+        self._setup_strategy_callbacks()
+        
+    def _setup_strategy_callbacks(self):
+        """Set up processing completion callbacks"""
+        for container in self.strategy_containers:
+            strategy = container.resolve('strategy')
+            # Inject barrier wait into strategy processing
+            original_on_indicators = strategy.on_indicators
+            
+            def wrapped_on_indicators(event):
+                result = original_on_indicators(event)
+                self.processing_barrier.wait()  # Signal completion
+                return result
+                
+            strategy.on_indicators = wrapped_on_indicators
+    
+    def process_market_event_stream(self, event_stream):
+        """Process events with barrier synchronization"""
+        for market_event in event_stream:
+            # Indicator hub processes and distributes
+            self.indicator_hub.on_bar(market_event)
+            
+            # Wait for all strategies to complete
+            self.processing_barrier.wait()
+            
+            # All strategies have processed - safe to continue
+```
+
+### 10.3 Performance Measurement Utilities
+
+To quantify the benefits of these optimization patterns:
+
+```python
+def calculate_memory_savings(n_strategies: int, n_indicators: int, 
+                           lookback_period: int, data_points: int) -> Dict[str, Any]:
+    """Calculate memory savings from shared indicator approach"""
+    
+    # Traditional approach: each strategy stores all indicators
+    traditional_memory = (
+        n_strategies * n_indicators * lookback_period * 8  # 8 bytes per float64
+    )
+    
+    # Shared approach: single storage + strategy-specific state
+    shared_indicator_memory = n_indicators * lookback_period * 8
+    strategy_state_memory = n_strategies * 1024  # Assume 1KB per strategy state
+    shared_memory = shared_indicator_memory + strategy_state_memory
+    
+    savings = traditional_memory - shared_memory
+    savings_percent = (savings / traditional_memory) * 100
+    
+    return {
+        'traditional_memory_mb': traditional_memory / (1024 * 1024),
+        'shared_memory_mb': shared_memory / (1024 * 1024),
+        'savings_mb': savings / (1024 * 1024),
+        'savings_percent': savings_percent,
+        'break_even_strategies': shared_indicator_memory / (
+            n_indicators * lookback_period * 8 - 1024
+        )
+    }
+
+def measure_computation_savings(n_strategies: int, n_indicators: int,
+                              indicator_compute_time_ms: float = 0.1) -> Dict[str, Any]:
+    """Calculate computation time savings"""
+    
+    # Traditional: each strategy computes all indicators
+    traditional_time = n_strategies * n_indicators * indicator_compute_time_ms
+    
+    # Shared: compute once
+    shared_time = n_indicators * indicator_compute_time_ms
+    
+    savings = traditional_time - shared_time
+    speedup = traditional_time / shared_time if shared_time > 0 else float('inf')
+    
+    return {
+        'traditional_time_ms': traditional_time,
+        'shared_time_ms': shared_time,
+        'savings_ms': savings,
+        'speedup_factor': speedup,
+        'strategies_for_2x_speedup': 2  # Always 2x with 2+ strategies
+    }
+```
+
+---
+
 ## Summary
 
 The Universal Scoped Container Architecture with Protocol + Composition provides:
@@ -1356,5 +2662,13 @@ The Universal Scoped Container Architecture with Protocol + Composition provides
 3. **Resource Efficiency**: Shared read-only, isolated mutable state
 4. **Universal Pattern**: Same architecture for all use cases
 5. **Production Ready**: Built-in monitoring, error handling, and resource management
+6. **Optimization Patterns**: Smart container organization for efficiency
+7. **Advanced Memory Management**: COW, circular buffers, and efficient storage
+8. **Synchronized Processing**: Barrier synchronization for consistent results
+
+Key Performance Benefits:
+- **Memory Reduction**: 90%+ savings with shared indicators and COW
+- **Computation Speedup**: Near-linear with number of strategies
+- **Scalability**: Handles thousands of parameter combinations efficiently
 
 This architecture enables ADMF-Trader to scale from simple backtests to complex production deployments while maintaining clean separation of concerns and optimal resource utilization.

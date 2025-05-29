@@ -168,17 +168,29 @@ class AppRunner(ComponentBase):
         # Get required components
         data_handler = self.container.get('data_handler')
         portfolio = self.container.get('portfolio_manager')
+        strategy = self.container.get('strategy')
         
         if not data_handler or not portfolio:
             raise DependencyNotFoundError("Required components not found")
             
+        # Check if we should load optimized parameters for test set
+        cli_args = self._context.metadata.get('cli_args', {})
+        dataset_arg = cli_args.get('dataset', '')
+        
         # Set dataset based on configuration
         if hasattr(data_handler, 'set_active_dataset'):
             # Use test set if available (for validation)
-            if (hasattr(data_handler, 'test_df_exists_and_is_not_empty') and 
+            if dataset_arg == 'test' or (hasattr(data_handler, 'test_df_exists_and_is_not_empty') and 
                 data_handler.test_df_exists_and_is_not_empty):
                 self.logger.info("Using test dataset")
                 data_handler.set_active_dataset('test')
+                
+                # If using test dataset and we have regime parameters, load them
+                if strategy and dataset_arg == 'test':
+                    self.logger.warning("\n" + "="*80)
+                    self.logger.warning("🧪 RUNNING TEST DATASET WITH OPTIMIZED PARAMETERS 🧪")
+                    self.logger.warning("="*80)
+                    self._load_optimized_parameters_for_test(strategy)
             else:
                 self.logger.info("Using full dataset")
                 data_handler.set_active_dataset('full')
@@ -203,6 +215,61 @@ class AppRunner(ComponentBase):
         results = {}
         if hasattr(portfolio, 'get_performance_summary'):
             results = portfolio.get_performance_summary()
+        elif hasattr(portfolio, 'get_performance_metrics'):
+            results = portfolio.get_performance_metrics()
+        elif hasattr(portfolio, 'get_performance'):
+            results = portfolio.get_performance()
+            
+        # Log final performance - ALWAYS show for regular runs
+        self.logger.warning("\n" + "="*60)
+        self.logger.warning("BACKTEST COMPLETE - FINAL PERFORMANCE")
+        self.logger.warning("="*60)
+        if results:
+            final_value = results.get('final_value', results.get('final_portfolio_value', 'N/A'))
+            initial_value = results.get('initial_value', 100000)
+            total_return = results.get('total_return_pct', results.get('total_return', 0) * 100)
+            num_trades = results.get('num_trades', results.get('total_trades', 0))
+            sharpe = results.get('portfolio_sharpe_ratio', 'N/A')
+            win_rate = results.get('win_rate', 'N/A')
+            
+            self.logger.warning(f"Initial Portfolio Value: ${initial_value:,.2f}")
+            self.logger.warning(f"Final Portfolio Value: ${final_value:,.2f}")
+            self.logger.warning(f"Total Return: {total_return:.2f}%")
+            self.logger.warning(f"Number of Trades: {num_trades}")
+            self.logger.warning(f"Sharpe Ratio: {sharpe}")
+            self.logger.warning(f"Win Rate: {win_rate}")
+            
+            # Display regime performance if available
+            regime_perf = results.get('performance_metrics', {}).get('regime_performance', {})
+            if not regime_perf and 'regime_performance' in results:
+                regime_perf = results['regime_performance']
+                
+            if regime_perf and any(k != '_boundary_trades_summary' for k in regime_perf.keys()):
+                self.logger.warning("\nREGIME PERFORMANCE:")
+                for regime, perf in regime_perf.items():
+                    if regime != '_boundary_trades_summary' and isinstance(perf, dict):
+                        self.logger.warning(f"  {regime.upper()}: PnL=${perf.get('pnl', 0):,.2f}, "
+                                          f"Trades={perf.get('count', 0)}, "
+                                          f"Sharpe={perf.get('sharpe_ratio', 0):.2f}")
+        else:
+            self.logger.warning("No performance results available")
+        self.logger.warning("="*60 + "\n")
+        
+        # If running test dataset, also print a summary at the very end
+        if dataset_arg == 'test':
+            import sys
+            print("\n" + "="*80, file=sys.stderr)
+            print("📊 TEST DATASET RUN COMPLETE - SUMMARY 📊", file=sys.stderr)
+            print("="*80, file=sys.stderr)
+            if results:
+                print(f"Final Portfolio Value: ${final_value:,.2f}", file=sys.stderr)
+                print(f"Total Return: {total_return:.2f}%", file=sys.stderr)
+                print(f"Sharpe Ratio: {sharpe}", file=sys.stderr)
+                print(f"Number of Trades: {num_trades}", file=sys.stderr)
+                print(f"Win Rate: {win_rate}", file=sys.stderr)
+            else:
+                print("No performance results available", file=sys.stderr)
+            print("="*80 + "\n", file=sys.stderr)
             
         # Log final performance
         if hasattr(portfolio, 'log_final_performance_summary'):
@@ -262,3 +329,81 @@ class AppRunner(ComponentBase):
         """Validate AppRunner configuration if needed."""
         # AppRunner doesn't have specific configuration requirements
         pass
+        
+    def _load_optimized_parameters_for_test(self, strategy) -> None:
+        """
+        Load optimized parameters when running with --dataset test.
+        
+        This enables running test verification using the same config without --optimize flag,
+        getting the same results as the test phase during optimization.
+        """
+        import json
+        import os
+        from pathlib import Path
+        
+        self.logger.info("Loading optimized parameters for test dataset run")
+        
+        # Get optimization config
+        opt_config = self._context.config.get("optimization", {})
+        results_dir = opt_config.get("results_directory", "optimization_results")
+        
+        # Look for the most recent regime optimized parameters file
+        regime_params_file = Path(results_dir) / "regime_optimized_parameters.json"
+        
+        if not regime_params_file.exists():
+            self.logger.warning(f"No optimized parameters found at {regime_params_file}")
+            return
+            
+        try:
+            with open(regime_params_file, 'r') as f:
+                data = json.load(f)
+                
+            self.logger.info(f"Loaded regime parameters from {regime_params_file}")
+            
+            # Extract regime parameters from the nested structure
+            if 'regimes' in data:
+                regime_params = data['regimes']
+            else:
+                regime_params = data
+            
+            # Apply the parameters to the strategy
+            if hasattr(strategy, '_regime_specific_params') and hasattr(strategy, '_overall_best_params'):
+                # For RegimeAdaptiveEnsembleComposed strategy
+                # Load regime-specific parameters
+                for regime, params in regime_params.items():
+                    if isinstance(params, dict) and regime != 'metadata':
+                        strategy._regime_specific_params[regime] = params
+                        
+                # Also set overall best if available
+                if 'overall_best' in regime_params:
+                    strategy._overall_best_params = regime_params['overall_best']
+                elif 'default' in regime_params:
+                    # Use default as fallback
+                    strategy._overall_best_params = regime_params['default']
+                    
+                self.logger.info("Loaded regime-specific parameters into strategy")
+                
+                # Log what was loaded for verification
+                self.logger.info("Regime-specific parameters loaded:")
+                for regime, params in regime_params.items():
+                    if isinstance(params, dict) and regime != 'metadata':
+                        # Show a summary of the parameters
+                        param_count = len(params)
+                        weight_params = [k for k in params.keys() if k.endswith('.weight')]
+                        if weight_params:
+                            weights_str = ", ".join([f"{k.split('.')[0]}={params[k]:.2f}" for k in weight_params])
+                            self.logger.info(f"  {regime}: {param_count} parameters, weights: {weights_str}")
+                        else:
+                            self.logger.info(f"  {regime}: {param_count} parameters")
+                            
+                # Enable regime switching for test mode
+                if hasattr(strategy, '_enable_regime_switching'):
+                    strategy._enable_regime_switching = True
+                    self.logger.info("Enabled regime switching for test phase")
+            else:
+                self.logger.warning("Strategy does not support regime-specific parameter loading")
+                
+        except Exception as e:
+            self.logger.error(f"Failed to load optimized parameters: {e}")
+            import traceback
+            self.logger.error(traceback.format_exc())

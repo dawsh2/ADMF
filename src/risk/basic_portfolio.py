@@ -759,6 +759,10 @@ class BasicPortfolio(ComponentBase):
         return metrics
         
     
+    def log_final_performance_summary(self):
+        """Public method to log final performance summary."""
+        self._log_final_performance_summary()
+        
     def _log_final_performance_summary(self):
         # Skip detailed summary if no trades were executed (e.g., in main context during optimization)
         if len(self._trade_log) == 0 and self.current_cash == self.initial_cash:
@@ -911,14 +915,27 @@ class BasicPortfolio(ComponentBase):
             annualization_factor = np.sqrt(252)  # Default to daily
             
         # Calculate Sharpe ratio
-        # Annualized return
-        annualized_return = avg_return * bars_per_year
+        # For minute bars, we need to annualize differently
+        # Average return per bar * number of bars per year gives total annual return
+        # But this assumes additive returns, not compounded
         
-        # Annualized volatility
-        annualized_vol = std_return * annualization_factor
+        # More accurate: annualize using compound returns
+        # (1 + avg_return)^bars_per_year - 1, but for small returns we can approximate
         
-        # Sharpe ratio
-        sharpe_ratio = (annualized_return - risk_free_rate) / annualized_vol
+        # For now, use a simpler approach consistent with trade-based Sharpe
+        # Just use the return/risk ratio and scale by sqrt of periods
+        if std_return > 0:
+            # Simple Sharpe: return/risk * sqrt(periods_per_year)
+            # Using sqrt(252) for daily equivalent, regardless of bar frequency
+            sharpe_ratio = (avg_return / std_return) * np.sqrt(252)
+        else:
+            # Handle zero volatility
+            if avg_return > 0:
+                sharpe_ratio = 10.0  # Cap at reasonable positive value
+            elif avg_return < 0:
+                sharpe_ratio = -10.0  # Cap at reasonable negative value
+            else:
+                sharpe_ratio = 0.0
         
         # Log calculation details
         self.logger.info(

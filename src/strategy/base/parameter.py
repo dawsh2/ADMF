@@ -197,7 +197,7 @@ class ParameterSpace:
             final_combinations = local_combinations
             
         # Calculate and log total combinations
-        logger.warning(f"[{self.name}] Total parameter combinations: {len(final_combinations)}")
+        logger.debug(f"[{self.name}] Total parameter combinations: {len(final_combinations)}")
         if len(final_combinations) <= 5:
             for i, combo in enumerate(final_combinations):
                 logger.info(f"  Combination {i+1}: {combo}")

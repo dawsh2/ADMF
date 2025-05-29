@@ -75,7 +75,7 @@ def compare_optimization_approaches():
         argv = [
             '--config', config_path,
             '--optimize',
-            '--bars', '100'  # Use small dataset for testing
+            '--bars', '1000'  # Use same dataset size as normal test
         ]
         
         launcher = ApplicationLauncher(argv)

@@ -1,0 +1,28 @@
+
+Helpful Tips:
+- [ ] use --bars and --dataset test - this helps quick iteration by limiting data set and allows me to run validation over test set easily to reproduce optimization results
+- [ ] design with containers in mind from the start and a coordinator to control process sequencing, container creation
+- [ ] use synthetic data and contrived rules to test
+- [ ] get event system tested ASAP
+- [ ] maintain certainty on the execution path, different paths = different results
+- [ ] implement stateful indicators with buffers equal to longest period needed, so when they switch parameters dynamically they don't need to be reset (possibly a better design in just running the necassary indicators and switching when needed)
+- [ ] the data and execution modules are simple
+- [ ] the event system architecture is basically solved, so not difficult
+- [ ] standardize interface and APIs
+
+
+
+Prove that we have identical:
+- [ ] date ranges and datasets,
+- [ ] rules and any related configuration or instantiation details,
+- [ ] regime classifier configs,
+- [ ] risk configs,
+- [ ] parameters,
+- [ ] regime change precise timestamps and exact parameters loaded in response,
+- [ ] execution path,
+- [ ] signal history,
+- [ ] trade history (not just number of trades but precise timestamp and portfolio value matching),
+- [ ] regime change history,
+- [ ] indicator resets or lack there of 
+- [ ] event ordering
+- [ ] anything else we can think of

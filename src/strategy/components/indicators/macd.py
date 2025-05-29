@@ -196,13 +196,17 @@ class MACDIndicator(ComponentBase):
         
     def reset(self) -> None:
         """Reset the indicator state."""
+        self.logger.info(f"MACD {self.instance_name} RESET - clearing buffers")
+        
+        # Reinitialize all buffers to ensure true cold start
+        self._price_buffer = deque(maxlen=max(self.slow_period, self.fast_period, self.signal_period))
         self._fast_ema = None
         self._slow_ema = None
         self._signal_ema = None
         self._macd_line = None
+        self._signal_line = None
         self._histogram = None
-        self._price_history.clear()
-        self._macd_history.clear()
+        
         
     def get_state(self) -> Dict[str, Any]:
         """Get the current state of the indicator."""

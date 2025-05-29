@@ -139,7 +139,7 @@ class IndicatorBase(ComponentBase, ABC):
             return result
         else:
             if self._ready and hasattr(self, 'logger') and self.logger:
-                self.logger.warning(f"Indicator {self.instance_name} NOT ready - only {len(self._buffer)} bars, need {self._min_periods}")
+                self.logger.debug(f"Indicator {self.instance_name} NOT ready - only {len(self._buffer)} bars, need {self._min_periods}")
             self._ready = False
             return IndicatorResult(value=0.0, ready=False)
             
@@ -189,7 +189,7 @@ class IndicatorBase(ComponentBase, ABC):
             
         if len(self._buffer) < new_min_periods:
             if hasattr(self, 'logger') and self.logger:
-                self.logger.warning(f"Indicator {self.instance_name} RESET - buffer has {len(self._buffer)} bars but needs {new_min_periods}")
+                self.logger.debug(f"Indicator {self.instance_name} RESET - buffer has {len(self._buffer)} bars but needs {new_min_periods}")
             self.reset()
         else:
             if hasattr(self, 'logger') and self.logger:
@@ -243,7 +243,9 @@ class IndicatorBase(ComponentBase, ABC):
         """Reset indicator state."""
         if hasattr(self, 'logger') and self.logger:
             self.logger.info(f"Indicator {self.instance_name} RESET - clearing {len(self._buffer)} bars of history")
-        self._buffer.clear()
+        
+        # Reinitialize buffer to ensure true cold start
+        self._buffer = []  # Start with empty list
         self._value = None
         self._ready = False
         
@@ -313,7 +315,13 @@ class ExponentialMovingAverageIndicator(IndicatorBase):
         
     def reset(self) -> None:
         """Reset indicator state."""
-        super().reset()
+        if hasattr(self, 'logger') and self.logger:
+            self.logger.info(f"Indicator {self.instance_name} RESET - clearing {len(self._buffer)} bars of history")
+        
+        # Reinitialize buffer to ensure true cold start
+        self._buffer = []  # Start with empty list
+        self._value = None
+        self._ready = False
         self._ema_value = None
         
 
@@ -386,9 +394,15 @@ class RSIIndicator(IndicatorBase):
         
     def reset(self) -> None:
         """Reset indicator state."""
-        super().reset()
-        self._gains.clear()
-        self._losses.clear()
+        if hasattr(self, 'logger') and self.logger:
+            self.logger.info(f"Indicator {self.instance_name} RESET - clearing {len(self._buffer)} bars of history")
+        
+        # Reinitialize buffer to ensure true cold start
+        self._buffer = []  # Start with empty list
+        self._value = None
+        self._ready = False
+        self._gains = []
+        self._losses = []
         self._avg_gain = None
         self._avg_loss = None
         

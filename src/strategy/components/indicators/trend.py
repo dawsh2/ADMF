@@ -100,6 +100,27 @@ class SimpleMATrendIndicator:
                 else: # Avoid division by zero, though unlikely for price MAs
                     self._current_value = 0.0 
                 self._is_ready = True
+                
+                # Debug logging for first ready value
+                if not hasattr(self, '_logged_first_calculation'):
+                    self.logger.info(f"[MA TREND DEBUG] {self.instance_name} first calculation:")
+                    self.logger.info(f"  Prices buffer (last 10): {list(self._prices)[-10:]}")
+                    self.logger.info(f"  Short MA ({self.short_period}): {short_ma:.6f}")
+                    self.logger.info(f"  Long MA ({self.long_period}): {long_ma:.6f}")
+                    self.logger.info(f"  Trend value: {self._current_value:.6f}%")
+                    self._logged_first_calculation = True
+                
+                # Also log when we see specific price ranges
+                current_price = float(data.get('close', 0))
+                if 520.5 < current_price < 521.5 and not hasattr(self, '_logged_521_range'):
+                    self.logger.warning(f"[MA PRICE WARNING] {self.instance_name} received price ${current_price:.2f} which is in the $521 range!")
+                    self.logger.warning(f"  This price suggests March 26 data (bars 80-99)")
+                    self.logger.warning(f"  Full price buffer: {list(self._prices)}")
+                    self._logged_521_range = True
+                elif 523.0 < current_price < 524.0 and not hasattr(self, '_logged_523_range'):
+                    self.logger.info(f"[MA PRICE INFO] {self.instance_name} received price ${current_price:.2f} which is in the $523 range")
+                    self.logger.info(f"  This price confirms March 28 data (bars 800-999)")
+                    self._logged_523_range = True
                 # self.logger.debug(f"{self.instance_name} updated. Trend value: {self._current_value:.2f}%")
             else:
                 # This case should ideally not happen if len(prices) >= long_period

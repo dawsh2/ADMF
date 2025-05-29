@@ -1,0 +1,82 @@
+{
+  "best_parameters": {
+    "trending_down": {
+      "parameters": {
+        "oversold_threshold": 25.0,
+        "overbought_threshold": 60.0,
+        "rsi_indicator.lookback_period": 21
+      },
+      "sharpe_ratio": 1475.4602295182658,
+      "win_rate": 1.0,
+      "total_return": 1182.9999999999984,
+      "num_trades": 2
+    },
+    "default": {
+      "parameters": {
+        "oversold_threshold": 30.0,
+        "overbought_threshold": 65.0,
+        "rsi_indicator.lookback_period": 21
+      },
+      "sharpe_ratio": 20.604581202011673,
+      "win_rate": 0.8571428571428571,
+      "total_return": 1137.5100000000145,
+      "num_trades": 7
+    },
+    "volatile": {
+      "parameters": {
+        "oversold_threshold": 25.0,
+        "overbought_threshold": 75.0,
+        "rsi_indicator.lookback_period": 9
+      },
+      "sharpe_ratio": 772.0405304057285,
+      "win_rate": 1.0,
+      "total_return": 721.4900000000057,
+      "num_trades": 2
+    },
+    "trending_up": {
+      "parameters": {
+        "oversold_threshold": 35.0,
+        "overbought_threshold": 60.0,
+        "rsi_indicator.lookback_period": 9
+      },
+      "sharpe_ratio": 1.2277411502823043,
+      "win_rate": 0.7,
+      "total_return": 112.5500000000045,
+      "num_trades": 10
+    }
+  },
+  "regime_statistics": {
+    "trending_down": {
+      "avg_return": 262.6522413793124,
+      "std_return": 583.72008255328,
+      "avg_sharpe": 31.966466936804256,
+      "avg_win_rate": 0.6834028803114369,
+      "total_trades": 899,
+      "parameter_sets_tested": 58
+    },
+    "default": {
+      "avg_return": 273.3762500000071,
+      "std_return": 799.9879616084502,
+      "avg_sharpe": 3.989432448374778,
+      "avg_win_rate": 0.645484924841279,
+      "total_trades": 1694,
+      "parameter_sets_tested": 80
+    },
+    "volatile": {
+      "avg_return": 694.7833333333457,
+      "std_return": 392.51606107719425,
+      "avg_sharpe": 41.92894979111087,
+      "avg_win_rate": 0.9275555555555557,
+      "total_trades": 237,
+      "parameter_sets_tested": 75
+    },
+    "trending_up": {
+      "avg_return": -800.5356249999998,
+      "std_return": 453.2392551535161,
+      "avg_sharpe": -3.7945138809257437,
+      "avg_win_rate": 0.44856352774266844,
+      "total_trades": 865,
+      "parameter_sets_tested": 64
+    }
+  }
+}

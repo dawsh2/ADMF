@@ -219,8 +219,27 @@ class BollingerBandsRule(ComponentBase):
                     param_name = key.replace('bb_indicator.', '')
                     indicator_params[param_name] = value
             if indicator_params:
-                self.bb_indicator.set_parameters(indicator_params)
-                self.logger.debug(f"Updated BB indicator parameters: {indicator_params}")
+                # DEBUG: Log what we're about to apply to the indicator
+                self.logger.debug(f"BB Rule about to apply indicator params: {indicator_params}")
+                # Use apply_parameters for consistency with other indicators
+                if hasattr(self.bb_indicator, 'apply_parameters'):
+                    self.logger.debug(f"BB Rule using apply_parameters method on indicator: {type(self.bb_indicator).__name__}")
+                    self.logger.debug(f"BB Rule calling apply_parameters on indicator object ID: {id(self.bb_indicator)}")
+                    try:
+                        self.bb_indicator.apply_parameters(indicator_params)
+                        self.logger.debug(f"BB Rule successfully called apply_parameters")
+                    except Exception as e:
+                        self.logger.error(f"BB Rule failed to call apply_parameters: {e}")
+                elif hasattr(self.bb_indicator, 'set_parameters'):
+                    self.logger.debug(f"BB Rule using set_parameters method on indicator: {type(self.bb_indicator).__name__}")
+                    try:
+                        self.bb_indicator.set_parameters(indicator_params)
+                        self.logger.debug(f"BB Rule successfully called set_parameters")
+                    except Exception as e:
+                        self.logger.error(f"BB Rule failed to call set_parameters: {e}")
+                else:
+                    self.logger.warning(f"BB indicator {type(self.bb_indicator).__name__} has no apply_parameters or set_parameters method!")
+                self.logger.debug(f"BB indicator after params - lookback: {getattr(self.bb_indicator, 'lookback_period', 'NO_ATTR')}, std_dev: {getattr(self.bb_indicator, 'num_std_dev', 'NO_ATTR')}")
         
         self.reset_state()
         self.logger.info(
@@ -231,6 +250,8 @@ class BollingerBandsRule(ComponentBase):
         
     def apply_parameters(self, parameters: Dict[str, Any]) -> None:
         """Apply parameters to this component (ComponentBase interface)."""
+        # DEBUG: Log exactly what parameters are being applied
+        self.logger.debug(f"BB Rule apply_parameters called with: {parameters}")
         self.set_parameters(parameters)
         
     def get_parameter_space(self) -> ParameterSpace:

@@ -62,6 +62,7 @@ class BollingerBandsIndicator(ComponentBase):
             
         self._price_buffer.append(price)
         
+        
         if len(self._price_buffer) < self.lookback_period:
             # Not enough data yet
             self._upper_band = None
@@ -79,6 +80,8 @@ class BollingerBandsIndicator(ComponentBase):
         # Calculate bands
         self._upper_band = self._middle_band + (self.num_std_dev * std_dev)
         self._lower_band = self._middle_band - (self.num_std_dev * std_dev)
+        
+        # Band calculations completed
         
     @property
     def ready(self) -> bool:
@@ -122,10 +125,25 @@ class BollingerBandsIndicator(ComponentBase):
             # Create new buffer with updated size, preserving recent data
             old_data = list(self._price_buffer)[-self.lookback_period:]
             self._price_buffer = deque(old_data, maxlen=self.lookback_period)
+            
+        # Reset calculated values when parameters change to force recalculation on next update
+        self._upper_band = None
+        self._lower_band = None  
+        self._middle_band = None
         
         self.logger.info(
-            f"BollingerBandsIndicator '{self.instance_name}' parameters updated: lookback_period={self.lookback_period}, num_std_dev={self.num_std_dev}"
+            f"BB indicator {self.instance_name} parameters updated: lookback_period={self.lookback_period}, num_std_dev={self.num_std_dev}"
         )
+        
+    def apply_parameters(self, parameters: Dict[str, Any]) -> None:
+        """Apply parameters to this component (ComponentBase interface)."""
+        self.logger.debug(f"BB indicator applying parameters: {parameters}")
+        try:
+            self.set_parameters(parameters)
+            self.logger.debug(f"BB indicator parameters applied successfully")
+        except Exception as e:
+            self.logger.error(f"BB indicator failed to apply parameters: {e}")
+            raise
         
     def get_parameter_space(self) -> ParameterSpace:
         """Get the parameter space for this component (ComponentBase interface)."""
@@ -173,10 +191,14 @@ class BollingerBandsIndicator(ComponentBase):
         
     def reset(self) -> None:
         """Reset the indicator state."""
-        self._price_buffer.clear()
+        self.logger.info(f"BollingerBands {self.instance_name} RESET - clearing buffer")
+        
+        # Reinitialize buffer to ensure true cold start
+        self._price_buffer = deque(maxlen=self.lookback_period)
         self._upper_band = None
         self._lower_band = None
         self._middle_band = None
+        
         
     def get_state(self) -> Dict[str, Any]:
         """Get the current state of the indicator."""
@@ -195,22 +217,3 @@ class BollingerBandsIndicator(ComponentBase):
             'lookback_period': self.lookback_period,
             'num_std_dev': self.num_std_dev
         }
-        
-    def apply_parameters(self, params: Dict[str, Any]) -> None:
-        """Apply parameters (ComponentBase interface)."""
-        self.set_parameters(params)
-        
-    def set_parameters(self, parameters: Dict[str, Any]) -> None:
-        """Set indicator parameters."""
-        if 'lookback_period' in parameters:
-            new_period = int(parameters['lookback_period'])
-            if new_period != self.lookback_period:
-                self.lookback_period = new_period
-                # Preserve existing buffer data if possible
-                old_data = list(self._price_buffer)
-                self._price_buffer = deque(old_data[-new_period:], maxlen=new_period)
-                self.logger.info(f"Updated lookback_period to {new_period}, preserved {len(self._price_buffer)} data points")
-                
-        if 'num_std_dev' in parameters:
-            self.num_std_dev = float(parameters['num_std_dev'])
-            self.logger.debug(f"Updated num_std_dev to {self.num_std_dev}")

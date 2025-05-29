@@ -207,7 +207,17 @@ class MACDRule(ComponentBase):
                     param_name = key.replace('macd_indicator.', '')
                     indicator_params[param_name] = value
             if indicator_params:
-                self.macd_indicator.set_parameters(indicator_params)
+                self.logger.debug(f"MACD Rule about to apply indicator params: {indicator_params}")
+                # Use apply_parameters for consistency with other indicators
+                if hasattr(self.macd_indicator, 'apply_parameters'):
+                    self.logger.debug(f"MACD Rule using apply_parameters method on indicator: {type(self.macd_indicator).__name__}")
+                    self.logger.debug(f"MACD Rule calling apply_parameters on indicator object ID: {id(self.macd_indicator)}")
+                    self.macd_indicator.apply_parameters(indicator_params)
+                    self.logger.debug(f"MACD Rule successfully called apply_parameters")
+                elif hasattr(self.macd_indicator, 'set_parameters'):
+                    self.logger.debug(f"MACD Rule using set_parameters method")
+                    self.macd_indicator.set_parameters(indicator_params)
+                    self.logger.debug(f"MACD Rule successfully called set_parameters")
                 self.logger.debug(f"Updated MACD indicator parameters: {indicator_params}")
         
         self.reset_state()
@@ -219,6 +229,7 @@ class MACDRule(ComponentBase):
         
     def apply_parameters(self, parameters: Dict[str, Any]) -> None:
         """Apply parameters to this component (ComponentBase interface)."""
+        self.logger.debug(f"MACD Rule apply_parameters called with: {parameters}")
         self.set_parameters(parameters)
         
     def get_parameter_space(self) -> ParameterSpace:

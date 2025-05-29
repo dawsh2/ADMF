@@ -1,0 +1,428 @@
+{
+  "timestamp": "20250528_111418",
+  "workflow_hash": "f1163a96",
+  "workflow_steps": [
+    {
+      "name": "optimize_ma_isolated",
+      "type": "rulewise",
+      "targets": [
+        "ma_crossover"
+      ],
+      "isolate": true,
+      "method": "grid_search",
+      "metric": "sharpe_ratio"
+    },
+    {
+      "name": "optimize_rsi_isolated",
+      "type": "rulewise",
+      "targets": [
+        "rsi"
+      ],
+      "isolate": true,
+      "method": "grid_search",
+      "metric": "sharpe_ratio"
+    },
+    {
+      "name": "optimize_bb_isolated",
+      "type": "rulewise",
+      "targets": [
+        "bb"
+      ],
+      "isolate": true,
+      "method": "grid_search",
+      "metric": "sharpe_ratio"
+    },
+    {
+      "name": "optimize_macd_isolated",
+      "type": "rulewise",
+      "targets": [
+        "macd"
+      ],
+      "isolate": true,
+      "method": "grid_search",
+      "metric": "sharpe_ratio"
+    },
+    {
+      "name": "optimize_weights",
+      "type": "ensemble_weights",
+      "method": "grid_search",
+      "depends_on": [
+        "optimize_ma_isolated",
+        "optimize_rsi_isolated",
+        "optimize_bb_isolated",
+        "optimize_macd_isolated"
+      ],
+      "weight_combinations": [
+        [
+          0.2,
+          0.2,
+          0.2,
+          0.4
+        ],
+        [
+          0.2,
+          0.2,
+          0.4,
+          0.2
+        ],
+        [
+          0.2,
+          0.4,
+          0.2,
+          0.2
+        ],
+        [
+          0.4,
+          0.2,
+          0.2,
+          0.2
+        ],
+        [
+          0.6,
+          0.2,
+          0.2,
+          0.0
+        ],
+        [
+          0.2,
+          0.6,
+          0.2,
+          0.0
+        ],
+        [
+          0.2,
+          0.2,
+          0.6,
+          0.0
+        ],
+        [
+          0.0,
+          0.2,
+          0.2,
+          0.6
+        ],
+        [
+          0.8,
+          0.0,
+          0.0,
+          0.2
+        ],
+        [
+          0.0,
+          0.8,
+          0.2,
+          0.0
+        ],
+        [
+          0.0,
+          0.0,
+          0.8,
+          0.2
+        ],
+        [
+          0.2,
+          0.0,
+          0.0,
+          0.8
+        ],
+        [
+          0.4,
+          0.4,
+          0.2,
+          0.0
+        ],
+        [
+          0.4,
+          0.0,
+          0.4,
+          0.2
+        ],
+        [
+          0.0,
+          0.4,
+          0.4,
+          0.2
+        ],
+        [
+          0.2,
+          0.2,
+          0.0,
+          0.6
+        ],
+        [
+          1.0,
+          0.0,
+          0.0,
+          0.0
+        ],
+        [
+          0.0,
+          1.0,
+          0.0,
+          0.0
+        ],
+        [
+          0.0,
+          0.0,
+          1.0,
+          0.0
+        ],
+        [
+          0.0,
+          0.0,
+          0.0,
+          1.0
+        ]
+      ]
+    },
+    {
+      "name": "regime_optimization",
+      "type": "regime",
+      "config": {
+        "strategy_name": "strategy",
+        "regime_detector": "regime_detector",
+        "optimization_method": "grid_search",
+        "optimization_metric": "sharpe_ratio"
+      }
+    }
+  ],
+  "results": {
+    "optimize_ma_isolated": {
+      "optimization_type": "component",
+      "targets": [
+        "ma_crossover"
+      ],
+      "method": "grid_search",
+      "components_optimized": 1,
+      "results": {
+        "strategy_ma_crossover": {
+          "method": "grid_search",
+          "component": "strategy_ma_crossover",
+          "parameter_space": "strategy_ma_crossover_space",
+          "combinations_tested": 36,
+          "best_parameters": null,
+          "best_score": -Infinity,
+          "test_score": null,
+          "all_results": [],
+          "regime_best_parameters": {},
+          "regime_statistics": {},
+          "timestamp": "2025-05-28T11:14:18.080400"
+        }
+      },
+      "timestamp": "2025-05-28T11:14:18.081220"
+    },
+    "optimize_rsi_isolated": {
+      "optimization_type": "component",
+      "targets": [
+        "rsi"
+      ],
+      "method": "grid_search",
+      "components_optimized": 1,
+      "results": {
+        "strategy_rsi_rule": {
+          "method": "grid_search",
+          "component": "strategy_rsi_rule",
+          "parameter_space": "strategy_rsi_rule_space",
+          "combinations_tested": 80,
+          "best_parameters": null,
+          "best_score": -Infinity,
+          "test_score": null,
+          "all_results": [],
+          "regime_best_parameters": {},
+          "regime_statistics": {},
+          "timestamp": "2025-05-28T11:14:18.149870"
+        }
+      },
+      "timestamp": "2025-05-28T11:14:18.151416"
+    },
+    "optimize_bb_isolated": {
+      "optimization_type": "component",
+      "targets": [
+        "bb"
+      ],
+      "method": "grid_search",
+      "components_optimized": 1,
+      "results": {
+        "strategy_bb_rule": {
+          "method": "grid_search",
+          "component": "strategy_bb_rule",
+          "parameter_space": "strategy_bb_rule_space",
+          "combinations_tested": 18,
+          "best_parameters": null,
+          "best_score": -Infinity,
+          "test_score": null,
+          "all_results": [],
+          "regime_best_parameters": {},
+          "regime_statistics": {},
+          "timestamp": "2025-05-28T11:14:18.167043"
+        }
+      },
+      "timestamp": "2025-05-28T11:14:18.167600"
+    },
+    "optimize_macd_isolated": {
+      "optimization_type": "component",
+      "targets": [
+        "macd"
+      ],
+      "method": "grid_search",
+      "components_optimized": 1,
+      "results": {
+        "strategy_macd_rule": {
+          "method": "grid_search",
+          "component": "strategy_macd_rule",
+          "parameter_space": "strategy_macd_rule_space",
+          "combinations_tested": 24,
+          "best_parameters": null,
+          "best_score": -Infinity,
+          "test_score": null,
+          "all_results": [],
+          "regime_best_parameters": {},
+          "regime_statistics": {},
+          "timestamp": "2025-05-28T11:14:18.186382"
+        }
+      },
+      "timestamp": "2025-05-28T11:14:18.186846"
+    },
+    "optimize_weights": {
+      "status": "no_regime_params",
+      "message": "Weight optimization requires regime-specific parameters from previous steps"
+    },
+    "regime_optimization": {
+      "error": "Container not available"
+    },
+    "final_test_evaluation": {
+      "dataset": "test",
+      "results": {
+        "mode": "backtest",
+        "timestamp": "2025-05-28T11:14:18.289674",
+        "final_portfolio_value": 100120.52000000003,
+        "initial_portfolio_value": 100000,
+        "total_return": 0.0012052000000002394,
+        "realized_pnl": 120.52000000001044,
+        "unrealized_pnl": 0.0,
+        "current_cash": 100120.52000000003,
+        "current_holdings_value": 0.0,
+        "performance_metrics": {
+          "initial_value": 100000,
+          "final_value": 100120.52000000003,
+          "total_return": 0.0012052000000003318,
+          "total_return_pct": 0.12052000000003318,
+          "realized_pnl": 120.52000000001044,
+          "unrealized_pnl": 0.0,
+          "num_trades": 13,
+          "portfolio_sharpe_ratio": 27.616541205054492,
+          "regime_performance": {
+            "default": {
+              "pnl": 126.51000000001886,
+              "commission": 0.0,
+              "count": 12,
+              "wins": 8,
+              "losses": 4,
+              "pnl_values": [
+                -10.999999999989996,
+                -11.999999999989086,
+                26.500000000010004,
+                32.50000000000455,
+                30.999999999994543,
+                -6.990000000007512,
+                9.999999999990905,
+                1.999999999998181,
+                32.000000000005,
+                12.999999999999545,
+                -1.999999999998181,
+                11.50000000000091
+              ],
+              "boundary_trade_count": 0,
+              "boundary_trades_pnl": 0.0,
+              "pure_regime_count": 12,
+              "pure_regime_pnl": 126.51000000001886,
+              "sharpe_ratio": 9.916729148810319,
+              "win_rate": 0.6666666666666666,
+              "avg_pnl": 10.542500000001573,
+              "std_dev_pnl": 16.876229719503126,
+              "gross_pnl": 126.51000000001886,
+              "net_pnl": 126.51000000001886
+            },
+            "trending_up": {
+              "pnl": -5.990000000008422,
+              "commission": 0.0,
+              "count": 1,
+              "wins": 0,
+              "losses": 1,
+              "pnl_values": [
+                -5.990000000008422
+              ],
+              "boundary_trade_count": 0,
+              "boundary_trades_pnl": 0.0,
+              "pure_regime_count": 1,
+              "pure_regime_pnl": -5.990000000008422,
+              "sharpe_ratio": null,
+              "win_rate": 0.0,
+              "avg_pnl": -5.990000000008422,
+              "std_dev_pnl": 0.0,
+              "gross_pnl": -5.990000000008422,
+              "net_pnl": -5.990000000008422
+            },
+            "_boundary_trades_summary": {}
+          }
+        },
+        "regime_performance": {
+          "default": {
+            "pnl": 126.51000000001886,
+            "commission": 0.0,
+            "count": 12,
+            "wins": 8,
+            "losses": 4,
+            "pnl_values": [
+              -10.999999999989996,
+              -11.999999999989086,
+              26.500000000010004,
+              32.50000000000455,
+              30.999999999994543,
+              -6.990000000007512,
+              9.999999999990905,
+              1.999999999998181,
+              32.000000000005,
+              12.999999999999545,
+              -1.999999999998181,
+              11.50000000000091
+            ],
+            "boundary_trade_count": 0,
+            "boundary_trades_pnl": 0.0,
+            "pure_regime_count": 12,
+            "pure_regime_pnl": 126.51000000001886,
+            "sharpe_ratio": 9.916729148810319,
+            "win_rate": 0.6666666666666666,
+            "avg_pnl": 10.542500000001573,
+            "std_dev_pnl": 16.876229719503126,
+            "gross_pnl": 126.51000000001886,
+            "net_pnl": 126.51000000001886
+          },
+          "trending_up": {
+            "pnl": -5.990000000008422,
+            "commission": 0.0,
+            "count": 1,
+            "wins": 0,
+            "losses": 1,
+            "pnl_values": [
+              -5.990000000008422
+            ],
+            "boundary_trade_count": 0,
+            "boundary_trades_pnl": 0.0,
+            "pure_regime_count": 1,
+            "pure_regime_pnl": -5.990000000008422,
+            "sharpe_ratio": null,
+            "win_rate": 0.0,
+            "avg_pnl": -5.990000000008422,
+            "std_dev_pnl": 0.0,
+            "gross_pnl": -5.990000000008422,
+            "net_pnl": -5.990000000008422
+          },
+          "_boundary_trades_summary": {}
+        },
+        "strategy": "RegimeAdaptiveEnsembleComposed"
+      },
+      "timestamp": "2025-05-28T11:14:18.290030"
+    }
+  }
+}

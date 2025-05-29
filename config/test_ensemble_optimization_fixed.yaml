@@ -1,0 +1,9 @@
+# Test configuration for RegimeAdaptiveEnsembleComposed strategy with optimization workflow
+# FIXED VERSION - without MyPrimaryRegimeDetector interference
+
+# Copy all content from original but exclude components that would load MyPrimaryRegimeDetector
+!include test_ensemble_optimization.yaml
+
+# Override to prevent loading default components
+# This ensures we don't get MyPrimaryRegimeDetector from components.yaml
+use_default_components: false

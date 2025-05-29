@@ -618,6 +618,13 @@ class OptimizationRunner(ComponentBase):
                 self.logger.info(f"Training - {regime}: best params = {result.best_params}")
         
         # Step 2: Test with regime-adaptive strategy on test data
+        self.logger.warning("\n" + "="*80)
+        self.logger.warning("🚀 BEGINNING TEST PHASE 🚀")
+        self.logger.warning("="*80)
+        self.logger.warning("SWITCHING FROM TRAINING DATA TO TEST DATA")
+        self.logger.warning("All optimized parameters will now be applied to out-of-sample test data")
+        self.logger.warning("="*80 + "\n")
+        
         self.logger.info("\n=== TESTING PHASE: Evaluating adaptive strategy on test data ===")
         
         # Save regime parameters to a temporary file for the adaptive strategy

@@ -1,0 +1,66 @@
+{
+  "timestamp": "20250528_004152",
+  "regimes": {
+    "default": {
+      "strategy_ma_crossover.min_separation": 0.002,
+      "strategy_ma_crossover.fast_ma.lookback_period": 15,
+      "strategy_ma_crossover.slow_ma.lookback_period": 50,
+      "strategy_rsi_rule.oversold_threshold": 20.0,
+      "strategy_rsi_rule.overbought_threshold": 75.0,
+      "strategy_rsi_rule.rsi_indicator.lookback_period": 30,
+      "strategy_bb_rule.band_width_filter": 0.0,
+      "strategy_bb_rule.bb_indicator.lookback_period": 15,
+      "strategy_bb_rule.bb_indicator.num_std_dev": 1.5,
+      "strategy_macd_rule.min_histogram_threshold": 0.0,
+      "strategy_macd_rule.macd_indicator.fast_period": 8,
+      "strategy_macd_rule.macd_indicator.slow_period": 20,
+      "strategy_macd_rule.macd_indicator.signal_period": 7,
+      "ma_crossover.weight": 0.2,
+      "rsi.weight": 0.6,
+      "bb.weight": 0.2,
+      "macd.weight": 0.0
+    },
+    "trending_up": {
+      "strategy_ma_crossover.min_separation": 0.0,
+      "strategy_ma_crossover.fast_ma.lookback_period": 5,
+      "strategy_ma_crossover.slow_ma.lookback_period": 20,
+      "strategy_rsi_rule.oversold_threshold": 20.0,
+      "strategy_rsi_rule.overbought_threshold": 70.0,
+      "strategy_rsi_rule.rsi_indicator.lookback_period": 30,
+      "strategy_bb_rule.band_width_filter": 0.0,
+      "strategy_bb_rule.bb_indicator.lookback_period": 15,
+      "strategy_bb_rule.bb_indicator.num_std_dev": 1.5,
+      "strategy_macd_rule.min_histogram_threshold": 0.0,
+      "strategy_macd_rule.macd_indicator.fast_period": 8,
+      "strategy_macd_rule.macd_indicator.slow_period": 20,
+      "strategy_macd_rule.macd_indicator.signal_period": 7,
+      "ma_crossover.weight": 0.2,
+      "rsi.weight": 0.2,
+      "bb.weight": 0.2,
+      "macd.weight": 0.4
+    },
+    "trending_down": {
+      "strategy_ma_crossover.min_separation": 0.002,
+      "strategy_ma_crossover.fast_ma.lookback_period": 10,
+      "strategy_ma_crossover.slow_ma.lookback_period": 30,
+      "strategy_rsi_rule.oversold_threshold": 20.0,
+      "strategy_rsi_rule.overbought_threshold": 60.0,
+      "strategy_rsi_rule.rsi_indicator.lookback_period": 9,
+      "strategy_bb_rule.band_width_filter": 0.0,
+      "strategy_bb_rule.bb_indicator.lookback_period": 15,
+      "strategy_bb_rule.bb_indicator.num_std_dev": 1.5,
+      "strategy_macd_rule.min_histogram_threshold": 0.0,
+      "strategy_macd_rule.macd_indicator.fast_period": 8,
+      "strategy_macd_rule.macd_indicator.slow_period": 20,
+      "strategy_macd_rule.macd_indicator.signal_period": 7,
+      "ma_crossover.weight": 0.0,
+      "rsi.weight": 0.2,
+      "bb.weight": 0.2,
+      "macd.weight": 0.6
+    }
+  },
+  "metadata": {
+    "source": "workflow_optimization",
+    "workflow": "workflow_orchestrator"
+  }
+}

@@ -1,0 +1,1737 @@
+{
+  "timestamp": "20250528_123238",
+  "workflow_hash": "f1163a96",
+  "workflow_steps": [
+    {
+      "name": "optimize_ma_isolated",
+      "type": "rulewise",
+      "targets": [
+        "ma_crossover"
+      ],
+      "isolate": true,
+      "method": "grid_search",
+      "metric": "sharpe_ratio"
+    },
+    {
+      "name": "optimize_rsi_isolated",
+      "type": "rulewise",
+      "targets": [
+        "rsi"
+      ],
+      "isolate": true,
+      "method": "grid_search",
+      "metric": "sharpe_ratio"
+    },
+    {
+      "name": "optimize_bb_isolated",
+      "type": "rulewise",
+      "targets": [
+        "bb"
+      ],
+      "isolate": true,
+      "method": "grid_search",
+      "metric": "sharpe_ratio"
+    },
+    {
+      "name": "optimize_macd_isolated",
+      "type": "rulewise",
+      "targets": [
+        "macd"
+      ],
+      "isolate": true,
+      "method": "grid_search",
+      "metric": "sharpe_ratio"
+    },
+    {
+      "name": "optimize_weights",
+      "type": "ensemble_weights",
+      "method": "grid_search",
+      "depends_on": [
+        "optimize_ma_isolated",
+        "optimize_rsi_isolated",
+        "optimize_bb_isolated",
+        "optimize_macd_isolated"
+      ],
+      "weight_combinations": [
+        [
+          0.2,
+          0.2,
+          0.2,
+          0.4
+        ],
+        [
+          0.2,
+          0.2,
+          0.4,
+          0.2
+        ],
+        [
+          0.2,
+          0.4,
+          0.2,
+          0.2
+        ],
+        [
+          0.4,
+          0.2,
+          0.2,
+          0.2
+        ],
+        [
+          0.6,
+          0.2,
+          0.2,
+          0.0
+        ],
+        [
+          0.2,
+          0.6,
+          0.2,
+          0.0
+        ],
+        [
+          0.2,
+          0.2,
+          0.6,
+          0.0
+        ],
+        [
+          0.0,
+          0.2,
+          0.2,
+          0.6
+        ],
+        [
+          0.8,
+          0.0,
+          0.0,
+          0.2
+        ],
+        [
+          0.0,
+          0.8,
+          0.2,
+          0.0
+        ],
+        [
+          0.0,
+          0.0,
+          0.8,
+          0.2
+        ],
+        [
+          0.2,
+          0.0,
+          0.0,
+          0.8
+        ],
+        [
+          0.4,
+          0.4,
+          0.2,
+          0.0
+        ],
+        [
+          0.4,
+          0.0,
+          0.4,
+          0.2
+        ],
+        [
+          0.0,
+          0.4,
+          0.4,
+          0.2
+        ],
+        [
+          0.2,
+          0.2,
+          0.0,
+          0.6
+        ],
+        [
+          1.0,
+          0.0,
+          0.0,
+          0.0
+        ],
+        [
+          0.0,
+          1.0,
+          0.0,
+          0.0
+        ],
+        [
+          0.0,
+          0.0,
+          1.0,
+          0.0
+        ],
+        [
+          0.0,
+          0.0,
+          0.0,
+          1.0
+        ]
+      ]
+    },
+    {
+      "name": "regime_optimization",
+      "type": "regime",
+      "config": {
+        "strategy_name": "strategy",
+        "regime_detector": "regime_detector",
+        "optimization_method": "grid_search",
+        "optimization_metric": "sharpe_ratio"
+      }
+    }
+  ],
+  "results": {
+    "optimize_ma_isolated": {
+      "optimization_type": "component",
+      "targets": [
+        "ma_crossover"
+      ],
+      "method": "grid_search",
+      "components_optimized": 1,
+      "results": {
+        "strategy_ma_crossover": {
+          "method": "grid_search",
+          "component": "strategy_ma_crossover",
+          "parameter_space": "strategy_ma_crossover_space",
+          "combinations_tested": 36,
+          "best_parameters": {
+            "min_separation": 0.001,
+            "fast_ma.lookback_period": 5,
+            "slow_ma.lookback_period": 40
+          },
+          "best_score": 10.569680304759062,
+          "test_score": null,
+          "all_results": [
+            {
+              "parameters": {
+                "min_separation": 0.0,
+                "fast_ma.lookback_period": 5,
+                "slow_ma.lookback_period": 20
+              },
+              "score": -11.795154819539718
+            },
+            {
+              "parameters": {
+                "min_separation": 0.0,
+                "fast_ma.lookback_period": 5,
+                "slow_ma.lookback_period": 30
+              },
+              "score": 7.80964370335168
+            },
+            {
+              "parameters": {
+                "min_separation": 0.0,
+                "fast_ma.lookback_period": 5,
+                "slow_ma.lookback_period": 40
+              },
+              "score": 4.538338458720781
+            },
+            {
+              "parameters": {
+                "min_separation": 0.0,
+                "fast_ma.lookback_period": 5,
+                "slow_ma.lookback_period": 50
+              },
+              "score": -9.354005804180426
+            },
+            {
+              "parameters": {
+                "min_separation": 0.0,
+                "fast_ma.lookback_period": 10,
+                "slow_ma.lookback_period": 20
+              },
+              "score": -10.769500952704714
+            },
+            {
+              "parameters": {
+                "min_separation": 0.0,
+                "fast_ma.lookback_period": 10,
+                "slow_ma.lookback_period": 30
+              },
+              "score": -15.663981099596006
+            },
+            {
+              "parameters": {
+                "min_separation": 0.0,
+                "fast_ma.lookback_period": 10,
+                "slow_ma.lookback_period": 40
+              },
+              "score": -17.236866733835633
+            },
+            {
+              "parameters": {
+                "min_separation": 0.0,
+                "fast_ma.lookback_period": 10,
+                "slow_ma.lookback_period": 50
+              },
+              "score": -13.411403416545287
+            },
+            {
+              "parameters": {
+                "min_separation": 0.0,
+                "fast_ma.lookback_period": 15,
+                "slow_ma.lookback_period": 20
+              },
+              "score": -15.412791173224221
+            },
+            {
+              "parameters": {
+                "min_separation": 0.0,
+                "fast_ma.lookback_period": 15,
+                "slow_ma.lookback_period": 30
+              },
+              "score": -15.442137594764425
+            },
+            {
+              "parameters": {
+                "min_separation": 0.0,
+                "fast_ma.lookback_period": 15,
+                "slow_ma.lookback_period": 40
+              },
+              "score": -9.692080187444965
+            },
+            {
+              "parameters": {
+                "min_separation": 0.0,
+                "fast_ma.lookback_period": 15,
+                "slow_ma.lookback_period": 50
+              },
+              "score": -19.882533112635777
+            },
+            {
+              "parameters": {
+                "min_separation": 0.001,
+                "fast_ma.lookback_period": 5,
+                "slow_ma.lookback_period": 20
+              },
+              "score": -12.379689185615964
+            },
+            {
+              "parameters": {
+                "min_separation": 0.001,
+                "fast_ma.lookback_period": 5,
+                "slow_ma.lookback_period": 30
+              },
+              "score": 10.406526889418648
+            },
+            {
+              "parameters": {
+                "min_separation": 0.001,
+                "fast_ma.lookback_period": 5,
+                "slow_ma.lookback_period": 40
+              },
+              "score": 10.569680304759062
+            },
+            {
+              "parameters": {
+                "min_separation": 0.001,
+                "fast_ma.lookback_period": 5,
+                "slow_ma.lookback_period": 50
+              },
+              "score": -22.13485281975308
+            },
+            {
+              "parameters": {
+                "min_separation": 0.001,
+                "fast_ma.lookback_period": 10,
+                "slow_ma.lookback_period": 20
+              },
+              "score": -16.253958896902738
+            },
+            {
+              "parameters": {
+                "min_separation": 0.001,
+                "fast_ma.lookback_period": 10,
+                "slow_ma.lookback_period": 30
+              },
+              "score": -22.16801470284412
+            },
+            {
+              "parameters": {
+                "min_separation": 0.001,
+                "fast_ma.lookback_period": 10,
+                "slow_ma.lookback_period": 40
+              },
+              "score": -28.347708337839396
+            },
+            {
+              "parameters": {
+                "min_separation": 0.001,
+                "fast_ma.lookback_period": 10,
+                "slow_ma.lookback_period": 50
+              },
+              "score": -20.973609102640527
+            },
+            {
+              "parameters": {
+                "min_separation": 0.001,
+                "fast_ma.lookback_period": 15,
+                "slow_ma.lookback_period": 20
+              },
+              "score": -12.555401240054088
+            },
+            {
+              "parameters": {
+                "min_separation": 0.001,
+                "fast_ma.lookback_period": 15,
+                "slow_ma.lookback_period": 30
+              },
+              "score": -19.667114394357156
+            },
+            {
+              "parameters": {
+                "min_separation": 0.001,
+                "fast_ma.lookback_period": 15,
+                "slow_ma.lookback_period": 40
+              },
+              "score": -13.13859254770608
+            },
+            {
+              "parameters": {
+                "min_separation": 0.001,
+                "fast_ma.lookback_period": 15,
+                "slow_ma.lookback_period": 50
+              },
+              "score": -16.62808563920471
+            },
+            {
+              "parameters": {
+                "min_separation": 0.002,
+                "fast_ma.lookback_period": 5,
+                "slow_ma.lookback_period": 20
+              },
+              "score": -12.68755014461369
+            },
+            {
+              "parameters": {
+                "min_separation": 0.002,
+                "fast_ma.lookback_period": 5,
+                "slow_ma.lookback_period": 30
+              },
+              "score": 7.21982589989359
+            },
+            {
+              "parameters": {
+                "min_separation": 0.002,
+                "fast_ma.lookback_period": 5,
+                "slow_ma.lookback_period": 40
+              },
+              "score": 4.982340868674708
+            },
+            {
+              "parameters": {
+                "min_separation": 0.002,
+                "fast_ma.lookback_period": 5,
+                "slow_ma.lookback_period": 50
+              },
+              "score": -17.212191130295164
+            },
+            {
+              "parameters": {
+                "min_separation": 0.002,
+                "fast_ma.lookback_period": 10,
+                "slow_ma.lookback_period": 20
+              },
+              "score": -8.845314777091462
+            },
+            {
+              "parameters": {
+                "min_separation": 0.002,
+                "fast_ma.lookback_period": 10,
+                "slow_ma.lookback_period": 30
+              },
+              "score": -16.531588043153242
+            },
+            {
+              "parameters": {
+                "min_separation": 0.002,
+                "fast_ma.lookback_period": 10,
+                "slow_ma.lookback_period": 40
+              },
+              "score": -31.519176081427073
+            },
+            {
+              "parameters": {
+                "min_separation": 0.002,
+                "fast_ma.lookback_period": 10,
+                "slow_ma.lookback_period": 50
+              },
+              "score": -33.31908882783261
+            },
+            {
+              "parameters": {
+                "min_separation": 0.002,
+                "fast_ma.lookback_period": 15,
+                "slow_ma.lookback_period": 20
+              },
+              "score": -29.1595026224561
+            },
+            {
+              "parameters": {
+                "min_separation": 0.002,
+                "fast_ma.lookback_period": 15,
+                "slow_ma.lookback_period": 30
+              },
+              "score": -12.405648893747006
+            },
+            {
+              "parameters": {
+                "min_separation": 0.002,
+                "fast_ma.lookback_period": 15,
+                "slow_ma.lookback_period": 40
+              },
+              "score": -14.769365456219752
+            },
+            {
+              "parameters": {
+                "min_separation": 0.002,
+                "fast_ma.lookback_period": 15,
+                "slow_ma.lookback_period": 50
+              },
+              "score": -7.56062288825998
+            }
+          ],
+          "regime_best_parameters": {},
+          "regime_statistics": {},
+          "timestamp": "2025-05-28T12:23:55.491722"
+        }
+      },
+      "timestamp": "2025-05-28T12:23:55.495930"
+    },
+    "optimize_rsi_isolated": {
+      "optimization_type": "component",
+      "targets": [
+        "rsi"
+      ],
+      "method": "grid_search",
+      "components_optimized": 1,
+      "results": {
+        "strategy_rsi_rule": {
+          "method": "grid_search",
+          "component": "strategy_rsi_rule",
+          "parameter_space": "strategy_rsi_rule_space",
+          "combinations_tested": 80,
+          "best_parameters": {
+            "oversold_threshold": 35.0,
+            "overbought_threshold": 75.0,
+            "rsi_indicator.lookback_period": 14
+          },
+          "best_score": 40.45263583182898,
+          "test_score": null,
+          "all_results": [
+            {
+              "parameters": {
+                "oversold_threshold": 20.0,
+                "overbought_threshold": 60.0,
+                "rsi_indicator.lookback_period": 9
+              },
+              "score": -20.412382910597955
+            },
+            {
+              "parameters": {
+                "oversold_threshold": 20.0,
+                "overbought_threshold": 60.0,
+                "rsi_indicator.lookback_period": 14
+              },
+              "score": -41.56092540951914
+            },
+            {
+              "parameters": {
+                "oversold_threshold": 20.0,
+                "overbought_threshold": 60.0,
+                "rsi_indicator.lookback_period": 21
+              },
+              "score": -18.71751034518711
+            },
+            {
+              "parameters": {
+                "oversold_threshold": 20.0,
+                "overbought_threshold": 60.0,
+                "rsi_indicator.lookback_period": 30
+              },
+              "score": -27.220253079481974
+            },
+            {
+              "parameters": {
+                "oversold_threshold": 20.0,
+                "overbought_threshold": 65.0,
+                "rsi_indicator.lookback_period": 9
+              },
+              "score": -15.348671638343381
+            },
+            {
+              "parameters": {
+                "oversold_threshold": 20.0,
+                "overbought_threshold": 65.0,
+                "rsi_indicator.lookback_period": 14
+              },
+              "score": -33.41208193103918
+            },
+            {
+              "parameters": {
+                "oversold_threshold": 20.0,
+                "overbought_threshold": 65.0,
+                "rsi_indicator.lookback_period": 21
+              },
+              "score": -10.901239551960021
+            },
+            {
+              "parameters": {
+                "oversold_threshold": 20.0,
+                "overbought_threshold": 65.0,
+                "rsi_indicator.lookback_period": 30
+              },
+              "score": -24.692911408129017
+            },
+            {
+              "parameters": {
+                "oversold_threshold": 20.0,
+                "overbought_threshold": 70.0,
+                "rsi_indicator.lookback_period": 9
+              },
+              "score": -11.974211612692237
+            },
+            {
+              "parameters": {
+                "oversold_threshold": 20.0,
+                "overbought_threshold": 70.0,
+                "rsi_indicator.lookback_period": 14
+              },
+              "score": -22.164087510310612
+            },
+            {
+              "parameters": {
+                "oversold_threshold": 20.0,
+                "overbought_threshold": 70.0,
+                "rsi_indicator.lookback_period": 21
+              },
+              "score": 3.413191577604033
+            },
+            {
+              "parameters": {
+                "oversold_threshold": 20.0,
+                "overbought_threshold": 70.0,
+                "rsi_indicator.lookback_period": 30
+              },
+              "score": -20.692275223209393
+            },
+            {
+              "parameters": {
+                "oversold_threshold": 20.0,
+                "overbought_threshold": 75.0,
+                "rsi_indicator.lookback_period": 9
+              },
+              "score": -17.10818066131429
+            },
+            {
+              "parameters": {
+                "oversold_threshold": 20.0,
+                "overbought_threshold": 75.0,
+                "rsi_indicator.lookback_period": 14
+              },
+              "score": 3.3217668001715293
+            },
+            {
+              "parameters": {
+                "oversold_threshold": 20.0,
+                "overbought_threshold": 75.0,
+                "rsi_indicator.lookback_period": 21
+              },
+              "score": -3.1982768455758506
+            },
+            {
+              "parameters": {
+                "oversold_threshold": 20.0,
+                "overbought_threshold": 75.0,
+                "rsi_indicator.lookback_period": 30
+              },
+              "score": -22.599224856131496
+            },
+            {
+              "parameters": {
+                "oversold_threshold": 20.0,
+                "overbought_threshold": 80.0,
+                "rsi_indicator.lookback_period": 9
+              },
+              "score": 12.938432968075011
+            },
+            {
+              "parameters": {
+                "oversold_threshold": 20.0,
+                "overbought_threshold": 80.0,
+                "rsi_indicator.lookback_period": 14
+              },
+              "score": 0.23945868682262278
+            },
+            {
+              "parameters": {
+                "oversold_threshold": 20.0,
+                "overbought_threshold": 80.0,
+                "rsi_indicator.lookback_period": 21
+              },
+              "score": -10.426518925963776
+            },
+            {
+              "parameters": {
+                "oversold_threshold": 20.0,
+                "overbought_threshold": 80.0,
+                "rsi_indicator.lookback_period": 30
+              },
+              "score": -11.78145872310508
+            },
+            {
+              "parameters": {
+                "oversold_threshold": 25.0,
+                "overbought_threshold": 60.0,
+                "rsi_indicator.lookback_period": 9
+              },
+              "score": -16.03643569833319
+            },
+            {
+              "parameters": {
+                "oversold_threshold": 25.0,
+                "overbought_threshold": 60.0,
+                "rsi_indicator.lookback_period": 14
+              },
+              "score": -31.65789795849834
+            },
+            {
+              "parameters": {
+                "oversold_threshold": 25.0,
+                "overbought_threshold": 60.0,
+                "rsi_indicator.lookback_period": 21
+              },
+              "score": -27.81332349103792
+            },
+            {
+              "parameters": {
+                "oversold_threshold": 25.0,
+                "overbought_threshold": 60.0,
+                "rsi_indicator.lookback_period": 30
+              },
+              "score": -7.110905299986614
+            },
+            {
+              "parameters": {
+                "oversold_threshold": 25.0,
+                "overbought_threshold": 65.0,
+                "rsi_indicator.lookback_period": 9
+              },
+              "score": -16.847219856024154
+            },
+            {
+              "parameters": {
+                "oversold_threshold": 25.0,
+                "overbought_threshold": 65.0,
+                "rsi_indicator.lookback_period": 14
+              },
+              "score": -23.835046932568865
+            },
+            {
+              "parameters": {
+                "oversold_threshold": 25.0,
+                "overbought_threshold": 65.0,
+                "rsi_indicator.lookback_period": 21
+              },
+              "score": -9.788641740759195
+            },
+            {
+              "parameters": {
+                "oversold_threshold": 25.0,
+                "overbought_threshold": 65.0,
+                "rsi_indicator.lookback_period": 30
+              },
+              "score": 7.681832499859155
+            },
+            {
+              "parameters": {
+                "oversold_threshold": 25.0,
+                "overbought_threshold": 70.0,
+                "rsi_indicator.lookback_period": 9
+              },
+              "score": -15.093959946265544
+            },
+            {
+              "parameters": {
+                "oversold_threshold": 25.0,
+                "overbought_threshold": 70.0,
+                "rsi_indicator.lookback_period": 14
+              },
+              "score": -5.125863500163581
+            },
+            {
+              "parameters": {
+                "oversold_threshold": 25.0,
+                "overbought_threshold": 70.0,
+                "rsi_indicator.lookback_period": 21
+              },
+              "score": 3.834288472717939
+            },
+            {
+              "parameters": {
+                "oversold_threshold": 25.0,
+                "overbought_threshold": 70.0,
+                "rsi_indicator.lookback_period": 30
+              },
+              "score": 7.224811907290308
+            },
+            {
+              "parameters": {
+                "oversold_threshold": 25.0,
+                "overbought_threshold": 75.0,
+                "rsi_indicator.lookback_period": 9
+              },
+              "score": -3.668330853613517
+            },
+            {
+              "parameters": {
+                "oversold_threshold": 25.0,
+                "overbought_threshold": 75.0,
+                "rsi_indicator.lookback_period": 14
+              },
+              "score": 16.670098666744742
+            },
+            {
+              "parameters": {
+                "oversold_threshold": 25.0,
+                "overbought_threshold": 75.0,
+                "rsi_indicator.lookback_period": 21
+              },
+              "score": -4.562878887939306
+            },
+            {
+              "parameters": {
+                "oversold_threshold": 25.0,
+                "overbought_threshold": 75.0,
+                "rsi_indicator.lookback_period": 30
+              },
+              "score": 26.347773939597605
+            },
+            {
+              "parameters": {
+                "oversold_threshold": 25.0,
+                "overbought_threshold": 80.0,
+                "rsi_indicator.lookback_period": 9
+              },
+              "score": 30.496597914940608
+            },
+            {
+              "parameters": {
+                "oversold_threshold": 25.0,
+                "overbought_threshold": 80.0,
+                "rsi_indicator.lookback_period": 14
+              },
+              "score": 3.543283613957836
+            },
+            {
+              "parameters": {
+                "oversold_threshold": 25.0,
+                "overbought_threshold": 80.0,
+                "rsi_indicator.lookback_period": 21
+              },
+              "score": 5.866315173488128
+            },
+            {
+              "parameters": {
+                "oversold_threshold": 25.0,
+                "overbought_threshold": 80.0,
+                "rsi_indicator.lookback_period": 30
+              },
+              "score": 15.51432262309024
+            },
+            {
+              "parameters": {
+                "oversold_threshold": 30.0,
+                "overbought_threshold": 60.0,
+                "rsi_indicator.lookback_period": 9
+              },
+              "score": 7.824303553398611
+            },
+            {
+              "parameters": {
+                "oversold_threshold": 30.0,
+                "overbought_threshold": 60.0,
+                "rsi_indicator.lookback_period": 14
+              },
+              "score": -25.983281063054825
+            },
+            {
+              "parameters": {
+                "oversold_threshold": 30.0,
+                "overbought_threshold": 60.0,
+                "rsi_indicator.lookback_period": 21
+              },
+              "score": -27.665415461069976
+            },
+            {
+              "parameters": {
+                "oversold_threshold": 30.0,
+                "overbought_threshold": 60.0,
+                "rsi_indicator.lookback_period": 30
+              },
+              "score": -11.92270015400915
+            },
+            {
+              "parameters": {
+                "oversold_threshold": 30.0,
+                "overbought_threshold": 65.0,
+                "rsi_indicator.lookback_period": 9
+              },
+              "score": 1.3864446644645947
+            },
+            {
+              "parameters": {
+                "oversold_threshold": 30.0,
+                "overbought_threshold": 65.0,
+                "rsi_indicator.lookback_period": 14
+              },
+              "score": -22.257345317577226
+            },
+            {
+              "parameters": {
+                "oversold_threshold": 30.0,
+                "overbought_threshold": 65.0,
+                "rsi_indicator.lookback_period": 21
+              },
+              "score": 4.325376960153614
+            },
+            {
+              "parameters": {
+                "oversold_threshold": 30.0,
+                "overbought_threshold": 65.0,
+                "rsi_indicator.lookback_period": 30
+              },
+              "score": 1.4179663113173349
+            },
+            {
+              "parameters": {
+                "oversold_threshold": 30.0,
+                "overbought_threshold": 70.0,
+                "rsi_indicator.lookback_period": 9
+              },
+              "score": -25.142546202183468
+            },
+            {
+              "parameters": {
+                "oversold_threshold": 30.0,
+                "overbought_threshold": 70.0,
+                "rsi_indicator.lookback_period": 14
+              },
+              "score": -5.419656804628032
+            },
+            {
+              "parameters": {
+                "oversold_threshold": 30.0,
+                "overbought_threshold": 70.0,
+                "rsi_indicator.lookback_period": 21
+              },
+              "score": 10.697586573238091
+            },
+            {
+              "parameters": {
+                "oversold_threshold": 30.0,
+                "overbought_threshold": 70.0,
+                "rsi_indicator.lookback_period": 30
+              },
+              "score": -2.649955622240554
+            },
+            {
+              "parameters": {
+                "oversold_threshold": 30.0,
+                "overbought_threshold": 75.0,
+                "rsi_indicator.lookback_period": 9
+              },
+              "score": -8.98647653600685
+            },
+            {
+              "parameters": {
+                "oversold_threshold": 30.0,
+                "overbought_threshold": 75.0,
+                "rsi_indicator.lookback_period": 14
+              },
+              "score": 22.409061255838434
+            },
+            {
+              "parameters": {
+                "oversold_threshold": 30.0,
+                "overbought_threshold": 75.0,
+                "rsi_indicator.lookback_period": 21
+              },
+              "score": 15.526106484816777
+            },
+            {
+              "parameters": {
+                "oversold_threshold": 30.0,
+                "overbought_threshold": 75.0,
+                "rsi_indicator.lookback_period": 30
+              },
+              "score": 17.96088591951027
+            },
+            {
+              "parameters": {
+                "oversold_threshold": 30.0,
+                "overbought_threshold": 80.0,
+                "rsi_indicator.lookback_period": 9
+              },
+              "score": 17.899721917343925
+            },
+            {
+              "parameters": {
+                "oversold_threshold": 30.0,
+                "overbought_threshold": 80.0,
+                "rsi_indicator.lookback_period": 14
+              },
+              "score": 9.5639628944992
+            },
+            {
+              "parameters": {
+                "oversold_threshold": 30.0,
+                "overbought_threshold": 80.0,
+                "rsi_indicator.lookback_period": 21
+              },
+              "score": 25.68268751890182
+            },
+            {
+              "parameters": {
+                "oversold_threshold": 30.0,
+                "overbought_threshold": 80.0,
+                "rsi_indicator.lookback_period": 30
+              },
+              "score": -1.147802792216649
+            },
+            {
+              "parameters": {
+                "oversold_threshold": 35.0,
+                "overbought_threshold": 60.0,
+                "rsi_indicator.lookback_period": 9
+              },
+              "score": 13.764240407223328
+            },
+            {
+              "parameters": {
+                "oversold_threshold": 35.0,
+                "overbought_threshold": 60.0,
+                "rsi_indicator.lookback_period": 14
+              },
+              "score": 1.162249668404164
+            },
+            {
+              "parameters": {
+                "oversold_threshold": 35.0,
+                "overbought_threshold": 60.0,
+                "rsi_indicator.lookback_period": 21
+              },
+              "score": -15.784169994358
+            },
+            {
+              "parameters": {
+                "oversold_threshold": 35.0,
+                "overbought_threshold": 60.0,
+                "rsi_indicator.lookback_period": 30
+              },
+              "score": 5.512547905090348
+            },
+            {
+              "parameters": {
+                "oversold_threshold": 35.0,
+                "overbought_threshold": 65.0,
+                "rsi_indicator.lookback_period": 9
+              },
+              "score": 8.199078898008313
+            },
+            {
+              "parameters": {
+                "oversold_threshold": 35.0,
+                "overbought_threshold": 65.0,
+                "rsi_indicator.lookback_period": 14
+              },
+              "score": -0.4932659912145415
+            },
+            {
+              "parameters": {
+                "oversold_threshold": 35.0,
+                "overbought_threshold": 65.0,
+                "rsi_indicator.lookback_period": 21
+              },
+              "score": 3.5211435807237867
+            },
+            {
+              "parameters": {
+                "oversold_threshold": 35.0,
+                "overbought_threshold": 65.0,
+                "rsi_indicator.lookback_period": 30
+              },
+              "score": -2.7221948139785686
+            },
+            {
+              "parameters": {
+                "oversold_threshold": 35.0,
+                "overbought_threshold": 70.0,
+                "rsi_indicator.lookback_period": 9
+              },
+              "score": -13.131374897936967
+            },
+            {
+              "parameters": {
+                "oversold_threshold": 35.0,
+                "overbought_threshold": 70.0,
+                "rsi_indicator.lookback_period": 14
+              },
+              "score": 26.761512087528253
+            },
+            {
+              "parameters": {
+                "oversold_threshold": 35.0,
+                "overbought_threshold": 70.0,
+                "rsi_indicator.lookback_period": 21
+              },
+              "score": 6.84304760405782
+            },
+            {
+              "parameters": {
+                "oversold_threshold": 35.0,
+                "overbought_threshold": 70.0,
+                "rsi_indicator.lookback_period": 30
+              },
+              "score": 10.365295047706066
+            },
+            {
+              "parameters": {
+                "oversold_threshold": 35.0,
+                "overbought_threshold": 75.0,
+                "rsi_indicator.lookback_period": 9
+              },
+              "score": 1.6470747540207886
+            },
+            {
+              "parameters": {
+                "oversold_threshold": 35.0,
+                "overbought_threshold": 75.0,
+                "rsi_indicator.lookback_period": 14
+              },
+              "score": 40.45263583182898
+            },
+            {
+              "parameters": {
+                "oversold_threshold": 35.0,
+                "overbought_threshold": 75.0,
+                "rsi_indicator.lookback_period": 21
+              },
+              "score": 4.6328424445285945
+            },
+            {
+              "parameters": {
+                "oversold_threshold": 35.0,
+                "overbought_threshold": 75.0,
+                "rsi_indicator.lookback_period": 30
+              },
+              "score": 27.404743612532222
+            },
+            {
+              "parameters": {
+                "oversold_threshold": 35.0,
+                "overbought_threshold": 80.0,
+                "rsi_indicator.lookback_period": 9
+              },
+              "score": 25.529892510878266
+            },
+            {
+              "parameters": {
+                "oversold_threshold": 35.0,
+                "overbought_threshold": 80.0,
+                "rsi_indicator.lookback_period": 14
+              },
+              "score": 21.092568768835953
+            },
+            {
+              "parameters": {
+                "oversold_threshold": 35.0,
+                "overbought_threshold": 80.0,
+                "rsi_indicator.lookback_period": 21
+              },
+              "score": 23.20471624544752
+            },
+            {
+              "parameters": {
+                "oversold_threshold": 35.0,
+                "overbought_threshold": 80.0,
+                "rsi_indicator.lookback_period": 30
+              },
+              "score": 16.34359654182528
+            }
+          ],
+          "regime_best_parameters": {},
+          "regime_statistics": {},
+          "timestamp": "2025-05-28T12:29:59.917928"
+        }
+      },
+      "timestamp": "2025-05-28T12:29:59.922393"
+    },
+    "optimize_bb_isolated": {
+      "optimization_type": "component",
+      "targets": [
+        "bb"
+      ],
+      "method": "grid_search",
+      "components_optimized": 1,
+      "results": {
+        "strategy_bb_rule": {
+          "method": "grid_search",
+          "component": "strategy_bb_rule",
+          "parameter_space": "strategy_bb_rule_space",
+          "combinations_tested": 18,
+          "best_parameters": {
+            "band_width_filter": 0.0,
+            "bb_indicator.lookback_period": 15,
+            "bb_indicator.num_std_dev": 1.5
+          },
+          "best_score": 0.0,
+          "test_score": null,
+          "all_results": [
+            {
+              "parameters": {
+                "band_width_filter": 0.0,
+                "bb_indicator.lookback_period": 15,
+                "bb_indicator.num_std_dev": 1.5
+              },
+              "score": 0.0
+            },
+            {
+              "parameters": {
+                "band_width_filter": 0.0,
+                "bb_indicator.lookback_period": 15,
+                "bb_indicator.num_std_dev": 2.0
+              },
+              "score": 0.0
+            },
+            {
+              "parameters": {
+                "band_width_filter": 0.0,
+                "bb_indicator.lookback_period": 15,
+                "bb_indicator.num_std_dev": 2.5
+              },
+              "score": 0.0
+            },
+            {
+              "parameters": {
+                "band_width_filter": 0.0,
+                "bb_indicator.lookback_period": 20,
+                "bb_indicator.num_std_dev": 1.5
+              },
+              "score": 0.0
+            },
+            {
+              "parameters": {
+                "band_width_filter": 0.0,
+                "bb_indicator.lookback_period": 20,
+                "bb_indicator.num_std_dev": 2.0
+              },
+              "score": 0.0
+            },
+            {
+              "parameters": {
+                "band_width_filter": 0.0,
+                "bb_indicator.lookback_period": 20,
+                "bb_indicator.num_std_dev": 2.5
+              },
+              "score": 0.0
+            },
+            {
+              "parameters": {
+                "band_width_filter": 0.0,
+                "bb_indicator.lookback_period": 25,
+                "bb_indicator.num_std_dev": 1.5
+              },
+              "score": 0.0
+            },
+            {
+              "parameters": {
+                "band_width_filter": 0.0,
+                "bb_indicator.lookback_period": 25,
+                "bb_indicator.num_std_dev": 2.0
+              },
+              "score": 0.0
+            },
+            {
+              "parameters": {
+                "band_width_filter": 0.0,
+                "bb_indicator.lookback_period": 25,
+                "bb_indicator.num_std_dev": 2.5
+              },
+              "score": 0.0
+            },
+            {
+              "parameters": {
+                "band_width_filter": 0.01,
+                "bb_indicator.lookback_period": 15,
+                "bb_indicator.num_std_dev": 1.5
+              },
+              "score": 0.0
+            },
+            {
+              "parameters": {
+                "band_width_filter": 0.01,
+                "bb_indicator.lookback_period": 15,
+                "bb_indicator.num_std_dev": 2.0
+              },
+              "score": 0.0
+            },
+            {
+              "parameters": {
+                "band_width_filter": 0.01,
+                "bb_indicator.lookback_period": 15,
+                "bb_indicator.num_std_dev": 2.5
+              },
+              "score": 0.0
+            },
+            {
+              "parameters": {
+                "band_width_filter": 0.01,
+                "bb_indicator.lookback_period": 20,
+                "bb_indicator.num_std_dev": 1.5
+              },
+              "score": 0.0
+            },
+            {
+              "parameters": {
+                "band_width_filter": 0.01,
+                "bb_indicator.lookback_period": 20,
+                "bb_indicator.num_std_dev": 2.0
+              },
+              "score": 0.0
+            },
+            {
+              "parameters": {
+                "band_width_filter": 0.01,
+                "bb_indicator.lookback_period": 20,
+                "bb_indicator.num_std_dev": 2.5
+              },
+              "score": 0.0
+            },
+            {
+              "parameters": {
+                "band_width_filter": 0.01,
+                "bb_indicator.lookback_period": 25,
+                "bb_indicator.num_std_dev": 1.5
+              },
+              "score": 0.0
+            },
+            {
+              "parameters": {
+                "band_width_filter": 0.01,
+                "bb_indicator.lookback_period": 25,
+                "bb_indicator.num_std_dev": 2.0
+              },
+              "score": 0.0
+            },
+            {
+              "parameters": {
+                "band_width_filter": 0.01,
+                "bb_indicator.lookback_period": 25,
+                "bb_indicator.num_std_dev": 2.5
+              },
+              "score": 0.0
+            }
+          ],
+          "regime_best_parameters": {},
+          "regime_statistics": {},
+          "timestamp": "2025-05-28T12:31:09.485148"
+        }
+      },
+      "timestamp": "2025-05-28T12:31:09.487754"
+    },
+    "optimize_macd_isolated": {
+      "optimization_type": "component",
+      "targets": [
+        "macd"
+      ],
+      "method": "grid_search",
+      "components_optimized": 1,
+      "results": {
+        "strategy_macd_rule": {
+          "method": "grid_search",
+          "component": "strategy_macd_rule",
+          "parameter_space": "strategy_macd_rule_space",
+          "combinations_tested": 24,
+          "best_parameters": {
+            "min_histogram_threshold": 0.0,
+            "macd_indicator.fast_period": 8,
+            "macd_indicator.slow_period": 20,
+            "macd_indicator.signal_period": 7
+          },
+          "best_score": 0.0,
+          "test_score": null,
+          "all_results": [
+            {
+              "parameters": {
+                "min_histogram_threshold": 0.0,
+                "macd_indicator.fast_period": 8,
+                "macd_indicator.slow_period": 20,
+                "macd_indicator.signal_period": 7
+              },
+              "score": 0.0
+            },
+            {
+              "parameters": {
+                "min_histogram_threshold": 0.0,
+                "macd_indicator.fast_period": 8,
+                "macd_indicator.slow_period": 20,
+                "macd_indicator.signal_period": 9
+              },
+              "score": 0.0
+            },
+            {
+              "parameters": {
+                "min_histogram_threshold": 0.0,
+                "macd_indicator.fast_period": 8,
+                "macd_indicator.slow_period": 26,
+                "macd_indicator.signal_period": 7
+              },
+              "score": 0.0
+            },
+            {
+              "parameters": {
+                "min_histogram_threshold": 0.0,
+                "macd_indicator.fast_period": 8,
+                "macd_indicator.slow_period": 26,
+                "macd_indicator.signal_period": 9
+              },
+              "score": 0.0
+            },
+            {
+              "parameters": {
+                "min_histogram_threshold": 0.0,
+                "macd_indicator.fast_period": 12,
+                "macd_indicator.slow_period": 20,
+                "macd_indicator.signal_period": 7
+              },
+              "score": 0.0
+            },
+            {
+              "parameters": {
+                "min_histogram_threshold": 0.0,
+                "macd_indicator.fast_period": 12,
+                "macd_indicator.slow_period": 20,
+                "macd_indicator.signal_period": 9
+              },
+              "score": 0.0
+            },
+            {
+              "parameters": {
+                "min_histogram_threshold": 0.0,
+                "macd_indicator.fast_period": 12,
+                "macd_indicator.slow_period": 26,
+                "macd_indicator.signal_period": 7
+              },
+              "score": 0.0
+            },
+            {
+              "parameters": {
+                "min_histogram_threshold": 0.0,
+                "macd_indicator.fast_period": 12,
+                "macd_indicator.slow_period": 26,
+                "macd_indicator.signal_period": 9
+              },
+              "score": 0.0
+            },
+            {
+              "parameters": {
+                "min_histogram_threshold": 0.0001,
+                "macd_indicator.fast_period": 8,
+                "macd_indicator.slow_period": 20,
+                "macd_indicator.signal_period": 7
+              },
+              "score": 0.0
+            },
+            {
+              "parameters": {
+                "min_histogram_threshold": 0.0001,
+                "macd_indicator.fast_period": 8,
+                "macd_indicator.slow_period": 20,
+                "macd_indicator.signal_period": 9
+              },
+              "score": 0.0
+            },
+            {
+              "parameters": {
+                "min_histogram_threshold": 0.0001,
+                "macd_indicator.fast_period": 8,
+                "macd_indicator.slow_period": 26,
+                "macd_indicator.signal_period": 7
+              },
+              "score": 0.0
+            },
+            {
+              "parameters": {
+                "min_histogram_threshold": 0.0001,
+                "macd_indicator.fast_period": 8,
+                "macd_indicator.slow_period": 26,
+                "macd_indicator.signal_period": 9
+              },
+              "score": 0.0
+            },
+            {
+              "parameters": {
+                "min_histogram_threshold": 0.0001,
+                "macd_indicator.fast_period": 12,
+                "macd_indicator.slow_period": 20,
+                "macd_indicator.signal_period": 7
+              },
+              "score": 0.0
+            },
+            {
+              "parameters": {
+                "min_histogram_threshold": 0.0001,
+                "macd_indicator.fast_period": 12,
+                "macd_indicator.slow_period": 20,
+                "macd_indicator.signal_period": 9
+              },
+              "score": 0.0
+            },
+            {
+              "parameters": {
+                "min_histogram_threshold": 0.0001,
+                "macd_indicator.fast_period": 12,
+                "macd_indicator.slow_period": 26,
+                "macd_indicator.signal_period": 7
+              },
+              "score": 0.0
+            },
+            {
+              "parameters": {
+                "min_histogram_threshold": 0.0001,
+                "macd_indicator.fast_period": 12,
+                "macd_indicator.slow_period": 26,
+                "macd_indicator.signal_period": 9
+              },
+              "score": 0.0
+            },
+            {
+              "parameters": {
+                "min_histogram_threshold": 0.0002,
+                "macd_indicator.fast_period": 8,
+                "macd_indicator.slow_period": 20,
+                "macd_indicator.signal_period": 7
+              },
+              "score": 0.0
+            },
+            {
+              "parameters": {
+                "min_histogram_threshold": 0.0002,
+                "macd_indicator.fast_period": 8,
+                "macd_indicator.slow_period": 20,
+                "macd_indicator.signal_period": 9
+              },
+              "score": 0.0
+            },
+            {
+              "parameters": {
+                "min_histogram_threshold": 0.0002,
+                "macd_indicator.fast_period": 8,
+                "macd_indicator.slow_period": 26,
+                "macd_indicator.signal_period": 7
+              },
+              "score": 0.0
+            },
+            {
+              "parameters": {
+                "min_histogram_threshold": 0.0002,
+                "macd_indicator.fast_period": 8,
+                "macd_indicator.slow_period": 26,
+                "macd_indicator.signal_period": 9
+              },
+              "score": 0.0
+            },
+            {
+              "parameters": {
+                "min_histogram_threshold": 0.0002,
+                "macd_indicator.fast_period": 12,
+                "macd_indicator.slow_period": 20,
+                "macd_indicator.signal_period": 7
+              },
+              "score": 0.0
+            },
+            {
+              "parameters": {
+                "min_histogram_threshold": 0.0002,
+                "macd_indicator.fast_period": 12,
+                "macd_indicator.slow_period": 20,
+                "macd_indicator.signal_period": 9
+              },
+              "score": 0.0
+            },
+            {
+              "parameters": {
+                "min_histogram_threshold": 0.0002,
+                "macd_indicator.fast_period": 12,
+                "macd_indicator.slow_period": 26,
+                "macd_indicator.signal_period": 7
+              },
+              "score": 0.0
+            },
+            {
+              "parameters": {
+                "min_histogram_threshold": 0.0002,
+                "macd_indicator.fast_period": 12,
+                "macd_indicator.slow_period": 26,
+                "macd_indicator.signal_period": 9
+              },
+              "score": 0.0
+            }
+          ],
+          "regime_best_parameters": {},
+          "regime_statistics": {},
+          "timestamp": "2025-05-28T12:32:38.014551"
+        }
+      },
+      "timestamp": "2025-05-28T12:32:38.016813"
+    },
+    "optimize_weights": {
+      "status": "no_regime_params",
+      "message": "Weight optimization requires regime-specific parameters from previous steps"
+    },
+    "regime_optimization": {
+      "error": "Container not available"
+    },
+    "final_test_evaluation": {
+      "dataset": "test",
+      "results": {
+        "mode": "backtest",
+        "timestamp": "2025-05-28T12:32:38.123803",
+        "final_portfolio_value": 100145.02000000003,
+        "initial_portfolio_value": 100000,
+        "total_return": 0.0014502000000002901,
+        "realized_pnl": 145.0200000000109,
+        "unrealized_pnl": 0.0,
+        "current_cash": 100145.02000000003,
+        "current_holdings_value": 0.0,
+        "performance_metrics": {
+          "initial_value": 100000,
+          "final_value": 100145.02000000003,
+          "total_return": 0.0014502000000003318,
+          "total_return_pct": 0.14502000000003318,
+          "realized_pnl": 145.0200000000109,
+          "unrealized_pnl": 0.0,
+          "num_trades": 13,
+          "portfolio_sharpe_ratio": 33.777690294915395,
+          "regime_performance": {
+            "default": {
+              "pnl": 151.01000000001932,
+              "commission": 0.0,
+              "count": 12,
+              "wins": 9,
+              "losses": 3,
+              "pnl_values": [
+                13.50000000001046,
+                -11.999999999989086,
+                26.500000000010004,
+                32.50000000000455,
+                30.999999999994543,
+                -6.990000000007512,
+                9.999999999990905,
+                1.999999999998181,
+                32.000000000005,
+                12.999999999999545,
+                -1.999999999998181,
+                11.50000000000091
+              ],
+              "boundary_trade_count": 0,
+              "boundary_trades_pnl": 0.0,
+              "pure_regime_count": 12,
+              "pure_regime_pnl": 151.01000000001932,
+              "sharpe_ratio": 12.925508525901611,
+              "win_rate": 0.75,
+              "avg_pnl": 12.584166666668276,
+              "std_dev_pnl": 15.455287684940258,
+              "gross_pnl": 151.01000000001932,
+              "net_pnl": 151.01000000001932
+            },
+            "trending_up": {
+              "pnl": -5.990000000008422,
+              "commission": 0.0,
+              "count": 1,
+              "wins": 0,
+              "losses": 1,
+              "pnl_values": [
+                -5.990000000008422
+              ],
+              "boundary_trade_count": 0,
+              "boundary_trades_pnl": 0.0,
+              "pure_regime_count": 1,
+              "pure_regime_pnl": -5.990000000008422,
+              "sharpe_ratio": null,
+              "win_rate": 0.0,
+              "avg_pnl": -5.990000000008422,
+              "std_dev_pnl": 0.0,
+              "gross_pnl": -5.990000000008422,
+              "net_pnl": -5.990000000008422
+            },
+            "_boundary_trades_summary": {}
+          }
+        },
+        "regime_performance": {
+          "default": {
+            "pnl": 151.01000000001932,
+            "commission": 0.0,
+            "count": 12,
+            "wins": 9,
+            "losses": 3,
+            "pnl_values": [
+              13.50000000001046,
+              -11.999999999989086,
+              26.500000000010004,
+              32.50000000000455,
+              30.999999999994543,
+              -6.990000000007512,
+              9.999999999990905,
+              1.999999999998181,
+              32.000000000005,
+              12.999999999999545,
+              -1.999999999998181,
+              11.50000000000091
+            ],
+            "boundary_trade_count": 0,
+            "boundary_trades_pnl": 0.0,
+            "pure_regime_count": 12,
+            "pure_regime_pnl": 151.01000000001932,
+            "sharpe_ratio": 12.925508525901611,
+            "win_rate": 0.75,
+            "avg_pnl": 12.584166666668276,
+            "std_dev_pnl": 15.455287684940258,
+            "gross_pnl": 151.01000000001932,
+            "net_pnl": 151.01000000001932
+          },
+          "trending_up": {
+            "pnl": -5.990000000008422,
+            "commission": 0.0,
+            "count": 1,
+            "wins": 0,
+            "losses": 1,
+            "pnl_values": [
+              -5.990000000008422
+            ],
+            "boundary_trade_count": 0,
+            "boundary_trades_pnl": 0.0,
+            "pure_regime_count": 1,
+            "pure_regime_pnl": -5.990000000008422,
+            "sharpe_ratio": null,
+            "win_rate": 0.0,
+            "avg_pnl": -5.990000000008422,
+            "std_dev_pnl": 0.0,
+            "gross_pnl": -5.990000000008422,
+            "net_pnl": -5.990000000008422
+          },
+          "_boundary_trades_summary": {}
+        },
+        "strategy": "RegimeAdaptiveEnsembleComposed"
+      },
+      "timestamp": "2025-05-28T12:32:38.125934"
+    }
+  }
+}

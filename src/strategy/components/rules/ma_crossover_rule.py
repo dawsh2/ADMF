@@ -73,17 +73,30 @@ class MACrossoverRule(ComponentBase):
                 - signal: 1.0 for buy, -1.0 for sell, 0.0 for no signal
                 - strength: Confidence level of the signal (0.0 to 1.0)
         """
+        # Count evaluations for debugging
+        if not hasattr(self, '_eval_count'):
+            self._eval_count = 0
+        self._eval_count += 1
+        
         if not self.fast_ma or not self.fast_ma.ready or not self.slow_ma or not self.slow_ma.ready:
+            if self._eval_count <= 5:  # Log first few attempts
+                fast_ready = self.fast_ma.ready if self.fast_ma else "No fast_ma"
+                slow_ready = self.slow_ma.ready if self.slow_ma else "No slow_ma" 
+                self.logger.debug(f"MA Rule eval #{self._eval_count}: Not ready - Fast: {fast_ready}, Slow: {slow_ready}")
             return 0.0, 0.0
             
         # Validate that fast MA period is less than slow MA period
         if self.fast_ma.lookback_period >= self.slow_ma.lookback_period:
+            if self._eval_count <= 3:
+                self.logger.debug(f"MA Rule eval #{self._eval_count}: Invalid periods - Fast: {self.fast_ma.lookback_period}, Slow: {self.slow_ma.lookback_period}")
             return 0.0, 0.0
             
         fast_value = self.fast_ma.value
         slow_value = self.slow_ma.value
         
         if fast_value is None or slow_value is None:
+            if self._eval_count <= 5:
+                self.logger.debug(f"MA Rule eval #{self._eval_count}: Null values - Fast: {fast_value}, Slow: {slow_value}")
             return 0.0, 0.0
             
         # Initialize previous values on first call
@@ -97,6 +110,7 @@ class MACrossoverRule(ComponentBase):
                 self._current_position = -1
             else:
                 self._current_position = 0
+            self.logger.debug(f"MA Rule eval #{self._eval_count}: INITIALIZED - Fast: {fast_value:.4f}, Slow: {slow_value:.4f}, Position: {self._current_position}")
             return 0.0, 0.0
             
         signal = 0.0
@@ -142,6 +156,10 @@ class MACrossoverRule(ComponentBase):
             # signal_strength = 0.0
             # signal_type_str = "EXIT"
                 
+        # Log evaluation summary every 100 calls
+        if self._eval_count % 100 == 0:
+            self.logger.debug(f"MA Rule eval #{self._eval_count}: Fast: {fast_value:.4f}, Slow: {slow_value:.4f}, Diff: {curr_diff:.4f}, Signal: {signal}, Min_sep: {self.min_separation}")
+        
         # Update previous values
         self._prev_fast_value = fast_value
         self._prev_slow_value = slow_value
@@ -172,13 +190,17 @@ class MACrossoverRule(ComponentBase):
         
         if 'fast_ma.lookback_period' in params and self.fast_ma:
             fast_period = params['fast_ma.lookback_period']
+            old_fast_period = getattr(self.fast_ma, '_lookback_period', 'N/A')
             self.fast_ma.set_parameters({'lookback_period': fast_period})
-            self.logger.debug(f"Updated fast_ma lookback_period to {fast_period}")
+            new_fast_period = getattr(self.fast_ma, '_lookback_period', 'N/A')
+            self.logger.debug(f"MA Crossover: Updated fast_ma lookback_period from {old_fast_period} to {new_fast_period} (requested: {fast_period})")
             
         if 'slow_ma.lookback_period' in params and self.slow_ma:
             slow_period = params['slow_ma.lookback_period']
+            old_slow_period = getattr(self.slow_ma, '_lookback_period', 'N/A')
             self.slow_ma.set_parameters({'lookback_period': slow_period})
-            self.logger.debug(f"Updated slow_ma lookback_period to {slow_period}")
+            new_slow_period = getattr(self.slow_ma, '_lookback_period', 'N/A')
+            self.logger.debug(f"MA Crossover: Updated slow_ma lookback_period from {old_slow_period} to {new_slow_period} (requested: {slow_period})")
         
         # Validate MA periods if both are set
         if fast_period is not None and slow_period is not None:
